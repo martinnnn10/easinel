@@ -24,8 +24,24 @@ ENV PORT=3000
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/public ./public
-# Baked deploy config (durable Turso DB). Runtime env vars still override this.
-COPY --from=builder /app/.env ./.env
 
+# 12-factor: configuration comes from the runtime environment, NOT a baked file.
+# Provide DATABASE_URL / DATABASE_AUTH_TOKEN / ANTHROPIC_API_KEY (etc.) as deploy
+# env vars on Manus / Fly / Render / Cloud Run. See DEPLOY.md and .env.example.
+# Without a durable DATABASE_URL the app still boots (local file DB) but will not
+# persist across container restarts.
+
+# Run as a non-root user (least privilege).
+RUN addgroup --system --gid 1001 nodejs \
+  && adduser --system --uid 1001 nextjs \
+  && chown -R nextjs:nodejs /app
+USER nextjs
+
+ENV HOSTNAME=0.0.0.0
 EXPOSE 3000
+
+# Container-native healthcheck hits the liveness/readiness probe.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+  CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||3000)+'/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+
 CMD ["node", "server.js"]
