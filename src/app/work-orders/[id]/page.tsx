@@ -97,6 +97,10 @@ export default function WorkOrderDetailPage() {
   const [tab, setTab] = useState<"work" | "copilot">(searchParams.get("ask") === "1" ? "copilot" : "work");
   const [closeOut, setCloseOut] = useState(false);
   const [busy, setBusy] = useState(false);
+  // Errors from a lifecycle ACTION (transition/close-out), kept separate from the
+  // page-LOAD error so a failed action never blanks the page, and a stale load
+  // error never bleeds into the action UI.
+  const [actionError, setActionError] = useState<string | null>(null);
   const [pmState, setPmState] = useState<"idle" | "loading" | "done" | "error">("idle");
   const [pmMsg, setPmMsg] = useState("");
 
@@ -144,6 +148,10 @@ export default function WorkOrderDetailPage() {
     load();
   }, [load]);
 
+  // Drive a lifecycle transition. Returns true on success so callers (e.g. the
+  // close-out modal) can decide whether to dismiss. Guards against double-submit
+  // via `busy`, surfaces EVERY failure mode, and on failure leaves the UI exactly
+  // as it was (modal open, input preserved) so nothing is silently lost.
   const transition = async (
     to: string,
     extra: {
@@ -153,20 +161,30 @@ export default function WorkOrderDetailPage() {
       failedPart?: string;
       repairAction?: string;
     } = {}
-  ) => {
+  ): Promise<boolean> => {
+    if (busy) return false; // ignore re-entrant clicks
     setBusy(true);
+    setActionError(null);
     try {
       const r = await fetch(`/api/work-orders/${id}`, {
         method: "PATCH",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ status: to, ...extra }),
       });
-      if (r.status === 409) {
-        const d = await r.json();
-        setError(`That status change isn’t allowed (${d.message ?? "invalid transition"}).`);
+      if (!r.ok) {
+        const d = await r.json().catch(() => ({} as { message?: string }));
+        setActionError(
+          r.status === 409
+            ? `That status change isn’t allowed (${d.message ?? "invalid transition"}).`
+            : d.message || `Couldn’t update this work order (error ${r.status}). Please try again.`
+        );
+        return false;
       }
-      setCloseOut(false);
       await load();
+      return true;
+    } catch {
+      setActionError("Network error — check your connection and try again.");
+      return false;
     } finally {
       setBusy(false);
     }
@@ -229,7 +247,7 @@ export default function WorkOrderDetailPage() {
                       <button
                         key={a.to}
                         disabled={busy}
-                        onClick={() => setCloseOut(true)}
+                        onClick={() => { setActionError(null); setCloseOut(true); }}
                         className="text-[13px] font-medium px-4 py-2 rounded-lg bg-[var(--color-green)] text-white hover:brightness-110 disabled:opacity-40"
                       >
                         {a.label}
@@ -250,7 +268,9 @@ export default function WorkOrderDetailPage() {
                     )
                   )}
                 </div>
-                {error && wo && <p className="text-[12px] text-[var(--color-red)] mt-3">{error}</p>}
+                {actionError && (
+                  <p className="text-[12px] text-[var(--color-red)] mt-3" role="alert">{actionError}</p>
+                )}
               </div>
 
               {/* Tabs */}
@@ -397,16 +417,20 @@ export default function WorkOrderDetailPage() {
       {closeOut && wo && (
         <CloseOutModal
           busy={busy}
-          onClose={() => setCloseOut(false)}
-          onConfirm={(d) =>
-            transition("done", {
+          error={actionError}
+          onClose={() => { if (!busy) { setActionError(null); setCloseOut(false); } }}
+          onConfirm={async (d) => {
+            const ok = await transition("done", {
               resolution: d.resolution,
               rootCause: d.rootCause,
               failedPart: d.failedPart,
               repairAction: d.repairAction,
               note: "Closed out",
-            })
-          }
+            });
+            // Only dismiss on success — on failure the modal stays open with the
+            // error and the technician's typed close-out fully preserved.
+            if (ok) setCloseOut(false);
+          }}
         />
       )}
     </>
@@ -475,10 +499,12 @@ export interface CloseOutData {
 
 function CloseOutModal({
   busy,
+  error,
   onClose,
   onConfirm,
 }: {
   busy: boolean;
+  error?: string | null;
   onClose: () => void;
   onConfirm: (data: CloseOutData) => void;
 }) {
@@ -486,8 +512,22 @@ function CloseOutModal({
   const [rootCause, setRootCause] = useState("");
   const [failedPart, setFailedPart] = useState("");
   const [repairAction, setRepairAction] = useState("");
+
+  // Esc closes the modal (unless a submit is in flight).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape" && !busy) onClose(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [busy, onClose]);
+
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm grid place-items-end sm:place-items-center p-0 sm:p-4" onClick={onClose}>
+    <div
+      className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm grid place-items-end sm:place-items-center p-0 sm:p-4"
+      onClick={() => { if (!busy) onClose(); }}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Close out work order"
+    >
       <div
         className="w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5 fadeup max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
@@ -497,6 +537,11 @@ function CloseOutModal({
           This becomes the machine’s memory and the evidence for a preventive
           maintenance recommendation. Only the resolution is required.
         </p>
+        {error && (
+          <div className="mb-3 rounded-lg border border-[var(--color-red)]/40 bg-[var(--color-red)]/10 px-3 py-2 text-[12px] text-[var(--color-red)]" role="alert">
+            {error}
+          </div>
+        )}
         <div className="space-y-3">
           <Field label="What fixed it? (resolution) *">
             <textarea
