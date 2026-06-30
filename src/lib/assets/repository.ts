@@ -34,6 +34,8 @@ import {
   messages,
   workOrders,
   pmPrograms,
+  parts,
+  partAssetLinks,
   type Asset,
   type AssetPhoto,
   type AlarmEvent,
@@ -422,6 +424,16 @@ export interface PmProgramSummary {
   intervalDays: number | null;
 }
 
+export interface AssetPartSummary {
+  id: string;
+  description: string;
+  partNumber: string | null;
+  manufacturer: string | null;
+  category: string | null;
+  position: string | null;
+  criticalSpare: boolean;
+}
+
 export interface AssetDigitalTwin {
   asset: Asset;
   parent: Asset | null;
@@ -434,6 +446,7 @@ export interface AssetDigitalTwin {
   workOrders: WorkOrder[];
   alarmEvents: AlarmEvent[];
   pmPrograms: PmProgramSummary[];
+  parts: AssetPartSummary[];
   sessions: AssetSessionSummary[];
   metrics: ReliabilityMetrics;
 }
@@ -507,7 +520,7 @@ export async function getAssetDigitalTwin(
   const asset = await getAsset(orgId, assetId);
   if (!asset) return undefined;
 
-  const [photos, allDocs, wos, alarms, plc, sessionRows, children, ancestors, pmRows] = await Promise.all([
+  const [photos, allDocs, wos, alarms, plc, sessionRows, children, ancestors, pmRows, partRows] = await Promise.all([
     listAssetPhotos(orgId, assetId),
     db
       .select()
@@ -545,6 +558,21 @@ export async function getAssetDigitalTwin(
       .from(pmPrograms)
       .where(and(eq(pmPrograms.orgId, orgId), eq(pmPrograms.assetId, assetId)))
       .orderBy(desc(pmPrograms.updatedAt)),
+    // Parts used on this machine (and where) — powers the asset Parts tab.
+    db
+      .select({
+        id: parts.id,
+        description: parts.description,
+        partNumber: parts.partNumber,
+        manufacturer: parts.manufacturer,
+        category: parts.category,
+        criticalSpare: parts.criticalSpare,
+        position: partAssetLinks.position,
+      })
+      .from(partAssetLinks)
+      .innerJoin(parts, and(eq(partAssetLinks.partId, parts.id), eq(parts.orgId, orgId)))
+      .where(and(eq(partAssetLinks.orgId, orgId), eq(partAssetLinks.assetId, assetId)))
+      .orderBy(desc(partAssetLinks.createdAt)),
   ]);
   const parent = ancestors[0] ?? null;
 
@@ -576,6 +604,15 @@ export async function getAssetDigitalTwin(
       status: p.status,
       frequencyLabel: p.frequencyLabel ?? null,
       intervalDays: p.intervalDays ?? null,
+    })),
+    parts: partRows.map((p) => ({
+      id: p.id,
+      description: p.description,
+      partNumber: p.partNumber ?? null,
+      manufacturer: p.manufacturer ?? null,
+      category: p.category ?? null,
+      position: p.position ?? null,
+      criticalSpare: Boolean(p.criticalSpare),
     })),
     sessions,
     metrics: computeMetrics(alarms, wos),

@@ -83,6 +83,17 @@ export default function WorkOrdersPage() {
   const [debounced, setDebounced] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [showRequest, setShowRequest] = useState(false);
+  // Deep-link prefill (e.g. the asset page "Repair"/"Inspect" actions open the
+  // create form already scoped to that machine).
+  const [preset, setPreset] = useState<{ assetId?: string; type?: string }>({});
+
+  useEffect(() => {
+    const sp = new URLSearchParams(window.location.search);
+    if (sp.get("new")) {
+      setPreset({ assetId: sp.get("asset") || undefined, type: sp.get("type") || undefined });
+      setShowForm(true);
+    }
+  }, []);
 
   // Role / permissions (derived from /api/auth/me).
   const [role, setRole] = useState<string>("owner");
@@ -243,6 +254,8 @@ export default function WorkOrdersPage() {
 
       {showForm && (
         <NewWorkOrderModal
+          presetAssetId={preset.assetId}
+          presetType={preset.type}
           onClose={() => setShowForm(false)}
           onCreated={() => {
             setShowForm(false);
@@ -680,13 +693,13 @@ function ErrorState({ message, onRetry }: { message: string; onRetry: () => void
 
 // ───────────────────────── New work order (immediate) ─────────────────────────
 
-function NewWorkOrderModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+function NewWorkOrderModal({ onClose, onCreated, presetAssetId, presetType }: { onClose: () => void; onCreated: () => void; presetAssetId?: string; presetType?: string }) {
   const router = useRouter();
   const [form, setForm] = useState({
     symptom: "",
-    assetId: "",
+    assetId: presetAssetId ?? "",
     priority: "high",
-    type: "corrective",
+    type: presetType || "corrective",
   });
   const [assets, setAssets] = useState<AssetLite[]>([]);
   const [saving, setSaving] = useState(false);

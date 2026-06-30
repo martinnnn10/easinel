@@ -312,8 +312,33 @@ export async function generatePmProgram(
     effectiveInput = { ...input, assetId: created.id };
   }
 
-  const { identity, matchedAssetId } = await resolveIdentity(orgId, effectiveInput);
+  let { identity, matchedAssetId } = await resolveIdentity(orgId, effectiveInput);
   const type = detectType(identity);
+
+  // Asset-first rule (no exceptions): a PM must belong to a machine. If the
+  // supplied identity matched no existing asset and the caller didn't explicitly
+  // create one, register the machine NOW from its nameplate identity so the
+  // generated PMs link to a real asset instead of being orphaned ("Unassigned").
+  // The maintenance object model always starts with the machine.
+  if (!matchedAssetId) {
+    const created = await createAsset(
+      orgId,
+      {
+        name:
+          identity.name ||
+          [identity.manufacturer, identity.model].filter(Boolean).join(" ") ||
+          identity.serialNumber ||
+          `New ${type === "general" ? "machine" : type}`,
+        manufacturer: identity.manufacturer ?? null,
+        model: identity.model ?? null,
+        serialNumber: identity.serialNumber ?? null,
+        assetType: identity.assetType ?? (type === "general" ? null : type),
+      },
+      actor
+    );
+    matchedAssetId = created.id;
+    identity = { ...identity, assetId: created.id, name: created.name };
+  }
 
   // ── Grounding 1: retrieve PM docs / OEM manuals for this machine. ──
   const query = [

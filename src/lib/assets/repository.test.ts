@@ -19,6 +19,7 @@ import {
   getAssetDigitalTwin,
   buildAssetContext,
 } from "./repository";
+import { createPart, linkAsset } from "@/lib/parts/repository";
 const ORG = "org_test";
 
 const DAY = 86400_000;
@@ -85,6 +86,18 @@ describe("asset repository", () => {
     expect(twin!.metrics.daysSinceLastFault).toBeGreaterThanOrEqual(9);
     // suggested PM interval derived from MTBF/2
     expect(twin!.metrics.suggestedPMIntervalDays).toBeGreaterThanOrEqual(7);
+  });
+
+  it("digital twin includes parts linked to the machine (and where used)", async () => {
+    const a = await createAsset(ORG, { name: "Parts Twin Asset" });
+    const part = await createPart(ORG, { description: "SKF 6204 bearing", partNumber: "SKF-6204" });
+    await linkAsset(ORG, part.id, a.id, "drive-end bearing");
+
+    const twin = await getAssetDigitalTwin(ORG, a.id);
+    expect(twin!.parts.length).toBe(1);
+    expect(twin!.parts[0].partNumber).toBe("SKF-6204");
+    expect(twin!.parts[0].position).toBe("drive-end bearing");
+    expect(twin!.parts[0].criticalSpare).toBe(false);
   });
 
   it("adds a photo and sets it as the primary image when none exists", async () => {

@@ -4,21 +4,23 @@
 @theme {
   /* Professional enterprise dark slate — neutral, flat, high-contrast.
      Inspired by Linear / Vercel / Datadog dashboards rather than a glowing
-     consumer "AI" page. Cooler graphite base, restrained borders. */
-  --color-bg: #0b0d12;
-  --color-bg-2: #0e1117;
-  --color-surface: #141821;
-  --color-surface-2: #1b202b;
-  --color-border: #262c39;
-  --color-border-soft: #1b212c;
-  --color-text: #eceff4;
-  --color-muted: #9aa4b6;
-  --color-faint: #616b7e;
-  --color-accent: #4a8cff;
-  --color-accent-soft: #15325a;
-  --color-amber: #f5b13d;
-  --color-green: #36d39a;
-  --color-red: #f06c84;
+     consumer "AI" page. Refined deep navy-graphite base with restrained chrome:
+     a touch deeper and cooler than before, calmer borders, and a single, clean
+     azure accent so the UI reads as a serious operations console. */
+  --color-bg: #090b10;
+  --color-bg-2: #0c0f16;
+  --color-surface: #11151d;
+  --color-surface-2: #181d28;
+  --color-border: #232a37;
+  --color-border-soft: #181e28;
+  --color-text: #eef1f7;
+  --color-muted: #97a2b5;
+  --color-faint: #5c6678;
+  --color-accent: #4d87f5;
+  --color-accent-soft: #16315a;
+  --color-amber: #f0b24a;
+  --color-green: #34d39a;
+  --color-red: #ef6480;
 
   --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
     Helvetica, Arial, sans-serif;
@@ -36,16 +38,18 @@ body {
 }
 
 body {
-  /* Flat, structured enterprise surface: a deep graphite base with a very
-     faint engineering grid and a barely-there vertical tone shift. No colored
-     glow — this should feel like a serious operations console, not a chatbot. */
+  /* Flat, structured enterprise surface: a deep graphite base with a calm
+     engineering grid and a barely-there vertical tone shift. A single neutral
+     highlight at the top adds quiet depth — no colored glow. This should feel
+     like a serious operations console, not a chatbot. */
   background-color: var(--color-bg);
   background-image:
-    linear-gradient(to bottom, var(--color-bg-2) 0%, var(--color-bg) 38%),
-    linear-gradient(rgba(255, 255, 255, 0.018) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.018) 1px, transparent 1px);
-  background-size: 100% 100%, 44px 44px, 44px 44px;
-  background-position: 0 0, 0 0, 0 0;
+    radial-gradient(120% 80% at 50% -10%, rgba(120, 150, 210, 0.05) 0%, transparent 60%),
+    linear-gradient(to bottom, var(--color-bg-2) 0%, var(--color-bg) 46%),
+    linear-gradient(rgba(255, 255, 255, 0.012) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.012) 1px, transparent 1px);
+  background-size: 100% 100%, 100% 100%, 56px 56px, 56px 56px;
+  background-position: 0 0, 0 0, 0 0, 0 0;
   background-attachment: fixed;
   color: var(--color-text);
   font-family: var(--font-sans);
@@ -63,12 +67,12 @@ body {
   height: 10px;
 }
 ::-webkit-scrollbar-thumb {
-  background: #262c38;
+  background: #232a37;
   border-radius: 8px;
   border: 2px solid var(--color-bg);
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #313a4a;
+  background: #2f3848;
 }
 
 /* ───────────────────────── Markdown answer styling ───────────────────────── */

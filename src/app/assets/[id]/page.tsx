@@ -26,11 +26,12 @@ interface Metrics {
   daysSinceLastFault: number | null; suggestedPMIntervalDays: number | null;
 }
 interface PmSummary { id: string; title: string; status: string; frequencyLabel?: string | null; intervalDays?: number | null; }
+interface PartRow { id: string; description: string; partNumber?: string | null; manufacturer?: string | null; category?: string | null; position?: string | null; criticalSpare?: boolean; }
 interface Twin {
   asset: Asset; parent?: Asset | null; children?: Asset[]; ancestors?: Asset[];
   photos: Photo[]; documents: Doc[]; lessons: Doc[];
   plcProjects: Plc[]; workOrders: Wo[]; alarmEvents: Alarm[];
-  pmPrograms?: PmSummary[]; sessions: Sess[]; metrics: Metrics;
+  pmPrograms?: PmSummary[]; parts?: PartRow[]; sessions: Sess[]; metrics: Metrics;
 }
 
 const statusStyle: Record<string, { label: string; dot: string; color: string }> = {
@@ -43,7 +44,7 @@ const statusStyle: Record<string, { label: string; dot: string; color: string }>
 const sevColor: Record<string, string> = { info: "#60a5fa", warning: "#f59e0b", fault: "#ef4444", critical: "#dc2626" };
 const kindIcon: Record<string, string> = { manual: "📘", drawing: "📐", plc: "🧩", photo: "📷", alarm: "🚨", vibration: "📊", sop: "📋", lesson: "🧠", document: "📄" };
 
-type Tab = "overview" | "documents" | "plc" | "workorders" | "alarms" | "sessions" | "ai";
+type Tab = "overview" | "pms" | "parts" | "workorders" | "failures" | "documents" | "lessons" | "plc" | "alarms" | "sessions" | "ai";
 
 export default function AssetPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -88,14 +89,22 @@ export default function AssetPage({ params }: { params: Promise<{ id: string }> 
   const ancestors = twin.ancestors ?? [];
   const children = twin.children ?? [];
   const pmPrograms = twin.pmPrograms ?? [];
+  const parts = twin.parts ?? [];
+  // Failures = the machine's real failure record: corrective WOs with a captured
+  // root cause / failed part, plus fault & critical alarms.
+  const failureWos = wos.filter((w) => w.type === "corrective");
   const st = statusStyle[asset.status ?? "operational"] ?? statusStyle.operational;
   const loc = [asset.site, asset.area, asset.line, asset.cell].filter(Boolean).join(" / ");
 
   const tabs: [Tab, string, number?][] = [
     ["overview", "Overview"],
-    ["documents", "Documents", docs.length + lessons.length],
-    ["plc", "PLC", plcProjects.length],
+    ["pms", "PMs", pmPrograms.length],
+    ["parts", "Parts", parts.length],
     ["workorders", "Work Orders", wos.length],
+    ["failures", "Failures", failureWos.length],
+    ["documents", "Drawings & Docs", docs.length],
+    ["lessons", "Lessons", lessons.length],
+    ["plc", "PLC", plcProjects.length],
     ["alarms", "Alarms", alarms.length],
     ["sessions", "Sessions", sessions.length],
     ["ai", "Ask AI"],
@@ -168,6 +177,9 @@ export default function AssetPage({ params }: { params: Promise<{ id: string }> 
           </div>
         )}
 
+        {/* Machine action hub — what a tech actually does at the machine. */}
+        <ActionHub assetId={id} setTab={setTab} />
+
         {/* Tabs */}
         <div className="mt-5 flex gap-1 border-b border-[var(--color-border)] overflow-x-auto">
           {tabs.map(([t, label, count]) => (
@@ -184,8 +196,12 @@ export default function AssetPage({ params }: { params: Promise<{ id: string }> 
         </div>
 
         <div className="py-5">
-          {tab === "overview" && <Overview asset={asset} metrics={metrics} parent={twin.parent ?? null} children={children} pmPrograms={pmPrograms} />}
-          {tab === "documents" && <Documents assetId={id} docs={docs} lessons={lessons} onUpload={load} />}
+          {tab === "overview" && <Overview assetId={id} asset={asset} metrics={metrics} parent={twin.parent ?? null} children={children} pmPrograms={pmPrograms} onChanged={load} />}
+          {tab === "pms" && <PmPrograms assetId={id} pmPrograms={pmPrograms} onChanged={load} />}
+          {tab === "parts" && <Parts parts={parts} />}
+          {tab === "failures" && <Failures wos={failureWos} alarms={alarms} />}
+          {tab === "documents" && <Documents assetId={id} docs={docs} lessons={[]} onUpload={load} />}
+          {tab === "lessons" && <Lessons lessons={lessons} />}
           {tab === "plc" && <PlcList projects={plcProjects} />}
           {tab === "workorders" && <WorkOrders assetId={id} wos={wos} />}
           {tab === "alarms" && <Alarms assetId={id} alarms={alarms} onAdd={load} />}
@@ -269,7 +285,7 @@ function PrimaryPhoto({ assetId, photos, hasImage, onChange }: { assetId: string
   );
 }
 
-function Overview({ asset, metrics, parent, children, pmPrograms }: { asset: Asset; metrics: Metrics; parent: Asset | null; children: Asset[]; pmPrograms: PmSummary[] }) {
+function Overview({ assetId, asset, metrics, parent, children, pmPrograms, onChanged }: { assetId: string; asset: Asset; metrics: Metrics; parent: Asset | null; children: Asset[]; pmPrograms: PmSummary[]; onChanged: () => void }) {
   return (
     <div className="space-y-4">
       {/* Asset hierarchy: parent + children */}
@@ -305,24 +321,9 @@ function Overview({ asset, metrics, parent, children, pmPrograms }: { asset: Ass
         </div>
       </div>
 
-      {/* Related PM programs */}
-      <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-3">
-        <h3 className="text-[12px] uppercase tracking-wide text-[var(--color-muted)] mb-2">PM programs</h3>
-        {pmPrograms.length === 0 ? (
-          <p className="text-[12px] text-[var(--color-faint)]">No PM programs linked. Generate one from the <Link href="/pm" className="text-[var(--color-accent)] hover:underline">PM page</Link>.</p>
-        ) : (
-          <ul className="space-y-1">
-            {pmPrograms.map((p) => (
-              <li key={p.id}>
-                <Link href={`/pm/${p.id}`} className="flex items-center justify-between gap-2 text-[13px] rounded-md px-2 py-1.5 hover:bg-[var(--color-surface-2)]">
-                  <span className="truncate">{p.title}</span>
-                  <span className="shrink-0 text-[11px] text-[var(--color-muted)]">{p.frequencyLabel || (p.intervalDays ? `${p.intervalDays}d` : "")} · {p.status}</span>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
+      {/* Related PM programs — generated FROM this machine (asset-first). */}
+      <PmPrograms assetId={assetId} pmPrograms={pmPrograms} onChanged={onChanged} />
+
 
       <div>
         <h3 className="text-[12px] uppercase tracking-wide text-[var(--color-muted)] mb-1">Notes</h3>
@@ -342,6 +343,161 @@ function Overview({ asset, metrics, parent, children, pmPrograms }: { asset: Ass
 
 function EmptyRow({ children }: { children: React.ReactNode }) {
   return <p className="text-[13px] text-[var(--color-faint)] py-6 text-center">{children}</p>;
+}
+
+// The action menu a technician reaches for once they're AT the machine. Repair
+// and Inspect open a work order already scoped to this asset; the rest jump to
+// the machine's own PMs, history, drawings, PLC, and parts.
+function ActionHub({ assetId, setTab }: { assetId: string; setTab: (t: Tab) => void }) {
+  const linkCls =
+    "flex items-center gap-1.5 text-[13px] font-medium rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 hover:border-[var(--color-accent)]/60 hover:bg-[var(--color-surface-2)] transition whitespace-nowrap";
+  return (
+    <div className="mt-5 flex flex-wrap gap-2">
+      <Link href={`/work-orders?asset=${assetId}&type=corrective&new=1`} className={`${linkCls} text-[var(--color-text)]`}>🔧 Repair</Link>
+      <Link href={`/work-orders?asset=${assetId}&type=inspection&new=1`} className={linkCls}>🔍 Inspect</Link>
+      <button onClick={() => setTab("pms")} className={linkCls}>📅 Create PM</button>
+      <button onClick={() => setTab("workorders")} className={linkCls}>🗂️ View History</button>
+      <button onClick={() => setTab("documents")} className={linkCls}>📐 View Drawings</button>
+      <button onClick={() => setTab("plc")} className={linkCls}>🧩 View PLC</button>
+      <button onClick={() => setTab("parts")} className={linkCls}>⚙️ Find Parts</button>
+    </div>
+  );
+}
+
+// Parts used on this machine (and where). Read-only roll-up of part↔asset links.
+function Parts({ parts }: { parts: PartRow[] }) {
+  if (parts.length === 0)
+    return <EmptyRow>No parts linked to this machine yet. Link parts from the <Link href="/parts" className="text-[var(--color-accent)] hover:underline">Parts</Link> catalog to build its bill of materials.</EmptyRow>;
+  return (
+    <div className="space-y-1">
+      {parts.map((p) => (
+        <Link key={p.id} href={`/parts/${p.id}`} className="flex items-center gap-2 text-[13px] rounded-lg px-3 py-2 hover:bg-[var(--color-surface-2)]">
+          <span>⚙️</span>
+          <span className="truncate flex-1">{p.description}</span>
+          {p.position && <span className="text-[11px] text-[var(--color-muted)] truncate">{p.position}</span>}
+          {p.partNumber && <span className="font-mono text-[11px] text-[var(--color-faint)]">{p.partNumber}</span>}
+          {p.criticalSpare && <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded-full text-[var(--color-amber)] bg-[var(--color-surface-2)]">critical</span>}
+        </Link>
+      ))}
+    </div>
+  );
+}
+
+// This machine's failure record: corrective repairs (with captured root cause /
+// failed part) and fault/critical alarms — the raw material the PM loop learns from.
+function Failures({ wos, alarms }: { wos: Wo[]; alarms: Alarm[] }) {
+  const faults = alarms.filter((a) => a.severity === "fault" || a.severity === "critical");
+  if (wos.length === 0 && faults.length === 0)
+    return <EmptyRow>No recorded failures for this machine. Corrective work orders and fault alarms will appear here.</EmptyRow>;
+  return (
+    <div className="space-y-4">
+      {wos.length > 0 && (
+        <div>
+          <h3 className="text-[12px] uppercase tracking-wide text-[var(--color-muted)] mb-2">Corrective repairs</h3>
+          <div className="space-y-1">
+            {wos.map((w) => (
+              <Link key={w.id} href={`/work-orders/${w.id}`} className="flex items-center gap-2 text-[13px] rounded-lg px-3 py-2 hover:bg-[var(--color-surface-2)]">
+                {w.number && <span className="font-mono text-[10px] text-[var(--color-faint)]">{w.number}</span>}
+                <span className="truncate flex-1">{w.title}</span>
+                <span className="text-[10px] uppercase text-[var(--color-faint)]">{w.status}</span>
+                {w.createdAt && <span className="text-[10px] text-[var(--color-faint)]">{new Date(w.createdAt).toISOString().slice(0, 10)}</span>}
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
+      {faults.length > 0 && (
+        <div>
+          <h3 className="text-[12px] uppercase tracking-wide text-[var(--color-muted)] mb-2">Fault & critical alarms</h3>
+          <div className="space-y-1">
+            {faults.map((a) => (
+              <div key={a.id} className="flex items-center gap-2 text-[13px] rounded-lg px-3 py-2 hover:bg-[var(--color-surface-2)]">
+                <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: sevColor[a.severity] ?? "#888" }} />
+                {a.code && <span className="font-mono text-[11px] text-[var(--color-faint)]">{a.code}</span>}
+                <span className="truncate flex-1">{a.message}</span>
+                <span className="text-[10px] text-[var(--color-faint)]">{new Date(a.occurredAt).toISOString().slice(0, 10)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Lessons learned captured against this machine (uploaded as kind=lesson).
+function Lessons({ lessons }: { lessons: Doc[] }) {
+  if (lessons.length === 0)
+    return <EmptyRow>No lessons learned recorded for this machine yet. Capture what a tech should know next time a failure is closed out.</EmptyRow>;
+  return (
+    <div className="space-y-1">
+      {lessons.map((d) => (
+        <div key={d.id} className="flex items-center gap-2 text-[13px] rounded-lg px-3 py-2 hover:bg-[var(--color-surface-2)]">
+          <span>🧠</span>
+          <span className="truncate flex-1">{d.filename}</span>
+          {d.createdAt && <span className="text-[10px] text-[var(--color-faint)]">{new Date(d.createdAt).toISOString().slice(0, 10)}</span>}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// PM programs for THIS machine. The maintenance object model starts with the
+// asset, so PMs are generated FROM here (asset → PM), not from a standalone PM
+// screen. Generation links every cadence to this asset — never an orphan PM.
+function PmPrograms({ assetId, pmPrograms, onChanged }: { assetId: string; pmPrograms: PmSummary[]; onChanged: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string>("");
+  const generate = async () => {
+    setBusy(true);
+    setMsg("");
+    try {
+      const res = await fetch("/api/pm/generate", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ assetId }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Generation failed");
+      setMsg(data.note || "Draft PM programs generated. Review and approve below.");
+      onChanged();
+    } catch (e) {
+      setMsg((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-3">
+      <div className="flex items-center justify-between gap-2 mb-2">
+        <h3 className="text-[12px] uppercase tracking-wide text-[var(--color-muted)]">PM programs</h3>
+        <button
+          onClick={generate}
+          disabled={busy}
+          className="text-[12px] font-medium rounded-lg bg-[var(--color-accent)] text-white px-3 py-1.5 hover:brightness-110 disabled:opacity-50"
+        >
+          {busy ? "Generating…" : "⚙️ Generate PM program"}
+        </button>
+      </div>
+      {pmPrograms.length === 0 ? (
+        <p className="text-[12px] text-[var(--color-faint)]">
+          No PM programs yet. Generate a full 30/60/90-day, semi-annual &amp; annual schedule for this machine — each cadence is saved as a DRAFT for a manager to approve.
+        </p>
+      ) : (
+        <ul className="space-y-1">
+          {pmPrograms.map((p) => (
+            <li key={p.id}>
+              <Link href={`/pm/${p.id}`} className="flex items-center justify-between gap-2 text-[13px] rounded-md px-2 py-1.5 hover:bg-[var(--color-surface-2)]">
+                <span className="truncate">{p.title}</span>
+                <span className="shrink-0 text-[11px] text-[var(--color-muted)]">{p.frequencyLabel || (p.intervalDays ? `${p.intervalDays}d` : "")} · {p.status}</span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+      {msg && <p className="text-[12px] text-[var(--color-green)] mt-2 leading-snug">{msg}</p>}
+    </div>
+  );
 }
 
 function Documents({ assetId, docs, lessons, onUpload }: { assetId: string; docs: Doc[]; lessons: Doc[]; onUpload: () => void }) {

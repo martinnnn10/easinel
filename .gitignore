@@ -9,7 +9,12 @@ build
 local.db*
 .env
 .env.local
+.env*.local
 uploads
 .DS_Store
 *.log
 next-env.d.ts
+
+# TypeScript incremental build info
+tsconfig.tsbuildinfo
+*.tsbuildinfo

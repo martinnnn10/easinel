@@ -82,6 +82,16 @@ export async function createProgram(
   actor = "system"
 ): Promise<PmProgram> {
   if (!orgId) throw new Error("createProgram() requires orgId");
+  // Asset-first rule (no exceptions): a PM is always preventive maintenance OF a
+  // machine. It must belong to an asset/component/system. Orphan PMs ("Annual PM
+  // · Unassigned") are not allowed — the caller must resolve or create the asset
+  // first. Enforced HERE, at the single PM data-access point, so every code path
+  // (generation, manual create, work-order suggestion) is held to the same rule.
+  if (!input.assetId) {
+    throw new Error(
+      "A PM program must belong to an asset. Identify, scan, or create the machine first — orphan PMs are not allowed."
+    );
+  }
   await ensureDb();
   const pmId = id("pm");
   await db.insert(pmPrograms).values({
