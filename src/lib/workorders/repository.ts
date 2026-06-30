@@ -35,6 +35,7 @@ import {
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { id } from "@/lib/util";
 import { emitEvent, audit } from "@/lib/events";
+import { captureWorkOrderMemory } from "@/lib/workorders/memory";
 
 // ───────────────────────── State machine ─────────────────────────
 
@@ -530,10 +531,19 @@ export async function transitionWorkOrder(
   await emitEvent(orgId, "workorder.updated", { id: woId, status: toStatus, from });
   await audit(orgId, actor, "workorder.status_changed", woId, { from, to: toStatus });
 
-  // Moat-aware OEM signal on close of a corrective work order (Decision 3).
+  // On close of a corrective work order, run the two knowledge-loop side effects.
+  // Both are best-effort: a failure to pool a signal or index a memory must never
+  // block or fail the technician's close-out.
   if (toStatus === "done" && row && row.type === "corrective") {
+    // (1) Moat-aware anonymized OEM signal (Decision 3).
     await emitFailureSignal(orgId, row).catch(() => {
       /* signal emission must never block the daily loop */
+    });
+    // (2) Maintenance Memory (Slice 4): distill the resolved failure into a
+    //     retrievable lesson so the next technician's Copilot can cite it.
+    const label = await assetLabelFor(orgId, row.assetId);
+    await captureWorkOrderMemory(orgId, row, label).catch(() => {
+      /* memory capture must never block the daily loop */
     });
   }
 
@@ -584,6 +594,27 @@ export async function deleteWorkOrder(
   await emitEvent(orgId, "workorder.updated", { id: woId, deleted: true });
   await audit(orgId, actor, "workorder.deleted", woId, { number: existing.number });
   return true;
+}
+
+// A short human label for a machine ("Name [TAG] — site / area"), used only in
+// the captured memory's document body. Returns null when there is no asset.
+async function assetLabelFor(orgId: string, assetId: string | null): Promise<string | null> {
+  if (!assetId) return null;
+  const rows = await db
+    .select({
+      name: assets.name,
+      assetTag: assets.assetTag,
+      site: assets.site,
+      area: assets.area,
+    })
+    .from(assets)
+    .where(and(eq(assets.orgId, orgId), eq(assets.id, assetId)));
+  const a = rows[0];
+  if (!a) return null;
+  const loc = [a.site, a.area].filter(Boolean).join(" / ");
+  return (
+    `${a.name}${a.assetTag ? ` [${a.assetTag}]` : ""}${loc ? ` — ${loc}` : ""}` || null
+  );
 }
 
 // ───────────────────────── Moat: OEM failure signal ─────────────────────────
