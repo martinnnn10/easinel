@@ -15,13 +15,23 @@ import {
 } from "./repository";
 
 const ORG = "org_test";
+// Every PM must belong to a machine (asset-first rule). The lifecycle tests are
+// about draft→active→complete→archive, so a stable asset id is reused throughout.
+const ASSET = "asset_test_line3";
 
 describe("PM program lifecycle", () => {
+  it("rejects an orphan PM — a program with no asset cannot be created", async () => {
+    await expect(
+      createProgram(ORG, { title: "Annual PM", intervalDays: 365 }, "mgr")
+    ).rejects.toThrow(/belong to an asset/i);
+  });
+
   it("AI-suggested programs are created as draft, never auto-active", async () => {
     const pm = await createProgram(
       ORG,
       {
         title: "PM — bearing seizure (Line 3)",
+        assetId: ASSET,
         failureMode: "bearing seizure",
         intervalDays: 90,
         source: "ai_suggested",
@@ -40,7 +50,7 @@ describe("PM program lifecycle", () => {
   });
 
   it("approval activates the program and creates a future-dated schedule", async () => {
-    const pm = await createProgram(ORG, { title: "PM — monthly belt check", intervalDays: 30 }, "mgr");
+    const pm = await createProgram(ORG, { title: "PM — monthly belt check", assetId: ASSET, intervalDays: 30 }, "mgr");
     const approved = await approveProgram(ORG, pm.id, "manager@plant.com");
     expect(approved?.status).toBe("active");
     expect(approved?.approvedBy).toBe("manager@plant.com");
@@ -59,7 +69,7 @@ describe("PM program lifecycle", () => {
   });
 
   it("recording a completion advances the next due date", async () => {
-    const pm = await createProgram(ORG, { title: "PM — quarterly inspection", intervalDays: 90 }, "mgr");
+    const pm = await createProgram(ORG, { title: "PM — quarterly inspection", assetId: ASSET, intervalDays: 90 }, "mgr");
     await approveProgram(ORG, pm.id, "mgr");
     const before = (await getProgram(ORG, pm.id))?.schedule?.nextDueAt ?? 0;
     await recordCompletion(ORG, pm.id, { status: "done", completedBy: "tech@plant.com" }, "tech@plant.com");
@@ -70,7 +80,7 @@ describe("PM program lifecycle", () => {
   });
 
   it("archiving deactivates the schedule", async () => {
-    const pm = await createProgram(ORG, { title: "PM — to archive", intervalDays: 30 }, "mgr");
+    const pm = await createProgram(ORG, { title: "PM — to archive", assetId: ASSET, intervalDays: 30 }, "mgr");
     await approveProgram(ORG, pm.id, "mgr");
     await archiveProgram(ORG, pm.id, "mgr");
     const detail = await getProgram(ORG, pm.id);

@@ -23,6 +23,14 @@ export async function POST(req: NextRequest) {
   if (!body.title) {
     return NextResponse.json({ error: "title required" }, { status: 400 });
   }
+  // Asset-first rule: a PM must belong to a machine. Reject orphan PMs at the
+  // edge with an actionable message instead of letting the repository throw.
+  if (!body.assetId) {
+    return NextResponse.json(
+      { error: "A PM must belong to a machine. Select or create the asset first, then attach the PM to it." },
+      { status: 400 }
+    );
+  }
   const program = await createProgram(
     gate.user.orgId,
     {

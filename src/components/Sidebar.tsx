@@ -4,12 +4,15 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 
-// Focused navigation: the daily maintenance loop. Future modules (Workforce,
-// Integrations, Analytics) are built but intentionally hidden until functional.
+// Asset-first navigation: maintenance departments organize work around the
+// MACHINE, not around record types. Equipment leads; everything else (work
+// orders, PMs, parts, knowledge, PLC) hangs off the machine you're working on.
+// Future modules (Workforce, Integrations, Analytics) are built but hidden until
+// functional.
 const nav = [
+  { href: "/assets", label: "Equipment", icon: CubeIcon },
   { href: "/", label: "Copilot", icon: SparkIcon },
   { href: "/sessions", label: "Sessions", icon: PulseIcon },
-  { href: "/assets", label: "Equipment", icon: CubeIcon },
   { href: "/work-orders", label: "Work Orders", icon: WrenchIcon },
   { href: "/pm", label: "PM Program", icon: CalendarIcon },
   { href: "/parts", label: "Parts", icon: BoltIcon },

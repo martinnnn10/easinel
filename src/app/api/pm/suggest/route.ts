@@ -20,6 +20,15 @@ export async function POST(req: NextRequest) {
   if (!suggestion) {
     return NextResponse.json({ error: "work order not found" }, { status: 404 });
   }
+  // Asset-first rule: a PM must belong to a machine. A work order with no asset
+  // can't become a PM until it's linked to one — guide the user there instead of
+  // silently creating an orphan PM.
+  if (!suggestion.assetId) {
+    return NextResponse.json(
+      { error: "This work order isn't linked to a machine. Assign an asset to the work order first, then turn it into a PM." },
+      { status: 422 }
+    );
+  }
   const program = await createProgram(gate.user.orgId, suggestion, gate.user.email);
   return NextResponse.json({ program, confidence: suggestion.confidence, evidenceCount: suggestion.evidenceCount }, { status: 201 });
 }

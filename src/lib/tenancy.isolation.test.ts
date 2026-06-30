@@ -57,7 +57,7 @@ describe("multi-tenant data isolation (the core enterprise guarantee)", () => {
 
     const pm = await createProgram(
       ORG_A,
-      { title: "Alpha quarterly lube", intervalDays: 90 },
+      { title: "Alpha quarterly lube", assetId: assetA, intervalDays: 90 },
       "mgr@alpha.com"
     );
     pmA = pm.id;

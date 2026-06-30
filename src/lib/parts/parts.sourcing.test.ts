@@ -139,7 +139,7 @@ describe("Parts Sourcing — work order & PM linkage (Field Memory)", () => {
   it("PM links surface in Field Memory; asset links record where used", async () => {
     const A = freshOrg();
     const part = await createPart(A, { description: "Inspected belt", category: "Belt" });
-    const pm = await createProgram(A, { title: "Monthly belt check", intervalDays: 30 }, "mgr");
+    const pm = await createProgram(A, { title: "Monthly belt check", assetId: "asset_belt", intervalDays: 30 }, "mgr");
     await linkPm(A, part.id, pm.id);
     await linkAsset(A, part.id, "asset_xyz", "main drive");
     const mem = await getFieldMemory(A, part.id);

@@ -40,7 +40,11 @@ describe("AI PM-program generator", () => {
       expect(c.programId).toBeTruthy();
     }
 
-    // All five were persisted as DRAFTS (nothing auto-activated).
+    // Asset-first rule: even from free text that matches no existing machine, a
+    // machine record is created and ALL five PMs link to it — never orphaned.
+    expect(res.matchedAssetId).toBeTruthy();
+
+    // All five were persisted as DRAFTS (nothing auto-activated) and linked.
     const programs = await listPrograms(ORG);
     const generated = programs.filter((p) =>
       res.cadences.some((c) => c.programId === p.id)
@@ -49,6 +53,7 @@ describe("AI PM-program generator", () => {
     for (const p of generated) {
       expect(p.status).toBe("draft");
       expect(p.source).toBe("ai_suggested");
+      expect(p.assetId).toBe(res.matchedAssetId); // no orphan PMs
     }
   });
 

@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import Link from "next/link";
 import { TopBar } from "@/components/TopBar";
+import { GuidedPmBuilder } from "@/components/GuidedPmBuilder";
 
 interface PmItem {
   id: string;
@@ -308,18 +309,21 @@ export default function PmPage() {
       />
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-4xl mx-auto px-5 py-6">
-          {/* ── Generate PM Program ── */}
+          {/* ── Primary: guided, machine-first PM builder ── */}
+          <GuidedPmBuilder onGenerated={load} />
+
+          {/* ── Advanced: free-text generate / upload a PM document ── */}
           <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] mb-5 overflow-hidden">
             <button
               onClick={() => setShowGen((v) => !v)}
               className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-[var(--color-surface-2)]/50 transition"
             >
               <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-lg bg-[var(--color-accent)]/10 grid place-items-center text-[var(--color-accent)]">⚙️</div>
+                <div className="w-8 h-8 rounded-lg bg-[var(--color-surface-2)] grid place-items-center text-[var(--color-muted)]">⚙️</div>
                 <div>
-                  <div className="text-[14px] font-semibold">Generate a PM program from a machine</div>
+                  <div className="text-[14px] font-semibold">Advanced: generate from model/serial or a document</div>
                   <div className="text-[12px] text-[var(--color-muted)]">
-                    Enter a model or serial number → get 30/60/90-day, semi-annual &amp; annual PMs as drafts
+                    Type the identity directly, or upload an OEM manual / PM schedule to ground the program
                   </div>
                 </div>
               </div>
