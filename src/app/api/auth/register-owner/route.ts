@@ -7,6 +7,8 @@ import {
   setSessionCookieValue,
 } from "@/lib/auth/session";
 import { hashPassword } from "@/lib/auth/password";
+import { enforceRateLimit } from "@/lib/security/enforce";
+import { RATE_RULES } from "@/lib/security/rateLimit";
 
 export const runtime = "nodejs";
 
@@ -15,6 +17,9 @@ export const runtime = "nodejs";
 // real customer users exist yet; it closes itself after the platform is
 // initialized so it cannot be used to mint additional orgs without auth.
 export async function POST(req: NextRequest) {
+  const limited = enforceRateLimit(req, "auth:register-owner", RATE_RULES.auth());
+  if (limited) return limited;
+
   const { email, name, password, orgName } = await req.json().catch(() => ({}));
   if ((await countAllRealUsers()) > 0) {
     return NextResponse.json(

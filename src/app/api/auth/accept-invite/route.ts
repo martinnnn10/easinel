@@ -6,6 +6,8 @@ import {
   setSessionCookieValue,
 } from "@/lib/auth/session";
 import { hashPassword } from "@/lib/auth/password";
+import { enforceRateLimit } from "@/lib/security/enforce";
+import { RATE_RULES } from "@/lib/security/rateLimit";
 
 export const runtime = "nodejs";
 
@@ -23,6 +25,9 @@ export async function GET(req: NextRequest) {
 // POST /api/auth/accept-invite — set a name + password, create the account in
 // the issuing org, and sign in. The org is taken from the invite, not the body.
 export async function POST(req: NextRequest) {
+  const limited = enforceRateLimit(req, "auth:accept-invite", RATE_RULES.auth());
+  if (limited) return limited;
+
   const { token, name, password } = await req.json().catch(() => ({}));
   if (!token || !password || password.length < 8) {
     return NextResponse.json(

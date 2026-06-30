@@ -3,6 +3,8 @@ import { withApiKey } from "@/lib/apiAuth";
 import { answerOnce } from "@/lib/ai/chat";
 import { buildAssetContext } from "@/lib/queries";
 import { emitEvent } from "@/lib/events";
+import { checkRateLimit, rateLimitHeaders, RATE_RULES } from "@/lib/security/rateLimit";
+import { apiError } from "@/lib/api/respond";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -10,6 +12,17 @@ export const maxDuration = 120;
 // POST /api/v1/ask — the Copilot as an API. Any CRM/ATS/CMMS/portal can embed
 // EAS troubleshooting intelligence with one authenticated call.
 export const POST = withApiKey(async (req: NextRequest, orgId: string) => {
+  // Per-tenant throttle so one customer's integration can't exhaust shared
+  // capacity (and to bound spend on the upstream model).
+  const rl = checkRateLimit("public_api:ask", orgId, RATE_RULES.publicApi());
+  if (!rl.ok) {
+    return apiError("rate_limited", {
+      status: 429,
+      message: "Rate limit exceeded for this API key. Retry after the reset window.",
+      headers: rateLimitHeaders(rl),
+    });
+  }
+
   const body = await req.json().catch(() => ({}));
   const question = (body.question ?? "").trim();
   if (!question) {

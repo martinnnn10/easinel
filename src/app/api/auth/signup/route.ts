@@ -7,12 +7,18 @@ import {
   findUserByEmail,
 } from "@/lib/auth/session";
 import { hashPassword } from "@/lib/auth/password";
+import { enforceRateLimit } from "@/lib/security/enforce";
+import { RATE_RULES } from "@/lib/security/rateLimit";
 
 export const runtime = "nodejs";
 
 // Create an ORGANIZATION + its owner account, and sign in. This is how a new
 // company onboards: one call creates the workspace and the first admin.
 export async function POST(req: NextRequest) {
+  // Throttle signups per IP — stops automated org-spam / resource exhaustion.
+  const limited = enforceRateLimit(req, "auth:signup", RATE_RULES.auth());
+  if (limited) return limited;
+
   const { orgName, name, email, password } = await req.json().catch(() => ({}));
   if (!orgName || !email || !password || password.length < 8) {
     return NextResponse.json(

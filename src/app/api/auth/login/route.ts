@@ -5,10 +5,16 @@ import {
   setSessionCookieValue,
 } from "@/lib/auth/session";
 import { verifyPassword } from "@/lib/auth/password";
+import { enforceRateLimit } from "@/lib/security/enforce";
+import { RATE_RULES } from "@/lib/security/rateLimit";
 
 export const runtime = "nodejs";
 
 export async function POST(req: NextRequest) {
+  // Brute-force protection: cap login attempts per client IP.
+  const limited = enforceRateLimit(req, "auth:login", RATE_RULES.auth());
+  if (limited) return limited;
+
   const { email, password } = await req.json().catch(() => ({}));
   if (!email || !password) {
     return NextResponse.json({ error: "email and password required" }, { status: 400 });
