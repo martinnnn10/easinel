@@ -9,14 +9,14 @@ import {
 } from "@/lib/workorders/repository";
 import { requirePermission } from "@/lib/auth/guard";
 import { getAdapter } from "@/lib/integrations/adapter";
+import { safeHandler } from "@/lib/api/safeHandler";
 
 export const runtime = "nodejs";
 
+type Ctx = { params: Promise<{ id: string }> };
+
 // GET /api/work-orders/:id — the work order plus its lifecycle history.
-export async function GET(
-  _req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export const GET = safeHandler("workorders.get", async (_req: NextRequest, { params }: Ctx) => {
   const gate = await requirePermission("view");
   if (gate instanceof NextResponse) return gate;
   const { user } = gate;
@@ -25,15 +25,12 @@ export async function GET(
   if (!workOrder) return NextResponse.json({ error: "not found" }, { status: 404 });
   const history = await listWorkOrderEvents(user.orgId, id);
   return NextResponse.json({ workOrder, history });
-}
+});
 
 // PATCH /api/work-orders/:id — status transition (state machine) and/or field
 // edits. Both require update_work_order. A status change runs through the state
 // machine and is rejected (409) if the transition is illegal.
-export async function PATCH(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export const PATCH = safeHandler("workorders.update", async (req: NextRequest, { params }: Ctx) => {
   const gate = await requirePermission("update_work_order");
   if (gate instanceof NextResponse) return gate;
   const { user } = gate;
@@ -87,13 +84,10 @@ export async function PATCH(
   }
   const workOrder = await getWorkOrder(user.orgId, id);
   return NextResponse.json({ workOrder });
-}
+});
 
 // DELETE /api/work-orders/:id — RBAC: delete_work_order.
-export async function DELETE(
-  _req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export const DELETE = safeHandler("workorders.delete", async (_req: NextRequest, { params }: Ctx) => {
   const gate = await requirePermission("delete_work_order");
   if (gate instanceof NextResponse) return gate;
   const { user } = gate;
@@ -101,14 +95,11 @@ export async function DELETE(
   const ok = await deleteWorkOrder(user.orgId, id, user.id);
   if (!ok) return NextResponse.json({ error: "not found" }, { status: 404 });
   return NextResponse.json({ ok: true });
-}
+});
 
 // POST /api/work-orders/:id — push this work order out to a connected CMMS
 // connector (preserved integrations behavior). RBAC: update_work_order.
-export async function POST(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export const POST = safeHandler("workorders.cmms_push", async (req: NextRequest, { params }: Ctx) => {
   const gate = await requirePermission("update_work_order");
   if (gate instanceof NextResponse) return gate;
   const { user } = gate;
@@ -132,4 +123,4 @@ export async function POST(
   });
   await markSynced(user.orgId, id, result.externalSystem, result.externalId, user.id);
   return NextResponse.json({ ok: true, ...result });
-}
+});

@@ -6,11 +6,12 @@ import {
   type WorkOrderFilters,
 } from "@/lib/workorders/repository";
 import { requirePermission } from "@/lib/auth/guard";
+import { safeHandler } from "@/lib/api/safeHandler";
 
 export const runtime = "nodejs";
 
 // GET /api/work-orders?assetId=&status=&priority=&type=&assignedTo=&search=&stats=1
-export async function GET(req: NextRequest) {
+export const GET = safeHandler("workorders.list", async (req: NextRequest) => {
   const gate = await requirePermission("view");
   if (gate instanceof NextResponse) return gate;
   const { user } = gate;
@@ -31,12 +32,12 @@ export async function GET(req: NextRequest) {
   const workOrders = await listWorkOrders(user.orgId, filters);
   const stats = sp.get("stats") === "1" ? await workOrderStats(user.orgId) : undefined;
   return NextResponse.json({ workOrders, stats });
-}
+});
 
 // POST /api/work-orders — create (RBAC: create_work_order). Supports the new
 // "symptom" field (the what's-down report) while staying compatible with the
 // legacy title/description payload.
-export async function POST(req: NextRequest) {
+export const POST = safeHandler("workorders.create", async (req: NextRequest) => {
   const gate = await requirePermission("create_work_order");
   if (gate instanceof NextResponse) return gate;
   const { user } = gate;
@@ -64,4 +65,4 @@ export async function POST(req: NextRequest) {
     user.id
   );
   return NextResponse.json({ workOrder: wo }, { status: 201 });
-}
+});
