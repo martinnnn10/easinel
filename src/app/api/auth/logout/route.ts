@@ -7,12 +7,13 @@ import {
   getCurrentUser,
   SESSION_COOKIE,
 } from "@/lib/auth/session";
+import { safeHandler } from "@/lib/api/safeHandler";
 
 export const runtime = "nodejs";
 
 // POST /api/auth/logout            → sign out this device.
 // POST /api/auth/logout {all:true} → sign out everywhere (revoke all sessions).
-export async function POST(req: NextRequest) {
+export const POST = safeHandler("auth.logout", async (req: NextRequest) => {
   const { all } = await req.json().catch(() => ({}));
   if (all) {
     const user = await getCurrentUser();
@@ -25,4 +26,4 @@ export async function POST(req: NextRequest) {
   if (token) await destroySession(token);
   await clearSessionCookie();
   return NextResponse.json({ ok: true });
-}
+});

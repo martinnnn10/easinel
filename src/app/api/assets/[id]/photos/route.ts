@@ -3,6 +3,7 @@ import { addAssetPhoto, listAssetPhotos } from "@/lib/assets/repository";
 import { requirePermission } from "@/lib/auth/guard";
 import { putObject } from "@/lib/storage";
 import { id } from "@/lib/util";
+import { safeHandler } from "@/lib/api/safeHandler";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -10,10 +11,10 @@ export const maxDuration = 120;
 const MAX_BYTES = 15 * 1024 * 1024; // 15 MB per photo
 const OK_MIME = ["image/jpeg", "image/png", "image/webp", "image/gif"];
 
-export async function GET(
+export const GET = safeHandler("assets.photos.list", async (
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
-) {
+) => {
   const gate = await requirePermission("view");
   if (gate instanceof NextResponse) return gate;
   const { id: assetId } = await params;
@@ -24,13 +25,13 @@ export async function GET(
     console.error("GET photos failed", err);
     return NextResponse.json({ error: "internal", message: "Failed to load photos." }, { status: 500 });
   }
-}
+});
 
 // Upload one or more photos (multipart). technician+ (manage_assets).
-export async function POST(
+export const POST = safeHandler("assets.photos.upload", async (
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
-) {
+) => {
   const gate = await requirePermission("manage_assets");
   if (gate instanceof NextResponse) return gate;
   const { user } = gate;
@@ -79,4 +80,4 @@ export async function POST(
     }
   }
   return NextResponse.json({ results: created }, { status: 201 });
-}
+});

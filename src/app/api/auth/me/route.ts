@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser, authRequired, countAllRealUsers, getOrg } from "@/lib/auth/session";
 import { oidcConfigured } from "@/lib/auth/oidc";
+import { safeHandler } from "@/lib/api/safeHandler";
 
 export const runtime = "nodejs";
 
-export async function GET() {
+export const GET = safeHandler("auth.me", async () => {
   const user = await getCurrentUser();
   const hasUsers = (await countAllRealUsers()) > 0;
   const org = user ? await getOrg(user.orgId) : null;
@@ -19,4 +20,4 @@ export async function GET() {
       ? { id: user.id, name: user.name, email: user.email, role: user.role }
       : null,
   });
-}
+});

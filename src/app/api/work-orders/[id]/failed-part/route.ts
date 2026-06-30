@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requirePermission } from "@/lib/auth/guard";
 import { recordFailedPart } from "@/lib/parts/repository";
+import { safeHandler } from "@/lib/api/safeHandler";
 
 export const runtime = "nodejs";
 
@@ -9,10 +10,10 @@ export const runtime = "nodejs";
 //   { newPart: { description, partNumber?, manufacturer?, category? } } — create it.
 // Links the part⇆WO as "failed", links the WO's asset, and returns rule-based
 // stocking/PM suggestions for the part's Field Memory.
-export async function POST(
+export const POST = safeHandler("work-orders.failed-part", async (
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
-) {
+) => {
   const gate = await requirePermission("manage_parts");
   if (gate instanceof NextResponse) return gate;
   const { id } = await params;
@@ -33,4 +34,4 @@ export async function POST(
   } catch (err) {
     return NextResponse.json({ error: "failed", message: (err as Error).message }, { status: 400 });
   }
-}
+});

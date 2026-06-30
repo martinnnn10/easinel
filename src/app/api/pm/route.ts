@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requirePermission } from "@/lib/auth/guard";
 import { listPrograms, listDue, createProgram } from "@/lib/pm/repository";
+import { safeHandler } from "@/lib/api/safeHandler";
 
 export const runtime = "nodejs";
 
 // GET /api/pm?status=draft|active|archived&due=1
-export async function GET(req: NextRequest) {
+export const GET = safeHandler("pm.list", async (req: NextRequest) => {
   const gate = await requirePermission("view");
   if (gate instanceof NextResponse) return gate;
   const orgId = gate.user.orgId;
@@ -13,10 +14,10 @@ export async function GET(req: NextRequest) {
   const due = req.nextUrl.searchParams.get("due");
   const programs = due ? await listDue(orgId) : await listPrograms(orgId, status);
   return NextResponse.json({ programs });
-}
+});
 
 // POST /api/pm — create a manual draft PM (still requires approval to activate).
-export async function POST(req: NextRequest) {
+export const POST = safeHandler("pm.create", async (req: NextRequest) => {
   const gate = await requirePermission("manage_pm");
   if (gate instanceof NextResponse) return gate;
   const body = await req.json().catch(() => ({}));
@@ -49,4 +50,4 @@ export async function POST(req: NextRequest) {
     gate.user.email
   );
   return NextResponse.json({ program }, { status: 201 });
-}
+});

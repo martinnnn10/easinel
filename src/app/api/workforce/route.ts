@@ -8,18 +8,19 @@ import {
 } from "@/lib/workforce";
 import { emitEvent } from "@/lib/events";
 import { requirePermission } from "@/lib/auth/guard";
+import { safeHandler } from "@/lib/api/safeHandler";
 
 export const runtime = "nodejs";
 
-export async function GET() {
+export const GET = safeHandler("workforce.get", async () => {
   const gate = await requirePermission("view");
   if (gate instanceof NextResponse) return gate;
   const matrix = await buildMatrix(gate.user.orgId);
   const brief = buildHiringBrief(matrix);
   return NextResponse.json({ matrix, brief });
-}
+});
 
-export async function POST(req: NextRequest) {
+export const POST = safeHandler("workforce.post", async (req: NextRequest) => {
   const gate = await requirePermission("manage_workforce");
   if (gate instanceof NextResponse) return gate;
   const orgId = gate.user.orgId;
@@ -55,4 +56,4 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true });
   }
   return NextResponse.json({ error: "unknown action" }, { status: 400 });
-}
+});

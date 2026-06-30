@@ -4,16 +4,17 @@ import { assetPhotos } from "@/lib/db/schema";
 import { and, eq } from "drizzle-orm";
 import { getObject } from "@/lib/storage";
 import { requirePermission } from "@/lib/auth/guard";
+import { safeHandler } from "@/lib/api/safeHandler";
 
 export const runtime = "nodejs";
 
 // Stream a stored asset photo. Kept behind the same org/view gate so photos are
 // not world-readable. Storage backend (local disk or S3) is resolved by the
 // storage abstraction, so this works in ephemeral hosting too.
-export async function GET(
+export const GET = safeHandler("assets.photos.get", async (
   _req: NextRequest,
   { params }: { params: Promise<{ id: string; photoId: string }> }
-) {
+) => {
   const gate = await requirePermission("view");
   if (gate instanceof NextResponse) return gate;
   const { id: assetId, photoId } = await params;
@@ -44,4 +45,4 @@ export async function GET(
     console.error("photo serve failed", err);
     return NextResponse.json({ error: "internal" }, { status: 500 });
   }
-}
+});

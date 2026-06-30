@@ -3,6 +3,7 @@ import { getPlcProject } from "@/lib/plc/store";
 import { resolveNode } from "@/lib/plc/nodes";
 import { logClick } from "@/lib/plc/clicklog";
 import { requirePermission } from "@/lib/auth/guard";
+import { safeHandler } from "@/lib/api/safeHandler";
 
 export const runtime = "nodejs";
 
@@ -10,7 +11,7 @@ export const runtime = "nodejs";
 // Always returns 200 with a structured payload — even when the node has no
 // content — so the UI never hits a dead click. The `found`/`notice` fields
 // tell the UI how to render. Failures are classified for the click log.
-export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+export const GET = safeHandler("plc.node", async (req: NextRequest, ctx: { params: Promise<{ id: string }> }) => {
   const gate = await requirePermission("view");
   if (gate instanceof NextResponse) return gate;
   const orgId = gate.user.orgId;
@@ -72,4 +73,4 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
       { status: 200 }
     );
   }
-}
+});

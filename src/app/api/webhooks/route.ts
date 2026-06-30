@@ -5,10 +5,11 @@ import { and, desc, eq } from "drizzle-orm";
 import { randomBytes } from "crypto";
 import { id } from "@/lib/util";
 import { requirePermission } from "@/lib/auth/guard";
+import { safeHandler } from "@/lib/api/safeHandler";
 
 export const runtime = "nodejs";
 
-export async function GET() {
+export const GET = safeHandler("webhooks.get", async () => {
   const gate = await requirePermission("manage_webhooks");
   if (gate instanceof NextResponse) return gate;
   await ensureDb();
@@ -18,9 +19,9 @@ export async function GET() {
     .where(eq(webhooks.orgId, gate.user.orgId))
     .orderBy(desc(webhooks.createdAt));
   return NextResponse.json({ webhooks: hooks });
-}
+});
 
-export async function POST(req: NextRequest) {
+export const POST = safeHandler("webhooks.post", async (req: NextRequest) => {
   const gate = await requirePermission("manage_webhooks");
   if (gate instanceof NextResponse) return gate;
   await ensureDb();
@@ -41,9 +42,9 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({
     webhook: { id: hookId, url: body.url, events: body.events || "*", secret },
   });
-}
+});
 
-export async function DELETE(req: NextRequest) {
+export const DELETE = safeHandler("webhooks.delete", async (req: NextRequest) => {
   const gate = await requirePermission("manage_webhooks");
   if (gate instanceof NextResponse) return gate;
   await ensureDb();
@@ -51,4 +52,4 @@ export async function DELETE(req: NextRequest) {
   if (!idParam) return NextResponse.json({ error: "id required" }, { status: 400 });
   await db.delete(webhooks).where(and(eq(webhooks.orgId, gate.user.orgId), eq(webhooks.id, idParam)));
   return NextResponse.json({ ok: true });
-}
+});

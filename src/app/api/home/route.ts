@@ -3,12 +3,13 @@ import { listDocuments, listSessions } from "@/lib/queries";
 import { listAssets } from "@/lib/assets/repository";
 import { listWorkOrders, isOpenStatus } from "@/lib/workorders/repository";
 import { requirePermission } from "@/lib/auth/guard";
+import { safeHandler } from "@/lib/api/safeHandler";
 
 export const runtime = "nodejs";
 
 // Single call that powers the homepage command center — fewer round-trips, one
 // loading state. Tenant-scoped: every aggregate is filtered to the caller's org.
-export async function GET() {
+export const GET = safeHandler("home.get", async () => {
   const gate = await requirePermission("view");
   if (gate instanceof NextResponse) return gate;
   const orgId = gate.user.orgId;
@@ -29,4 +30,4 @@ export async function GET() {
       openWorkOrders: workOrders.filter((w) => isOpenStatus(w.status)).length,
     },
   });
-}
+});

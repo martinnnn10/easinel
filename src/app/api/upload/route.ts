@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ingestFile } from "@/lib/rag/ingest";
 import { requirePermission } from "@/lib/auth/guard";
+import { safeHandler } from "@/lib/api/safeHandler";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
 
-export async function POST(req: NextRequest) {
+export const POST = safeHandler("upload.post", async (req: NextRequest) => {
   const gate = await requirePermission("upload_documents");
   if (gate instanceof NextResponse) return gate;
   const orgId = gate.user.orgId;
@@ -57,4 +58,4 @@ export async function POST(req: NextRequest) {
   };
 
   return NextResponse.json({ results, summary });
-}
+});

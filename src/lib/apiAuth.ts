@@ -4,6 +4,8 @@ import { db, ensureDb } from "@/lib/db";
 import { apiKeys } from "@/lib/db/schema";
 import { and, eq, isNull } from "drizzle-orm";
 import { id } from "@/lib/util";
+import { logger } from "@/lib/observability/logger";
+import { requestIdFrom } from "@/lib/api/respond";
 
 const PREFIX = "eas_live_";
 
@@ -116,14 +118,24 @@ export function withApiKey(
       );
     }
 
+    const requestId = requestIdFrom(req);
     try {
       const res = await handler(req, orgId);
       for (const [k, v] of Object.entries(rateHeaders)) res.headers.set(k, v);
+      res.headers.set("x-request-id", requestId);
       return res;
     } catch (err) {
+      // Log the real error server-side (with correlation) but NEVER leak the
+      // internal message/stack to the API caller.
+      logger.error("public_api.unhandled_error", { requestId, method: req.method, error: err });
       return NextResponse.json(
-        { error: "internal_error", message: (err as Error).message },
-        { status: 500, headers: rateHeaders }
+        {
+          error: "internal_error",
+          message:
+            "An unexpected error occurred. Please retry; if it persists, contact support with the reference id.",
+          requestId,
+        },
+        { status: 500, headers: { ...rateHeaders, "x-request-id": requestId } }
       );
     }
   };

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requirePermission } from "@/lib/auth/guard";
 import { analyzePmUpload } from "@/lib/pm/analyzeUpload";
+import { safeHandler } from "@/lib/api/safeHandler";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -9,7 +10,7 @@ export const maxDuration = 60;
 // Detect-only: reads an uploaded PM/manual doc, detects the machine identity +
 // cadence hints, and returns a proposed asset resolution for the user to CONFIRM.
 // Saves NOTHING. The confirmed identity is then sent to /api/pm/generate.
-export async function POST(req: NextRequest) {
+export const POST = safeHandler("pm.analyze-upload", async (req: NextRequest) => {
   const gate = await requirePermission("manage_pm");
   if (gate instanceof NextResponse) return gate;
 
@@ -33,4 +34,4 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     return NextResponse.json({ error: (err as Error).message || "analysis failed" }, { status: 400 });
   }
-}
+});

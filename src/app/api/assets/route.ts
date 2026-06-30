@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { listAssets, createAsset, type AssetFilters } from "@/lib/assets/repository";
 import { requirePermission } from "@/lib/auth/guard";
+import { safeHandler } from "@/lib/api/safeHandler";
 
 export const runtime = "nodejs";
 
 // List assets. All roles can view; filters are passed through to the repository.
-export async function GET(req: NextRequest) {
+export const GET = safeHandler("assets.list", async (req: NextRequest) => {
   const gate = await requirePermission("view");
   if (gate instanceof NextResponse) return gate;
   const orgId = gate.user.orgId;
@@ -24,10 +25,10 @@ export async function GET(req: NextRequest) {
     console.error("GET /api/assets failed", err);
     return NextResponse.json({ error: "internal", message: "Failed to load assets." }, { status: 500 });
   }
-}
+});
 
 // Create an asset. technician+ (manage_assets).
-export async function POST(req: NextRequest) {
+export const POST = safeHandler("assets.create", async (req: NextRequest) => {
   const gate = await requirePermission("manage_assets");
   if (gate instanceof NextResponse) return gate;
   const { user } = gate;
@@ -48,4 +49,4 @@ export async function POST(req: NextRequest) {
     console.error("POST /api/assets failed", err);
     return NextResponse.json({ error: "internal", message: "Failed to create asset." }, { status: 500 });
   }
-}
+});

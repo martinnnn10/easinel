@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { approveRequest, rejectRequest } from "@/lib/workorders/repository";
 import { requirePermission } from "@/lib/auth/guard";
+import { safeHandler } from "@/lib/api/safeHandler";
 
 export const runtime = "nodejs";
 
@@ -8,10 +9,10 @@ export const runtime = "nodejs";
 // Body: { action: "approve" | "reject", note?, reason? }
 // RBAC: approve_work_order (owner/admin/manager only — the maintenance
 // manager/supervisor sign-off).
-export async function POST(
+export const POST = safeHandler("work-orders.requests.decision", async (
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
-) {
+) => {
   const gate = await requirePermission("approve_work_order");
   if (gate instanceof NextResponse) return gate;
   const { user } = gate;
@@ -43,4 +44,4 @@ export async function POST(
     { error: "invalid_action", message: "action must be 'approve' or 'reject'." },
     { status: 400 }
   );
-}
+});

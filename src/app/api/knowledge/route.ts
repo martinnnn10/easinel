@@ -2,10 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { listDocuments } from "@/lib/queries";
 import { listPlcProjects } from "@/lib/plc/store";
 import { requirePermission } from "@/lib/auth/guard";
+import { safeHandler } from "@/lib/api/safeHandler";
 
 export const runtime = "nodejs";
 
-export async function GET(req: NextRequest) {
+export const GET = safeHandler("knowledge.get", async (req: NextRequest) => {
   const gate = await requirePermission("view");
   if (gate instanceof NextResponse) return gate;
   const orgId = gate.user.orgId;
@@ -34,4 +35,4 @@ export async function GET(req: NextRequest) {
   });
 
   return NextResponse.json({ documents: enriched });
-}
+});

@@ -1,27 +1,28 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requirePermission } from "@/lib/auth/guard";
 import { getProgram, approveProgram, archiveProgram } from "@/lib/pm/repository";
+import { safeHandler } from "@/lib/api/safeHandler";
 
 export const runtime = "nodejs";
 
-export async function GET(
+export const GET = safeHandler("pm.get", async (
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
-) {
+) => {
   const gate = await requirePermission("view");
   if (gate instanceof NextResponse) return gate;
   const { id } = await params;
   const program = await getProgram(gate.user.orgId, id);
   if (!program) return NextResponse.json({ error: "not found" }, { status: 404 });
   return NextResponse.json({ program });
-}
+});
 
 // PATCH /api/pm/:id  { action: "approve" | "archive" }
 // Approval is the human-in-the-loop gate — AI can never reach "active" itself.
-export async function PATCH(
+export const PATCH = safeHandler("pm.update", async (
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
-) {
+) => {
   const gate = await requirePermission("manage_pm");
   if (gate instanceof NextResponse) return gate;
   const { id } = await params;
@@ -37,4 +38,4 @@ export async function PATCH(
     return NextResponse.json({ ok: true });
   }
   return NextResponse.json({ error: "unknown action" }, { status: 400 });
-}
+});

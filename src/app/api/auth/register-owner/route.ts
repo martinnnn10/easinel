@@ -9,6 +9,7 @@ import {
 import { hashPassword } from "@/lib/auth/password";
 import { enforceRateLimit } from "@/lib/security/enforce";
 import { RATE_RULES } from "@/lib/security/rateLimit";
+import { safeHandler } from "@/lib/api/safeHandler";
 
 export const runtime = "nodejs";
 
@@ -16,7 +17,7 @@ export const runtime = "nodejs";
 // organization (tenant) for the owner — never the Demo Org. Only works while no
 // real customer users exist yet; it closes itself after the platform is
 // initialized so it cannot be used to mint additional orgs without auth.
-export async function POST(req: NextRequest) {
+export const POST = safeHandler("auth.register-owner", async (req: NextRequest) => {
   const limited = enforceRateLimit(req, "auth:register-owner", RATE_RULES.auth());
   if (limited) return limited;
 
@@ -48,4 +49,4 @@ export async function POST(req: NextRequest) {
     user: { id: user.id, name: user.name, email: user.email, role: user.role },
     org: { id: orgId },
   });
-}
+});

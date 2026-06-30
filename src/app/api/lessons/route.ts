@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { saveLesson } from "@/lib/lessons";
 import { requirePermission } from "@/lib/auth/guard";
+import { safeHandler } from "@/lib/api/safeHandler";
 
 export const runtime = "nodejs";
 
 // POST /api/lessons — persist a resolved diagnosis as a retrievable lesson learned.
-export async function POST(req: NextRequest) {
+export const POST = safeHandler("lessons.create", async (req: NextRequest) => {
   const gate = await requirePermission("ask_copilot");
   if (gate instanceof NextResponse) return gate;
   const body = await req.json().catch(() => ({}));
@@ -24,4 +25,4 @@ export async function POST(req: NextRequest) {
     assetId: body.assetId ?? null,
   });
   return NextResponse.json({ ok: true, ...result }, { status: 201 });
-}
+});

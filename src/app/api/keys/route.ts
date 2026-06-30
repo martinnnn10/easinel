@@ -4,10 +4,11 @@ import { apiKeys } from "@/lib/db/schema";
 import { and, desc, eq, isNull } from "drizzle-orm";
 import { createApiKey } from "@/lib/apiAuth";
 import { requirePermission } from "@/lib/auth/guard";
+import { safeHandler } from "@/lib/api/safeHandler";
 
 export const runtime = "nodejs";
 
-export async function GET() {
+export const GET = safeHandler("keys.get", async () => {
   const gate = await requirePermission("manage_api_keys");
   if (gate instanceof NextResponse) return gate;
   await ensureDb();
@@ -23,9 +24,9 @@ export async function GET() {
     .where(and(eq(apiKeys.orgId, gate.user.orgId), isNull(apiKeys.revokedAt)))
     .orderBy(desc(apiKeys.createdAt));
   return NextResponse.json({ keys });
-}
+});
 
-export async function POST(req: NextRequest) {
+export const POST = safeHandler("keys.post", async (req: NextRequest) => {
   const gate = await requirePermission("manage_api_keys");
   if (gate instanceof NextResponse) return gate;
   const body = await req.json().catch(() => ({}));
@@ -33,9 +34,9 @@ export async function POST(req: NextRequest) {
   const key = await createApiKey(gate.user.orgId, name);
   // plaintext returned exactly once
   return NextResponse.json({ key });
-}
+});
 
-export async function DELETE(req: NextRequest) {
+export const DELETE = safeHandler("keys.delete", async (req: NextRequest) => {
   const gate = await requirePermission("manage_api_keys");
   if (gate instanceof NextResponse) return gate;
   await ensureDb();
@@ -46,4 +47,4 @@ export async function DELETE(req: NextRequest) {
     .set({ revokedAt: new Date() })
     .where(and(eq(apiKeys.orgId, gate.user.orgId), eq(apiKeys.id, idParam)));
   return NextResponse.json({ ok: true });
-}
+});

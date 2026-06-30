@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requirePermission } from "@/lib/auth/guard";
 import { smartSearch } from "@/lib/parts/search";
+import { safeHandler } from "@/lib/api/safeHandler";
 
 export const runtime = "nodejs";
 
@@ -8,7 +9,7 @@ export const runtime = "nodejs";
 // Sourcing entry point. It surfaces any INTERNAL matches (the org's own parts &
 // suppliers) and is explicit that LIVE external supplier pricing/availability is
 // not integrated — it never returns invented prices or stock numbers.
-export async function POST(req: NextRequest) {
+export const POST = safeHandler("parts.source", async (req: NextRequest) => {
   const gate = await requirePermission("view");
   if (gate instanceof NextResponse) return gate;
   const body = await req.json().catch(() => ({}));
@@ -23,4 +24,4 @@ export async function POST(req: NextRequest) {
       message: "Supplier pricing and availability require integration.",
     },
   });
-}
+});

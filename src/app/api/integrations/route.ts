@@ -8,18 +8,19 @@ import {
 } from "@/lib/integrations/service";
 import { isLiveConnector } from "@/lib/integrations/adapter";
 import { requirePermission } from "@/lib/auth/guard";
+import { safeHandler } from "@/lib/api/safeHandler";
 
 export const runtime = "nodejs";
 
-export async function GET() {
+export const GET = safeHandler("integrations.get", async () => {
   const gate = await requirePermission("view");
   if (gate instanceof NextResponse) return gate;
   const connected = await listIntegrations(gate.user.orgId);
   const cat = catalog().map((c) => ({ ...c, live: isLiveConnector(c.key) }));
   return NextResponse.json({ catalog: cat, connected });
-}
+});
 
-export async function POST(req: NextRequest) {
+export const POST = safeHandler("integrations.post", async (req: NextRequest) => {
   const gate = await requirePermission("manage_integrations");
   if (gate instanceof NextResponse) return gate;
   const body = await req.json().catch(() => ({}));
@@ -45,4 +46,4 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     return NextResponse.json({ error: (err as Error).message }, { status: 500 });
   }
-}
+});

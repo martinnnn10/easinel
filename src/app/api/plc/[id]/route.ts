@@ -3,11 +3,12 @@ import { getPlcProject } from "@/lib/plc/store";
 import { buildTree } from "@/lib/plc/nodes";
 import { logClick } from "@/lib/plc/clicklog";
 import { requirePermission } from "@/lib/auth/guard";
+import { safeHandler } from "@/lib/api/safeHandler";
 
 export const runtime = "nodejs";
 
 // GET /api/plc/:id → { meta, tree } for the Explorer sidebar.
-export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+export const GET = safeHandler("plc.get", async (_req: NextRequest, ctx: { params: Promise<{ id: string }> }) => {
   const gate = await requirePermission("view");
   if (gate instanceof NextResponse) return gate;
   const orgId = gate.user.orgId;
@@ -41,4 +42,4 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
     await logClick(orgId, { projectId: id, outcome: "error", detail: (err as Error).message, ms: Date.now() - t0 });
     return NextResponse.json({ error: (err as Error).message }, { status: 500 });
   }
-}
+});

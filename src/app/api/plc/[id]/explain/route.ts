@@ -4,13 +4,14 @@ import { resolveNode } from "@/lib/plc/nodes";
 import { explainNode } from "@/lib/plc/explain";
 import { logClick } from "@/lib/plc/clicklog";
 import { requirePermission } from "@/lib/auth/guard";
+import { safeHandler } from "@/lib/api/safeHandler";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
 // POST /api/plc/:id/explain  { nodeId, question? }
 // Returns a plain-English explanation of the node (live Claude or demo engine).
-export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+export const POST = safeHandler("plc.explain", async (req: NextRequest, ctx: { params: Promise<{ id: string }> }) => {
   const gate = await requirePermission("ask_copilot");
   if (gate instanceof NextResponse) return gate;
   const orgId = gate.user.orgId;
@@ -45,4 +46,4 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     await logClick(orgId, { projectId: id, nodeId, outcome: "error", detail: (err as Error).message, ms: Date.now() - t0 });
     return NextResponse.json({ error: (err as Error).message }, { status: 500 });
   }
-}
+});

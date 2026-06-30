@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requirePermission } from "@/lib/auth/guard";
 import { generatePmProgram } from "@/lib/pm/generate";
+import { safeHandler } from "@/lib/api/safeHandler";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -11,7 +12,7 @@ export const maxDuration = 120;
 // identified machine, grounded in uploaded PM docs / OEM manuals when present.
 // Everything is created as a DRAFT — approval (manage_pm) is still required to
 // activate scheduling. Requires manage_pm to create the drafts.
-export async function POST(req: NextRequest) {
+export const POST = safeHandler("pm.generate", async (req: NextRequest) => {
   const gate = await requirePermission("manage_pm");
   if (gate instanceof NextResponse) return gate;
   const body = await req.json().catch(() => ({}));
@@ -49,4 +50,4 @@ export async function POST(req: NextRequest) {
       { status: 400 }
     );
   }
-}
+});

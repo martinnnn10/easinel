@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { resolveAssetForGeneration } from "@/lib/assets/assign";
 import { requirePermission } from "@/lib/auth/guard";
+import { safeHandler } from "@/lib/api/safeHandler";
 
 export const runtime = "nodejs";
 
 // Resolve a machine identity (model / serial / free text) to a probable EXISTING
 // asset plus a prefilled NEW-asset draft and suggested number. Read-only.
-export async function POST(req: NextRequest) {
+export const POST = safeHandler("assets.resolve", async (req: NextRequest) => {
   const gate = await requirePermission("view");
   if (gate instanceof NextResponse) return gate;
   let body: Record<string, unknown> = {};
@@ -29,4 +30,4 @@ export async function POST(req: NextRequest) {
     console.error("POST /api/assets/resolve failed", err);
     return NextResponse.json({ error: "internal", message: "Failed to resolve asset." }, { status: 500 });
   }
-}
+});

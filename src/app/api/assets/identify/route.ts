@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requirePermission } from "@/lib/auth/guard";
 import { identifyMachine, type IdentifyImage } from "@/lib/assets/identify";
+import { safeHandler } from "@/lib/api/safeHandler";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -13,7 +14,7 @@ const ALLOWED = new Set(["image/png", "image/jpeg", "image/webp", "image/gif"]);
 // (typed entry or a scanned QR/barcode value placed in `text`) OR multipart with
 // a `file` nameplate photo (read by the vision model when live). Returns candidate
 // EXISTING assets + a prefilled new-asset draft. Read-only — proposes, never saves.
-export async function POST(req: NextRequest) {
+export const POST = safeHandler("assets.identify", async (req: NextRequest) => {
   const gate = await requirePermission("view");
   if (gate instanceof NextResponse) return gate;
 
@@ -67,4 +68,4 @@ export async function POST(req: NextRequest) {
     console.error("POST /api/assets/identify failed", err);
     return NextResponse.json({ error: "Failed to identify machine." }, { status: 500 });
   }
-}
+});

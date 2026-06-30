@@ -7,10 +7,11 @@ import {
 import { verifyPassword } from "@/lib/auth/password";
 import { enforceRateLimit } from "@/lib/security/enforce";
 import { RATE_RULES } from "@/lib/security/rateLimit";
+import { safeHandler } from "@/lib/api/safeHandler";
 
 export const runtime = "nodejs";
 
-export async function POST(req: NextRequest) {
+export const POST = safeHandler("auth.login", async (req: NextRequest) => {
   // Brute-force protection: cap login attempts per client IP.
   const limited = enforceRateLimit(req, "auth:login", RATE_RULES.auth());
   if (limited) return limited;
@@ -29,4 +30,4 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({
     user: { id: user.id, name: user.name, email: user.email, role: user.role },
   });
-}
+});

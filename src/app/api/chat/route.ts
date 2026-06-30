@@ -7,6 +7,7 @@ import {
 } from "@/lib/queries";
 import { requirePermission } from "@/lib/auth/guard";
 import { NextResponse } from "next/server";
+import { safeHandler } from "@/lib/api/safeHandler";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -19,7 +20,7 @@ interface ChatBody {
   images?: ImageAttachment[];
 }
 
-export async function POST(req: NextRequest) {
+export const POST = safeHandler("chat.post", async (req: NextRequest) => {
   const gate = await requirePermission("ask_copilot");
   if (gate instanceof NextResponse) return gate;
   const orgId = gate.user.orgId;
@@ -119,4 +120,4 @@ export async function POST(req: NextRequest) {
       "x-conversation-id": conversationId,
     },
   });
-}
+});

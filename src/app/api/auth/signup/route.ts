@@ -9,12 +9,13 @@ import {
 import { hashPassword } from "@/lib/auth/password";
 import { enforceRateLimit } from "@/lib/security/enforce";
 import { RATE_RULES } from "@/lib/security/rateLimit";
+import { safeHandler } from "@/lib/api/safeHandler";
 
 export const runtime = "nodejs";
 
 // Create an ORGANIZATION + its owner account, and sign in. This is how a new
 // company onboards: one call creates the workspace and the first admin.
-export async function POST(req: NextRequest) {
+export const POST = safeHandler("auth.signup", async (req: NextRequest) => {
   // Throttle signups per IP — stops automated org-spam / resource exhaustion.
   const limited = enforceRateLimit(req, "auth:signup", RATE_RULES.auth());
   if (limited) return limited;
@@ -50,4 +51,4 @@ export async function POST(req: NextRequest) {
     user: { id: user.id, name: user.name, email: user.email, role: user.role },
     org: { id: orgId, name: orgName },
   });
-}
+});

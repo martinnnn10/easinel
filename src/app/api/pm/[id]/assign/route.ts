@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { assignProgramAsset, getProgram } from "@/lib/pm/repository";
 import { createAsset } from "@/lib/assets/repository";
 import { requirePermission } from "@/lib/auth/guard";
+import { safeHandler } from "@/lib/api/safeHandler";
 
 export const runtime = "nodejs";
 
@@ -10,7 +11,7 @@ export const runtime = "nodejs";
 //   { createAsset: {...} }   → create a new asset (editable number + optional
 //                              parent/level), then link the PM to it
 // Both require manage_pm and are strictly org-scoped.
-export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export const POST = safeHandler("pm.assign", async (req: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
   const gate = await requirePermission("manage_pm");
   if (gate instanceof NextResponse) return gate;
   const { user } = gate;
@@ -72,4 +73,4 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const status = msg.includes("not found in org") ? 404 : 500;
     return NextResponse.json({ error: "internal", message: msg }, { status });
   }
-}
+});

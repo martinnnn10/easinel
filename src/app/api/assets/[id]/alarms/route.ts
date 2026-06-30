@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { addAlarmEvent, listAlarmEvents } from "@/lib/assets/repository";
 import { requirePermission } from "@/lib/auth/guard";
+import { safeHandler } from "@/lib/api/safeHandler";
 
 export const runtime = "nodejs";
 
-export async function GET(
+export const GET = safeHandler("assets.alarms.list", async (
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
-) {
+) => {
   const gate = await requirePermission("view");
   if (gate instanceof NextResponse) return gate;
   const { id: assetId } = await params;
@@ -19,13 +20,13 @@ export async function GET(
     console.error("GET alarms failed", err);
     return NextResponse.json({ error: "internal", message: "Failed to load alarms." }, { status: 500 });
   }
-}
+});
 
 // Record an alarm/fault. technician+ (manage_assets).
-export async function POST(
+export const POST = safeHandler("assets.alarms.create", async (
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
-) {
+) => {
   const gate = await requirePermission("manage_assets");
   if (gate instanceof NextResponse) return gate;
   const { user } = gate;
@@ -49,4 +50,4 @@ export async function POST(
     console.error("POST alarms failed", err);
     return NextResponse.json({ error: "internal", message: "Failed to record alarm." }, { status: 500 });
   }
-}
+});

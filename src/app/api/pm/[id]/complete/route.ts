@@ -1,14 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requirePermission } from "@/lib/auth/guard";
 import { recordCompletion } from "@/lib/pm/repository";
+import { safeHandler } from "@/lib/api/safeHandler";
 
 export const runtime = "nodejs";
 
 // POST /api/pm/:id/complete  { status?: "done"|"skipped", notes? }
-export async function POST(
+export const POST = safeHandler("pm.complete", async (
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
-) {
+) => {
   const gate = await requirePermission("complete_pm");
   if (gate instanceof NextResponse) return gate;
   const { id } = await params;
@@ -20,4 +21,4 @@ export async function POST(
     gate.user.email
   );
   return NextResponse.json({ ok: true });
-}
+});

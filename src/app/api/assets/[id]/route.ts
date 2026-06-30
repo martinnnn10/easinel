@@ -5,15 +5,16 @@ import {
   deleteAsset,
 } from "@/lib/assets/repository";
 import { requirePermission } from "@/lib/auth/guard";
+import { safeHandler } from "@/lib/api/safeHandler";
 
 export const runtime = "nodejs";
 
 // Full digital twin: asset + photos + documents + lessons + PLC projects +
 // work orders + alarm history + sessions + computed reliability metrics.
-export async function GET(
+export const GET = safeHandler("assets.get", async (
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
-) {
+) => {
   const gate = await requirePermission("view");
   if (gate instanceof NextResponse) return gate;
   const { id } = await params;
@@ -27,13 +28,13 @@ export async function GET(
     console.error("GET /api/assets/[id] failed", err);
     return NextResponse.json({ error: "internal", message: "Failed to load asset." }, { status: 500 });
   }
-}
+});
 
 // Update asset. technician+ (manage_assets).
-export async function PATCH(
+export const PATCH = safeHandler("assets.update", async (
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
-) {
+) => {
   const gate = await requirePermission("manage_assets");
   if (gate instanceof NextResponse) return gate;
   const { user } = gate;
@@ -54,13 +55,13 @@ export async function PATCH(
     console.error("PATCH /api/assets/[id] failed", err);
     return NextResponse.json({ error: "internal", message: "Failed to update asset." }, { status: 500 });
   }
-}
+});
 
 // Delete asset. admin+ (delete_assets).
-export async function DELETE(
+export const DELETE = safeHandler("assets.delete", async (
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
-) {
+) => {
   const gate = await requirePermission("delete_assets");
   if (gate instanceof NextResponse) return gate;
   const { user } = gate;
@@ -75,4 +76,4 @@ export async function DELETE(
     console.error("DELETE /api/assets/[id] failed", err);
     return NextResponse.json({ error: "internal", message: "Failed to delete asset." }, { status: 500 });
   }
-}
+});

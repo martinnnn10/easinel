@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomBytes } from "crypto";
 import { oidcConfigured, buildAuthUrl } from "@/lib/auth/oidc";
+import { safeHandler } from "@/lib/api/safeHandler";
 
 export const runtime = "nodejs";
 
-export async function GET(req: NextRequest) {
+export const GET = safeHandler("auth.oidc.start", async (req: NextRequest) => {
   if (!oidcConfigured()) {
     return NextResponse.json({ error: "SSO not configured" }, { status: 400 });
   }
@@ -20,4 +21,4 @@ export async function GET(req: NextRequest) {
     maxAge: 600,
   });
   return res;
-}
+});

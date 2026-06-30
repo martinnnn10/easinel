@@ -1,14 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requirePermission } from "@/lib/auth/guard";
 import { linkPm } from "@/lib/parts/repository";
+import { safeHandler } from "@/lib/api/safeHandler";
 
 export const runtime = "nodejs";
 
 // POST /api/parts/:id/pm-links  { pmProgramId }
-export async function POST(
+export const POST = safeHandler("parts.pm-links.add", async (
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
-) {
+) => {
   const gate = await requirePermission("manage_parts");
   if (gate instanceof NextResponse) return gate;
   const { id } = await params;
@@ -18,4 +19,4 @@ export async function POST(
   }
   await linkPm(gate.user.orgId, id, body.pmProgramId, gate.user.email);
   return NextResponse.json({ ok: true }, { status: 201 });
-}
+});

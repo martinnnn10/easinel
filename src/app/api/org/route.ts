@@ -8,12 +8,13 @@ import {
   listInvitations,
 } from "@/lib/auth/session";
 import { audit } from "@/lib/events";
+import { safeHandler } from "@/lib/api/safeHandler";
 
 export const runtime = "nodejs";
 
 // GET /api/org — the organization profile, its members, and pending invites.
 // Any authenticated member may read it; mutation requires manage_users.
-export async function GET() {
+export const GET = safeHandler("org.get", async () => {
   const user = await getCurrentUser();
   if (!user) {
     return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
@@ -41,10 +42,10 @@ export async function GET() {
     })),
     you: { id: user.id, role: user.role },
   });
-}
+});
 
 // PATCH /api/org — rename the organization. Owners/admins only.
-export async function PATCH(req: NextRequest) {
+export const PATCH = safeHandler("org.patch", async (req: NextRequest) => {
   const gate = await requirePermission("manage_users");
   if (gate instanceof NextResponse) return gate;
   const { name } = await req.json().catch(() => ({}));
@@ -58,4 +59,4 @@ export async function PATCH(req: NextRequest) {
   await audit(gate.user.orgId, gate.user.email, "org.rename", gate.user.orgId, name.trim());
   const org = await getOrg(gate.user.orgId);
   return NextResponse.json({ org });
-}
+});

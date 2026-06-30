@@ -6,10 +6,11 @@ import {
   createSession,
   SESSION_COOKIE,
 } from "@/lib/auth/session";
+import { safeHandler } from "@/lib/api/safeHandler";
 
 export const runtime = "nodejs";
 
-export async function GET(req: NextRequest) {
+export const GET = safeHandler("auth.oidc.callback", async (req: NextRequest) => {
   const url = req.nextUrl;
   const code = url.searchParams.get("code");
   const state = url.searchParams.get("state");
@@ -49,4 +50,4 @@ export async function GET(req: NextRequest) {
       new URL(`/login?error=${encodeURIComponent((err as Error).message)}`, url.origin)
     );
   }
-}
+});

@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { suggestAssetNumber } from "@/lib/assets/assign";
 import { requirePermission } from "@/lib/auth/guard";
+import { safeHandler } from "@/lib/api/safeHandler";
 
 export const runtime = "nodejs";
 
 // Suggest an editable, collision-safe asset number (SITE-LINE-MACHINE-###).
 // Read-only proposal; the user can override before saving.
-export async function GET(req: NextRequest) {
+export const GET = safeHandler("assets.suggest-number", async (req: NextRequest) => {
   const gate = await requirePermission("view");
   if (gate instanceof NextResponse) return gate;
   const sp = req.nextUrl.searchParams;
@@ -24,4 +25,4 @@ export async function GET(req: NextRequest) {
     console.error("GET /api/assets/suggest-number failed", err);
     return NextResponse.json({ error: "internal", message: "Failed to suggest asset number." }, { status: 500 });
   }
-}
+});

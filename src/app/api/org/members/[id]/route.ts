@@ -8,12 +8,13 @@ import {
 } from "@/lib/auth/session";
 import { isValidRole, type Role } from "@/lib/auth/roles";
 import { audit } from "@/lib/events";
+import { safeHandler } from "@/lib/api/safeHandler";
 
 export const runtime = "nodejs";
 
 // PATCH /api/org/members/:id — change a member's role. Owners/admins only.
 // Guards against removing the last owner (which would orphan the org).
-export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+export const PATCH = safeHandler("org.members.patch", async (req: NextRequest, ctx: { params: Promise<{ id: string }> }) => {
   const gate = await requirePermission("manage_users");
   if (gate instanceof NextResponse) return gate;
   const { id } = await ctx.params;
@@ -40,10 +41,10 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   return NextResponse.json({
     member: updated ? { id: updated.id, name: updated.name, email: updated.email, role: updated.role } : null,
   });
-}
+});
 
 // DELETE /api/org/members/:id — remove a member. Owners/admins only.
-export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+export const DELETE = safeHandler("org.members.delete", async (_req: NextRequest, ctx: { params: Promise<{ id: string }> }) => {
   const gate = await requirePermission("manage_users");
   if (gate instanceof NextResponse) return gate;
   const { id } = await ctx.params;
@@ -64,4 +65,4 @@ export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: str
   await removeMember(gate.user.orgId, id);
   await audit(gate.user.orgId, gate.user.email, "member.remove", id, { email: target.email });
   return NextResponse.json({ ok: true });
-}
+});

@@ -7,13 +7,14 @@ import {
 } from "@/lib/auth/session";
 import { isValidRole, type Role } from "@/lib/auth/roles";
 import { audit } from "@/lib/events";
+import { safeHandler } from "@/lib/api/safeHandler";
 
 export const runtime = "nodejs";
 
 // POST /api/org/invitations — invite a teammate by email with a role. The
 // invite is bound to the caller's org; accepting it can only ever create a user
 // inside THIS tenant. Owners/admins only.
-export async function POST(req: NextRequest) {
+export const POST = safeHandler("org.invitations.post", async (req: NextRequest) => {
   const gate = await requirePermission("manage_users");
   if (gate instanceof NextResponse) return gate;
   const { email, role } = await req.json().catch(() => ({}));
@@ -48,10 +49,10 @@ export async function POST(req: NextRequest) {
     invitation: { id: invite.id, email: invite.email, role: invite.role, expiresAt: invite.expiresAt.getTime() },
     acceptUrl,
   });
-}
+});
 
 // DELETE /api/org/invitations?id=... — revoke a pending invite. Owners/admins.
-export async function DELETE(req: NextRequest) {
+export const DELETE = safeHandler("org.invitations.delete", async (req: NextRequest) => {
   const gate = await requirePermission("manage_users");
   if (gate instanceof NextResponse) return gate;
   const inviteId = req.nextUrl.searchParams.get("id");
@@ -61,4 +62,4 @@ export async function DELETE(req: NextRequest) {
   await revokeInvitation(gate.user.orgId, inviteId);
   await audit(gate.user.orgId, gate.user.email, "invite.revoke", inviteId, null);
   return NextResponse.json({ ok: true });
-}
+});

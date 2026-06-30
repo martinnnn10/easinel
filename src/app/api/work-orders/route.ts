@@ -7,8 +7,30 @@ import {
 } from "@/lib/workorders/repository";
 import { requirePermission } from "@/lib/auth/guard";
 import { safeHandler } from "@/lib/api/safeHandler";
+import { parseBody, Priority, WoType } from "@/lib/api/validate";
+import { z } from "zod";
 
 export const runtime = "nodejs";
+
+// A work order must be born with a handle on what's wrong: a title OR a symptom.
+const CreateWorkOrderSchema = z
+  .object({
+    title: z.string().trim().max(300).optional(),
+    symptom: z.string().trim().max(4000).optional().nullable(),
+    description: z.string().max(20000).optional().nullable(),
+    assetId: z.string().trim().optional().nullable(),
+    priority: Priority.optional(),
+    type: WoType.optional(),
+    assignedTo: z.string().trim().optional().nullable(),
+    estLaborMins: z.number().int().nonnegative().max(100000).optional().nullable(),
+    parts: z.array(z.string()).max(200).optional(),
+    safety: z.array(z.string()).max(200).optional(),
+    source: z.string().trim().max(60).optional(),
+  })
+  .refine((b) => Boolean(b.title?.trim() || b.symptom?.trim()), {
+    message: "a title or a symptom is required",
+    path: ["title"],
+  });
 
 // GET /api/work-orders?assetId=&status=&priority=&type=&assignedTo=&search=&stats=1
 export const GET = safeHandler("workorders.list", async (req: NextRequest) => {
@@ -42,11 +64,11 @@ export const POST = safeHandler("workorders.create", async (req: NextRequest) =>
   if (gate instanceof NextResponse) return gate;
   const { user } = gate;
 
-  const body = await req.json().catch(() => ({}));
+  const parsed = await parseBody(req, CreateWorkOrderSchema);
+  if (parsed.response) return parsed.response;
+  const body = parsed.data;
+
   const title = (body.title || body.symptom || "").trim();
-  if (!title) {
-    return NextResponse.json({ error: "title or symptom required" }, { status: 400 });
-  }
   const wo = await createWorkOrder(
     user.orgId,
     {
