@@ -6,7 +6,12 @@ uploads
 *.db
 *.db-*
 local.db*
-.env.local
+# Never copy ANY env file into the build context — config is injected at runtime.
+.env
+.env.*
+.claude
+*.tsbuildinfo
+next-env.d.ts
 README.md
 Dockerfile
 .dockerignore

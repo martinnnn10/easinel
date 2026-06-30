@@ -8,9 +8,20 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["src/**/*.test.ts"],
-    // Several suites point DATABASE_URL at an in-memory libSQL DB. Each file must
-    // own its own process so the singleton db client (and the :memory: DB) is not
-    // shared across files — otherwise parallel files collide with SQLITE_BUSY.
+    // Force the in-memory DB BEFORE any module loads. Individual suites also set
+    // these at the top of the file, but ESM hoists `import` above those
+    // assignments, so the db module could read process.env first and fall back to
+    // a persistent `file:local.db`. Setting them here (vitest applies test.env
+    // before module evaluation) makes every run hermetic: no stray local.db is
+    // created, and the suite is deterministic instead of depending on a fresh
+    // checkout.
+    env: {
+      DATABASE_URL: ":memory:",
+      EMBEDDINGS_DISABLED: "1",
+      NODE_ENV: "test",
+    },
+    // Single fork so the in-memory libSQL client (a module-level singleton) is
+    // shared across files within a run; fileParallelism off avoids SQLITE_BUSY.
     pool: "forks",
     poolOptions: {
       forks: { singleFork: true },

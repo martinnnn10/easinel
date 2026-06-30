@@ -7,9 +7,11 @@ build
 *.db-wal
 *.db-shm
 local.db*
+# Environment: ignore EVERY .env variant except the committed template, so a real
+# .env / .env.production / .env.*.local can never be accidentally committed.
 .env
-.env.local
-.env*.local
+.env.*
+!.env.example
 uploads
 .DS_Store
 *.log
@@ -18,3 +20,6 @@ next-env.d.ts
 # TypeScript incremental build info
 tsconfig.tsbuildinfo
 *.tsbuildinfo
+
+# Local Claude Code settings (machine-specific; never shared).
+.claude/settings.local.json
