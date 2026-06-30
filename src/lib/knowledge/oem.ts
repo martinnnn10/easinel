@@ -162,9 +162,155 @@ VIBRATION / NOISE
 • Misalignment or imbalance; soft foot at the base.
 • Electrical: a steady 2× line-frequency vibration can indicate rotor/stator issues.`,
   },
+  {
+    id: "oem_plc_controller",
+    title: "Programmable Controller (PLC) — Common Fault Reference (General)",
+    equipmentClass: "PLC / PAC (Allen-Bradley CompactLogix/ControlLogix, Siemens S7, etc.)",
+    text: `Programmable Controller (PLC) — General Fault Reference
+Generic, plant-agnostic. NEVER force outputs or download logic to a running
+machine without authorization and LOTO of the affected actuators.
+
+CONTROLLER STATUS LEDS
+• Solid red / faulted controller — a MAJOR fault halted the processor. Read the
+  fault code from the controller (e.g. Logix major fault type/code) BEFORE
+  clearing; clearing without understanding loses the cause. Common: array index
+  out of range, watchdog timeout, or a corrupted/absent program after power loss.
+• Flashing red — recoverable fault or no project loaded.
+• I/O LED red / flashing — a module or rack lost communication (see below).
+
+I/O & NETWORK FAULTS
+• A module showing comm loss is usually wiring, a failed module, a power dip on
+  the rack, or a duplicate/changed IP. Check the cable, the switch port, and that
+  no one changed addressing. EtherNet/IP "connection timed out" mirrors a drive's
+  F081-class comm fault — same root causes.
+• Intermittent I/O faults after the panel warms up point at a loose terminal or a
+  failing module, not the program.
+
+MEMORY / BATTERY / POWER
+• A controller that loses its program on power cycle has a dead memory battery or
+  energy module (older platforms) — replace it; back up the program first.
+• Random halts can be a marginal 24 VDC supply. Measure it under load.
+
+GOLDEN RULE
+Logic almost never "goes bad" on its own. A machine that ran for years and now
+faults changed in the physical world first — a sensor, a wire, a module, a supply.
+Suspect the field before the program.`,
+  },
+  {
+    id: "oem_photoeye_sensor",
+    title: "Photoelectric / Proximity Sensor — Common Failure Reference (General)",
+    equipmentClass: "Photoeye, proximity, and discrete sensors (general)",
+    text: `Discrete Sensor (Photoeye / Proximity) — General Troubleshooting Reference
+Generic, plant-agnostic. Follow LOTO before reaching into a machine to inspect a sensor.
+
+NOT DETECTING / NOT SWITCHING
+• Lens fouled by dust, coolant, or product film — the #1 cause of "random" misses.
+  Clean it first. A photoeye that works after a wipe was never broken.
+• Misalignment of emitter/receiver or retro-reflector (vibration walked it off).
+• Sensing distance / target out of range, wrong target material (proximity sensors
+  see metal differently; aluminum/stainless reduce range vs. mild steel).
+• Output wiring: PNP vs NPN mismatch to the input card, or a broken/chafed cable.
+
+ALWAYS ON / ALWAYS OFF
+• Shorted or pinched cable, water ingress in the connector (check the M12 boot).
+• Background reflection tripping a non-polarized photoeye — use a polarized/retro
+  or background-suppression sensor.
+• Failed output transistor — confirm with a meter at the sensor before replacing logic.
+
+INTERMITTENT
+• Marginal alignment plus machine vibration; condensation; a connector backing out.
+  Intermittent sensor faults masquerade as PLC or drive problems — verify the
+  signal at the input card LED before chasing the controller.`,
+  },
+  {
+    id: "oem_pneumatic_valve",
+    title: "Pneumatic System / Solenoid Valve — Common Failure Reference (General)",
+    equipmentClass: "Pneumatic cylinders, solenoid valves, FRL (general)",
+    text: `Pneumatic System — General Troubleshooting Reference
+Generic, plant-agnostic. RELIEVE STORED AIR PRESSURE and follow LOTO before
+servicing — a charged cylinder or accumulator can move with lethal force.
+
+CYLINDER WON'T MOVE / WEAK / SLOW
+• Low supply pressure or a throttled/closed shutoff — check the gauge at the FRL.
+• Clogged filter or a drained-dry lubricator (where used); water in the bowl.
+• Flow control backed off, or a kinked/blocked line.
+• Worn cylinder seals (blow-by) — air escapes past the piston; the rod creeps or
+  loses force. A cylinder that weakens over weeks is usually seal wear.
+
+VALVE NOT SHIFTING
+• Solenoid coil not energized — verify voltage AT the coil (could be a blown coil,
+  broken wire, or the PLC output never fired). Manual override on the valve will
+  confirm the mechanical side is free.
+• Contamination jamming the spool, or no pilot pressure (low-pressure pilot valves
+  need a minimum supply to shift).
+
+AIR LEAKS / NOISE
+• Continuous hiss = a seal, fitting, or a stuck-open valve venting. Leaks waste
+  energy and drop system pressure for everything downstream — fix them.
+• Water/oil in the air = failed dryer or a full FRL bowl; it destroys valves and
+  seals over time.`,
+  },
+  {
+    id: "oem_conveyor",
+    title: "Conveyor (Belt / Roller / Chain) — Common Failure Reference (General)",
+    equipmentClass: "Belt, roller, and chain conveyors (general)",
+    text: `Conveyor — General Troubleshooting Reference
+Generic, plant-agnostic. LOTO the drive AND guard against gravity/stored energy on
+inclines before clearing a jam or reaching into a nip point.
+
+BELT TRACKING / MISTRACKING
+• Belt drifting to one side: check for off-square pulleys, uneven tension, material
+  buildup on a pulley/roller, or a frame that's out of level. Adjust tracking in
+  small steps and run between adjustments.
+
+SLIPPING / NOT MOVING
+• Glazed or worn drive lagging, low belt tension, or an overloaded belt.
+• On chain conveyors: stretched/worn chain, seized roller, or a broken link.
+• Drive faulted upstream (motor/gearbox/VFD) — confirm the drive is actually
+  commanding motion before blaming the belt.
+
+NOISE / VIBRATION
+• Seized idler/roller bearing (find the hot or squealing roller), or material
+  packed around a shaft. A dragging roller raises motor current and can trip the
+  drive on overload after it warms up.
+
+JAMS / SAFETY
+• Recurring jams at a transfer usually mean a worn/misadjusted transfer plate or a
+  product-flow issue, not the conveyor itself. Never clear a jam on a live machine
+  — pull-cords and e-stops exist because reaching into a running conveyor kills.`,
+  },
+  {
+    id: "oem_safety_circuit",
+    title: "Machine Safety Circuit (E-Stop / Light Curtain / Safety Relay) — Reference (General)",
+    equipmentClass: "Safety relays, e-stops, light curtains, gate interlocks (general)",
+    text: `Machine Safety Circuit — General Reference
+Generic, plant-agnostic. Safety devices exist to protect people. NEVER bypass,
+jumper, or defeat a safety device to "get the line running." Diagnose and fix it.
+
+MACHINE WON'T START / SAFETY RELAY WON'T RESET
+• An OPEN device somewhere in the safety string: a popped e-stop, an open gate
+  interlock, a blocked/misaligned light curtain, or a tripped pull-cord. Walk the
+  string and find the open contact — the safety relay only resets when every device
+  in the chain is closed and healthy.
+• Dual-channel fault: safety relays monitor two redundant channels and will LOCK
+  OUT if the channels disagree (one contact welded/stuck, or a cross-fault in
+  wiring). This is the device doing its job — find the failed contact or wiring fault.
+• Reset sequence: many circuits require the device to close AND a separate monitored
+  reset pulse. A held/stuck reset button is itself a fault on most modern relays.
+
+LIGHT CURTAIN FAULTS
+• Misalignment, a fouled lens, or something parked in the field. Blanking/muting
+  must be configured correctly — an incorrectly muted curtain is a safety hazard,
+  not a fix.
+
+RULE
+If a safety device keeps tripping, that is a SYMPTOM. The correct response is to
+find what is opening it (mechanical interference, a failing switch, a wiring fault)
+— never to defeat it.`,
+  },
 ];
 
-const OEM_VERSION = 1;
+const OEM_VERSION = 2;
 
 // Has a SPECIFIC OEM doc already been seeded for this org?
 async function docSeeded(docId: string): Promise<boolean> {
