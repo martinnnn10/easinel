@@ -1,0 +1,49 @@
+{
+  "name": "eas-industrial-copilot",
+  "version": "0.1.0",
+  "private": true,
+  "description": "EAS Industrial Copilot — the AI Operating System for Manufacturing Maintenance",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "db:push": "drizzle-kit push",
+    "db:studio": "drizzle-kit studio",
+    "seed": "tsx src/lib/db/seed.ts",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.32.1",
+    "@aws-sdk/client-s3": "^3.726.0",
+    "@libsql/client": "^0.14.0",
+    "drizzle-orm": "^0.45.2",
+    "eslint-config-next": "^15.5.19",
+    "fast-xml-parser": "^4.5.6",
+    "jszip": "^3.10.1",
+    "mammoth": "^1.8.0",
+    "next": "^15.5.19",
+    "pdf-parse": "^1.1.1",
+    "react": "19.0.0",
+    "react-dom": "19.0.0",
+    "react-markdown": "^9.0.1",
+    "remark-gfm": "^4.0.0",
+    "xlsx": "^0.18.5",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.0.0",
+    "@types/node": "^22.10.5",
+    "@types/pdf-parse": "^1.1.4",
+    "@types/react": "^19.0.7",
+    "@types/react-dom": "^19.0.3",
+    "drizzle-kit": "^0.31.10",
+    "tailwindcss": "^4.0.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3",
+    "vitest": "^2.1.9"
+  }
+}

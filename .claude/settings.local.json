@@ -1,0 +1,32 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls -la)",
+      "Bash(node --version)",
+      "Bash(npm --version)",
+      "Bash(pnpm --version)",
+      "Bash(npm install *)",
+      "Bash(npm audit *)",
+      "Bash(npm ls *)",
+      "Bash(npm view *)",
+      "Bash(npm run *)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3100/)",
+      "Bash(curl -s -N -X POST http://localhost:3100/api/chat -H \"content-type: application/json\" -d '{\"question\":\"My PowerFlex 525 shows Fault F081.\",\"assetId\":null,\"history\":[]}')",
+      "Bash(curl -s -X POST http://localhost:3100/api/upload -F \"files=@/tmp/c21_manual.txt\")",
+      "Bash(curl -s -N -X POST http://localhost:3100/api/chat -H \"content-type: application/json\" -d '{\"question\":\"What lubricant and overload relay setting for conveyor C-21?\",\"history\":[]}')",
+      "Bash(curl -s -X POST http://localhost:3100/api/assets -H \"content-type: application/json\" -d '{\"name\":\"Line 3 Case Packer\",\"assetTag\":\"CP-031\",\"manufacturer\":\"Allen-Bradley\",\"model\":\"PowerFlex 525\",\"criticality\":\"high\"}')",
+      "Bash(curl -s http://localhost:3100/api/assets)",
+      "Bash(curl -s http://localhost:3100/api/knowledge)",
+      "Bash(curl -s --max-time 20 https://api.turso.tech/v1/organizations -H 'Authorization: Bearer eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJqdGkiOiIxWVR5SVhNNkVmR0ZzRXI5QlkzaDRRIiwib3JnX2lkIjoxMDAwMTkwOTg3fQ.Ki4y0q6SinyKni0QD2Y5hsZ01bpB5ZJ0RsrKUBvjAbRW0852LJ74UVhlw9XIlF6tY_GLoNltas3sklur171wBw')",
+      "Bash(curl -s --max-time 20 https://api.turso.tech/v1/organizations/easintel/databases -H 'Authorization: Bearer eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJqdGkiOiIxWVR5SVhNNkVmR0ZzRXI5QlkzaDRRIiwib3JnX2lkIjoxMDAwMTkwOTg3fQ.Ki4y0q6SinyKni0QD2Y5hsZ01bpB5ZJ0RsrKUBvjAbRW0852LJ74UVhlw9XIlF6tY_GLoNltas3sklur171wBw')",
+      "Bash(curl -s --max-time 20 https://api.turso.tech/v1/locations -H 'Authorization: Bearer eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJqdGkiOiIxWVR5SVhNNkVmR0ZzRXI5QlkzaDRRIiwib3JnX2lkIjoxMDAwMTkwOTg3fQ.Ki4y0q6SinyKni0QD2Y5hsZ01bpB5ZJ0RsrKUBvjAbRW0852LJ74UVhlw9XIlF6tY_GLoNltas3sklur171wBw')",
+      "Bash(curl -s --max-time 20 https://api.turso.tech/v1/organizations/easintel/groups -H 'Authorization: Bearer eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJqdGkiOiIxWVR5SVhNNkVmR0ZzRXI5QlkzaDRRIiwib3JnX2lkIjoxMDAwMTkwOTg3fQ.Ki4y0q6SinyKni0QD2Y5hsZ01bpB5ZJ0RsrKUBvjAbRW0852LJ74UVhlw9XIlF6tY_GLoNltas3sklur171wBw')",
+      "Bash(curl -s --max-time 30 -X POST https://api.turso.tech/v1/organizations/easintel/groups -H 'Authorization: Bearer eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJqdGkiOiIxWVR5SVhNNkVmR0ZzRXI5QlkzaDRRIiwib3JnX2lkIjoxMDAwMTkwOTg3fQ.Ki4y0q6SinyKni0QD2Y5hsZ01bpB5ZJ0RsrKUBvjAbRW0852LJ74UVhlw9XIlF6tY_GLoNltas3sklur171wBw' -H 'content-type: application/json' -d '{\"name\":\"default\",\"location\":\"aws-us-east-1\"}')",
+      "Bash(curl -s --max-time 30 -X POST https://api.turso.tech/v1/organizations/easintel/databases -H 'Authorization: Bearer eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJqdGkiOiIxWVR5SVhNNkVmR0ZzRXI5QlkzaDRRIiwib3JnX2lkIjoxMDAwMTkwOTg3fQ.Ki4y0q6SinyKni0QD2Y5hsZ01bpB5ZJ0RsrKUBvjAbRW0852LJ74UVhlw9XIlF6tY_GLoNltas3sklur171wBw' -H 'content-type: application/json' -d '{\"name\":\"eas-copilot\",\"group\":\"default\"}')",
+      "Bash(curl -s --max-time 30 -X POST https://api.turso.tech/v1/organizations/easintel/databases/eas-copilot/auth/tokens?authorization=full-access -H 'Authorization: Bearer eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJqdGkiOiIxWVR5SVhNNkVmR0ZzRXI5QlkzaDRRIiwib3JnX2lkIjoxMDAwMTkwOTg3fQ.Ki4y0q6SinyKni0QD2Y5hsZ01bpB5ZJ0RsrKUBvjAbRW0852LJ74UVhlw9XIlF6tY_GLoNltas3sklur171wBw')",
+      "Read(//tmp/**)",
+      "Bash(rm -f plat.log dev.log start.log turso.log local.db local.db-*)",
+      "Bash(rm -rf uploads .next)"
+    ]
+  }
+}

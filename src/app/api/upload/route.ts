@@ -1,0 +1,60 @@
+import { NextRequest, NextResponse } from "next/server";
+import { ingestFile } from "@/lib/rag/ingest";
+import { requirePermission } from "@/lib/auth/guard";
+
+export const runtime = "nodejs";
+export const maxDuration = 120;
+
+export async function POST(req: NextRequest) {
+  const gate = await requirePermission("upload_documents");
+  if (gate instanceof NextResponse) return gate;
+  const orgId = gate.user.orgId;
+  const form = await req.formData();
+  const assetId = (form.get("assetId") as string) || null;
+  const files = form.getAll("files").filter((f): f is File => f instanceof File);
+
+  if (!files.length) {
+    return NextResponse.json({ error: "No files provided" }, { status: 400 });
+  }
+
+  const MAX_BYTES = 50 * 1024 * 1024; // 50 MB per file
+  const results = [];
+  for (const file of files) {
+    const buffer = Buffer.from(await file.arrayBuffer());
+    if (buffer.length > MAX_BYTES) {
+      results.push({
+        ok: false,
+        filename: file.name,
+        status: "error",
+        indexed: false,
+        message: `"${file.name}" is ${(buffer.length / 1048576).toFixed(1)} MB, which exceeds the 50 MB upload limit.`,
+      });
+      continue;
+    }
+    try {
+      const res = await ingestFile(
+        orgId,
+        { name: file.name, type: file.type, buffer },
+        { assetId }
+      );
+      results.push({ ok: true, ...res });
+    } catch (err) {
+      results.push({
+        ok: false,
+        filename: file.name,
+        status: "error",
+        indexed: false,
+        message: (err as Error).message,
+      });
+    }
+  }
+
+  const indexed = results.filter((r) => (r as { indexed?: boolean }).indexed).length;
+  const summary = {
+    total: results.length,
+    indexed,
+    notIndexed: results.length - indexed,
+  };
+
+  return NextResponse.json({ results, summary });
+}
