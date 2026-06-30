@@ -312,6 +312,29 @@ export default function WorkOrderDetailPage() {
                     </div>
                   )}
 
+                  {/* Maintenance Memory (Slice 4): the close-out is now indexed
+                      as a retrievable lesson the Copilot can cite. Only shown
+                      when there was real close-out content to capture. */}
+                  {wo.status === "done" && wo.assetId && (wo.resolution || wo.rootCause || wo.failedPart) && (
+                    <div className="rounded-xl border border-[var(--color-green)]/30 bg-[var(--color-green)]/5 p-4">
+                      <div className="flex items-start gap-3">
+                        <span className="text-xl">🧠</span>
+                        <div className="min-w-0 flex-1">
+                          <h3 className="text-[13px] font-semibold">Saved to the machine&apos;s memory</h3>
+                          <p className="text-[12px] text-[var(--color-muted)] mt-0.5">
+                            This repair is now a retrievable lesson — the Copilot will surface it the next time {assetName || "this machine"} shows the same symptom.
+                          </p>
+                        </div>
+                        <Link
+                          href={`/assets/${wo.assetId}?tab=lessons`}
+                          className="shrink-0 text-[12px] font-medium rounded-lg border border-[var(--color-green)]/40 text-[var(--color-green)] px-3 py-1.5 hover:bg-[var(--color-green)]/10"
+                        >
+                          View lessons →
+                        </Link>
+                      </div>
+                    </div>
+                  )}
+
                   <PartsIntegration wo={wo} />
 
                   {/* History timeline */}

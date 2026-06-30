@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState, use } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { Copilot } from "@/components/Copilot";
 
 // ───────────────────────── Types (mirror the twin payload) ─────────────────────────
@@ -48,10 +49,15 @@ type Tab = "overview" | "pms" | "parts" | "workorders" | "failures" | "documents
 
 export default function AssetPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
+  const searchParams = useSearchParams();
   const [twin, setTwin] = useState<Twin | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [tab, setTab] = useState<Tab>("overview");
+  // Honor a ?tab= deep link (e.g. from a closed work order linking to Lessons),
+  // falling back to the overview when absent or unrecognized.
+  const validTabs: Tab[] = ["overview", "pms", "parts", "workorders", "failures", "documents", "lessons", "plc", "alarms", "sessions", "ai"];
+  const initialTab = validTabs.includes(searchParams.get("tab") as Tab) ? (searchParams.get("tab") as Tab) : "overview";
+  const [tab, setTab] = useState<Tab>(initialTab);
 
   const load = useCallback(() => {
     setError(null);
@@ -425,10 +431,12 @@ function Failures({ wos, alarms }: { wos: Wo[]; alarms: Alarm[] }) {
   );
 }
 
-// Lessons learned captured against this machine (uploaded as kind=lesson).
+// Lessons learned captured against this machine (kind=lesson). These are created
+// two ways: saved from the Copilot, and auto-captured when a corrective work
+// order is closed out with a resolution (Slice 4 — Maintenance Memory).
 function Lessons({ lessons }: { lessons: Doc[] }) {
   if (lessons.length === 0)
-    return <EmptyRow>No lessons learned recorded for this machine yet. Capture what a tech should know next time a failure is closed out.</EmptyRow>;
+    return <EmptyRow>No lessons learned recorded for this machine yet. Close out a corrective work order with what fixed it and it lands here automatically — and the Copilot can cite it next time.</EmptyRow>;
   return (
     <div className="space-y-1">
       {lessons.map((d) => (
