@@ -2,25 +2,26 @@
 
 /* ───────────────────────── EAS design tokens ───────────────────────── */
 @theme {
-  /* Professional enterprise dark slate — neutral, flat, high-contrast.
-     Inspired by Linear / Vercel / Datadog dashboards rather than a glowing
-     consumer "AI" page. Refined deep navy-graphite base with restrained chrome:
-     a touch deeper and cooler than before, calmer borders, and a single, clean
-     azure accent so the UI reads as a serious operations console. */
-  --color-bg: #090b10;
-  --color-bg-2: #0c0f16;
-  --color-surface: #11151d;
-  --color-surface-2: #181d28;
-  --color-border: #232a37;
-  --color-border-soft: #181e28;
-  --color-text: #eef1f7;
-  --color-muted: #97a2b5;
-  --color-faint: #5c6678;
-  --color-accent: #4d87f5;
-  --color-accent-soft: #16315a;
-  --color-amber: #f0b24a;
-  --color-green: #34d39a;
-  --color-red: #ef6480;
+  /* Industrial command-center dark — a NEUTRAL graphite/charcoal base (not navy),
+     restrained chrome, and blue reserved strictly for primary actions, links,
+     selected, and focus. Reads like a Rockwell/Ignition operations console, not a
+     startup SaaS gradient page. Greys are near-neutral (R≈G≈B) so the product
+     feels mature and professional rather than "AI blue." */
+  --color-bg: #0a0b0d;
+  --color-bg-2: #0e0f12;
+  --color-surface: #15161a;
+  --color-surface-2: #1c1e23;
+  --color-border: #2a2d34;
+  --color-border-soft: #1d1f25;
+  --color-text: #edeff2;
+  --color-muted: #9aa0aa;
+  --color-faint: #626770;
+  /* Matured steel-azure — clearly a "primary action" blue, less neon than before. */
+  --color-accent: #3f77cf;
+  --color-accent-soft: #1a2c46;
+  --color-amber: #e6a94a;
+  --color-green: #37c795;
+  --color-red: #ec6079;
 
   --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
     Helvetica, Arial, sans-serif;
@@ -44,7 +45,7 @@ body {
      like a serious operations console, not a chatbot. */
   background-color: var(--color-bg);
   background-image:
-    radial-gradient(120% 80% at 50% -10%, rgba(120, 150, 210, 0.05) 0%, transparent 60%),
+    radial-gradient(120% 80% at 50% -10%, rgba(220, 224, 230, 0.04) 0%, transparent 60%),
     linear-gradient(to bottom, var(--color-bg-2) 0%, var(--color-bg) 46%),
     linear-gradient(rgba(255, 255, 255, 0.012) 1px, transparent 1px),
     linear-gradient(90deg, rgba(255, 255, 255, 0.012) 1px, transparent 1px);

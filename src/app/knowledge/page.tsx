@@ -11,8 +11,20 @@ interface Doc {
   charCount?: number;
   sizeBytes?: number;
   createdAt?: number;
+  assetId?: string | null;
+  mimeType?: string | null;
+  storagePath?: string | null;
   plcProjectId?: string;
   plcFidelity?: string;
+}
+
+interface DocDetail {
+  document: Doc & { assetId?: string | null; mimeType?: string | null; storagePath?: string | null };
+  asset: { id: string; name: string } | null;
+  indexed: boolean;
+  chunkCount: number;
+  textPreview: string;
+  hasOriginal: boolean;
 }
 
 const kindMeta: Record<string, { icon: string; label: string }> = {
@@ -36,6 +48,10 @@ export default function KnowledgePage() {
   // When an ACD (summary-only) is uploaded we surface the export-L5X guide
   // immediately instead of dropping the user into a sparse Explorer.
   const [acdGuide, setAcdGuide] = useState<{ id: string; filename: string } | null>(null);
+  // Document detail drawer — opens for ANY document (not just PLC) so an upload
+  // is never a dead click.
+  const [detail, setDetail] = useState<DocDetail | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
 
   const load = useCallback(
     () =>
@@ -76,14 +92,22 @@ export default function KnowledgePage() {
     }
   };
 
-  const openDoc = (d: Doc) => {
-    if (!d.plcProjectId) return;
-    // Full L5X → straight into the Explorer. ACD (summary) → show the same
-    // export-to-L5X guide as on upload, so a click is never a dead end.
-    if (d.plcFidelity === "full") {
-      router.push(`/plc/${d.plcProjectId}`);
-    } else {
-      setAcdGuide({ id: d.plcProjectId, filename: d.filename });
+  const openDoc = async (d: Doc) => {
+    // PLC files keep their rich behavior: full L5X → Explorer; ACD → export guide.
+    if (d.plcProjectId) {
+      if (d.plcFidelity === "full") router.push(`/plc/${d.plcProjectId}`);
+      else setAcdGuide({ id: d.plcProjectId, filename: d.filename });
+      return;
+    }
+    // Every other document opens a detail drawer with its metadata, status,
+    // extracted-text preview, linked asset, and an open-original action.
+    setDetailLoading(true);
+    setDetail({ document: d, asset: null, indexed: (d.charCount ?? 0) > 0, chunkCount: 0, textPreview: "", hasOriginal: false });
+    try {
+      const r = await fetch(`/api/knowledge/${d.id}`);
+      if (r.ok) setDetail(await r.json());
+    } finally {
+      setDetailLoading(false);
     }
   };
 
@@ -163,20 +187,20 @@ export default function KnowledgePage() {
                 return (
                   <div
                     key={d.id}
-                    role={isPlc ? "button" : undefined}
-                    tabIndex={isPlc ? 0 : undefined}
+                    role="button"
+                    tabIndex={0}
                     onClick={() => openDoc(d)}
                     onKeyDown={(e) => {
-                      if (isPlc && (e.key === "Enter" || e.key === " ")) {
+                      if (e.key === "Enter" || e.key === " ") {
                         e.preventDefault();
                         openDoc(d);
                       }
                     }}
-                    className={`flex items-center gap-3 px-4 py-3 transition ${
+                    className={`flex items-center gap-3 px-4 py-3 transition cursor-pointer ${
                       i > 0 ? "border-t border-[var(--color-border-soft)]" : ""
                     } ${
                       isPlc
-                        ? "cursor-pointer hover:bg-[var(--color-accent)]/[0.06]"
+                        ? "hover:bg-[var(--color-accent)]/[0.06]"
                         : "hover:bg-[var(--color-surface-2)]"
                     }`}
                   >
@@ -200,11 +224,9 @@ export default function KnowledgePage() {
                       </p>
                     </div>
 
-                    {isPlc && (
-                      <span className="text-[11px] font-medium text-[var(--color-accent)] whitespace-nowrap">
-                        Open in PLC Explorer →
-                      </span>
-                    )}
+                    <span className="text-[11px] font-medium text-[var(--color-accent)] whitespace-nowrap">
+                      {isPlc ? "Open in PLC Explorer →" : "Open →"}
+                    </span>
 
                     <span
                       className={`text-[10px] px-2 py-0.5 rounded-full ${
@@ -230,7 +252,149 @@ export default function KnowledgePage() {
           onClose={() => setAcdGuide(null)}
         />
       )}
+
+      {detail && (
+        <DocumentDrawer
+          detail={detail}
+          loading={detailLoading}
+          onClose={() => setDetail(null)}
+          onAskCopilot={(d) =>
+            router.push(d.asset?.id ? `/assets/${d.asset.id}?tab=ai` : `/`)
+          }
+        />
+      )}
     </>
+  );
+}
+
+// Detail drawer for any uploaded document. Shows metadata, indexing status, the
+// linked asset, the extracted-text preview, and an honest open-original action.
+function DocumentDrawer({
+  detail,
+  loading,
+  onClose,
+  onAskCopilot,
+}: {
+  detail: DocDetail;
+  loading: boolean;
+  onClose: () => void;
+  onAskCopilot: (d: DocDetail) => void;
+}) {
+  const d = detail.document;
+  const meta = kindMeta[d.kind] ?? kindMeta.document;
+  const fmtDate = (ts?: number) =>
+    ts ? new Date(ts).toLocaleString([], { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }) : "—";
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex justify-end" onClick={onClose}>
+      <div
+        className="w-full sm:max-w-lg h-full bg-[var(--color-surface)] border-l border-[var(--color-border)] overflow-y-auto fadeup"
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Document detail"
+      >
+        <div className="sticky top-0 bg-[var(--color-surface)] border-b border-[var(--color-border)] px-5 py-4 flex items-start gap-3">
+          <span className="text-2xl">{meta.icon}</span>
+          <div className="min-w-0 flex-1">
+            <h2 className="text-[15px] font-semibold break-words">{d.filename}</h2>
+            <p className="text-[11px] text-[var(--color-muted)] mt-0.5">{meta.label}</p>
+          </div>
+          <button onClick={onClose} aria-label="Close" className="text-[var(--color-faint)] hover:text-[var(--color-text)] text-lg leading-none">×</button>
+        </div>
+
+        <div className="px-5 py-4 space-y-4">
+          {/* Facts */}
+          <div className="grid grid-cols-2 gap-2.5">
+            <Fact label="Type" value={d.mimeType || meta.label} />
+            <Fact label="Uploaded" value={fmtDate(d.createdAt)} />
+            <Fact label="Size" value={d.sizeBytes ? `${(d.sizeBytes / 1024).toFixed(0)} KB` : "—"} />
+            <Fact
+              label="Indexing"
+              value={detail.indexed ? `Indexed · ${detail.chunkCount} chunks` : "Stored (no text index)"}
+              good={detail.indexed}
+            />
+          </div>
+
+          {/* Linked asset / asset-first affordance */}
+          <div className="rounded-xl border border-[var(--color-border)] p-3">
+            <p className="text-[10px] uppercase tracking-wider text-[var(--color-muted)] mb-1.5">Linked machine</p>
+            {detail.asset ? (
+              <a href={`/assets/${detail.asset.id}`} className="text-[13px] text-[var(--color-accent)] hover:underline">
+                {detail.asset.name} →
+              </a>
+            ) : (
+              <p className="text-[12.5px] text-[var(--color-amber)]">
+                ⚠ Needs asset assignment — this document isn’t linked to a machine yet.
+              </p>
+            )}
+          </div>
+
+          {/* Actions */}
+          <div className="flex flex-wrap gap-2">
+            {detail.hasOriginal ? (
+              <>
+                <a
+                  href={`/api/knowledge/${d.id}/file`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[12.5px] font-medium rounded-lg bg-[var(--color-accent)] text-white px-3.5 py-2 hover:brightness-110"
+                >
+                  Open original
+                </a>
+                <a
+                  href={`/api/knowledge/${d.id}/file?download=1`}
+                  className="text-[12.5px] font-medium rounded-lg border border-[var(--color-border)] px-3.5 py-2 hover:bg-[var(--color-surface-2)]"
+                >
+                  Download
+                </a>
+              </>
+            ) : (
+              <span className="text-[12px] text-[var(--color-faint)]">
+                No stored original to open — this item’s text was indexed directly.
+              </span>
+            )}
+            <button
+              onClick={() => onAskCopilot(detail)}
+              className="text-[12.5px] font-medium rounded-lg border border-[var(--color-border)] px-3.5 py-2 hover:bg-[var(--color-surface-2)]"
+            >
+              Ask the Copilot
+            </button>
+          </div>
+
+          {/* Extracted text preview */}
+          <div>
+            <p className="text-[10px] uppercase tracking-wider text-[var(--color-muted)] mb-1.5">Extracted text preview</p>
+            {loading ? (
+              <div className="h-24 rounded-lg bg-[var(--color-surface-2)] animate-pulse" />
+            ) : detail.textPreview ? (
+              <pre className="text-[12px] leading-relaxed whitespace-pre-wrap break-words rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] p-3 max-h-80 overflow-y-auto font-sans">
+                {detail.textPreview}
+              </pre>
+            ) : (
+              <p className="text-[12.5px] text-[var(--color-muted)]">
+                No extractable text was indexed for this file
+                {d.kind === "photo" || (d.mimeType ?? "").startsWith("image/")
+                  ? " (image — text/OCR extraction is not performed)."
+                  : d.mimeType === "application/pdf"
+                  ? " (this may be a scanned/image-only PDF — OCR is not performed)."
+                  : "."}{" "}
+                You can still open the original above.
+              </p>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Fact({ label, value, good }: { label: string; value: string; good?: boolean }) {
+  return (
+    <div className="rounded-xl border border-[var(--color-border)] px-3 py-2">
+      <p className="text-[10px] uppercase tracking-wider text-[var(--color-muted)]">{label}</p>
+      <p className={`text-[12.5px] font-medium mt-0.5 ${good ? "text-[var(--color-green)]" : ""}`}>{value}</p>
+    </div>
   );
 }
 

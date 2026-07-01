@@ -754,7 +754,7 @@ function NewWorkOrderModal({ onClose, onCreated, presetAssetId, presetType }: { 
         <div className="space-y-3">
           <textarea
             autoFocus
-            placeholder="e.g. Conveyor 3 keeps faulting F007 about 20 minutes after startup"
+            placeholder="e.g. Line 2 packer keeps faulting about 20 minutes after startup"
             value={form.symptom}
             onChange={(e) => setForm({ ...form, symptom: e.target.value })}
             rows={3}

@@ -7,11 +7,14 @@ import { useChatStream, type ChatMessage } from "@/lib/useChatStream";
 import { Composer } from "./Composer";
 import { Markdown } from "./Markdown";
 
+// Generic capability prompts that map to the shared OEM knowledge — NOT fake
+// customer machines. Nothing here implies a specific asset exists in the
+// workspace (production must never show canned scenarios like "Conveyor 3").
 const SUGGESTIONS = [
-  "Conveyor 3 trips after 20 minutes.",
-  "My PowerFlex 525 shows Fault F081.",
-  "Why does Conveyor 3 keep failing?",
-  "Why is my servo hunting?",
+  "What should I check first for a VFD overload that trips after warm-up?",
+  "A PowerFlex drive shows Fault F081 — what does it mean and what do I check?",
+  "How do I diagnose a motor that keeps tripping its overload?",
+  "Why would a photoeye intermittently miss parts?",
   "Generate a PM for a gearbox.",
   "Write an RCA for a repeat motor failure.",
 ];
