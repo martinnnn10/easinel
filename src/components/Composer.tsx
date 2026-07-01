@@ -2,6 +2,7 @@
 
 import { useRef, useState, useCallback } from "react";
 import type { ImagePayload } from "@/lib/useChatStream";
+import { useDictation } from "@/lib/voice";
 
 type UploadState = "indexing" | "indexed" | "warn" | "failed";
 
@@ -29,6 +30,10 @@ export function Composer({
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
+  // Hands-free dictation: append the recognized utterance to the input.
+  const { listening, supported: micSupported, toggle: toggleMic } = useDictation((t) =>
+    setText((prev) => (prev ? `${prev} ${t}` : t))
+  );
 
   const handleFiles = useCallback(
     async (files: FileList | null) => {
@@ -198,6 +203,22 @@ export function Composer({
           className="flex-1 resize-none bg-transparent outline-none text-[14px] leading-6 py-2 text-[var(--color-text)] placeholder:text-[var(--color-faint)] max-h-[200px]"
         />
 
+        {micSupported && (
+          <button
+            onClick={toggleMic}
+            title={listening ? "Stop dictation" : "Dictate — hands-free voice input"}
+            aria-label={listening ? "Stop dictation" : "Start voice dictation"}
+            aria-pressed={listening}
+            className={`shrink-0 w-9 h-9 grid place-items-center rounded-lg transition-colors ${
+              listening
+                ? "bg-[var(--color-red)] text-white animate-pulse"
+                : "text-[var(--color-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-2)]"
+            }`}
+          >
+            <MicIcon className="w-5 h-5" />
+          </button>
+        )}
+
         <button
           onClick={submit}
           disabled={!text.trim() || busy}
@@ -275,6 +296,14 @@ function ArrowIcon({ className }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M12 19V5M5 12l7-7 7 7" />
+    </svg>
+  );
+}
+function MicIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="9" y="2" width="6" height="12" rx="3" />
+      <path d="M5 10a7 7 0 0 0 14 0M12 19v3" />
     </svg>
   );
 }

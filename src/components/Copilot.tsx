@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useChatStream, type ChatMessage } from "@/lib/useChatStream";
 import { Composer } from "./Composer";
 import { Markdown } from "./Markdown";
+import { speak, stopSpeaking, speechSupported } from "@/lib/voice";
 
 // Generic capability prompts that map to the shared OEM knowledge — NOT fake
 // customer machines. Nothing here implies a specific asset exists in the
@@ -553,9 +554,22 @@ function AnswerActions({
   const [wo, setWo] = useState<"idle" | "saving" | "done">("idle");
   const [woNumber, setWoNumber] = useState("");
   const [lesson, setLesson] = useState<"idle" | "saving" | "done">("idle");
+  const [speaking, setSpeaking] = useState(false);
 
   return (
     <div className="mt-3 flex flex-wrap items-center gap-2">
+      {speechSupported() && (
+        <button
+          onClick={() => {
+            if (speaking) { stopSpeaking(); setSpeaking(false); }
+            else { speak(body); setSpeaking(true); }
+          }}
+          aria-label={speaking ? "Stop reading" : "Read answer aloud"}
+          className="inline-flex items-center gap-1.5 text-[12px] rounded-lg border border-[var(--color-border)] px-3 py-1.5 text-[var(--color-text)] bg-[var(--color-surface)] hover:border-[var(--color-accent)]/60 hover:bg-[var(--color-surface-2)] transition"
+        >
+          {speaking ? "⏹ Stop" : "🔊 Read aloud"}
+        </button>
+      )}
       <button
         disabled={wo !== "idle"}
         onClick={async () => {

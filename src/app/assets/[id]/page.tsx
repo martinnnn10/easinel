@@ -330,6 +330,8 @@ function Overview({ assetId, asset, metrics, parent, children, pmPrograms, onCha
       {/* Related PM programs — generated FROM this machine (asset-first). */}
       <PmPrograms assetId={assetId} pmPrograms={pmPrograms} onChanged={onChanged} />
 
+      {/* Cross-plant OEM intelligence (the moat) — anonymized, consent-only. */}
+      <NetworkIntelPanel manufacturer={asset.manufacturer} model={asset.model} />
 
       <div>
         <h3 className="text-[12px] uppercase tracking-wide text-[var(--color-muted)] mb-1">Notes</h3>
@@ -446,6 +448,63 @@ function Lessons({ lessons }: { lessons: Doc[] }) {
           {d.createdAt && <span className="text-[10px] text-[var(--color-faint)]">{new Date(d.createdAt).toISOString().slice(0, 10)}</span>}
         </div>
       ))}
+    </div>
+  );
+}
+
+// Cross-plant OEM intelligence — anonymized, consent-only, k-anonymous. Shows
+// what the network of plants running this same make/model learned. Honest empty
+// state when there isn't enough pooled data (or the machine has no OEM identity).
+function NetworkIntelPanel({ manufacturer, model }: { manufacturer?: string | null; model?: string | null }) {
+  const [net, setNet] = useState<{ available: boolean; reason?: string; plantCount: number; signalCount: number; resolutionBreakdown: { category: string; pct: number }[]; medianDowntimeMins: number | null } | null>(null);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    if (!manufacturer && !model) { setLoading(false); return; }
+    // The meaningful OEM identity is manufacturer + model. We deliberately do NOT
+    // filter by assetType — the same drive/model carries different local asset
+    // type labels ("drive" vs "vfd") across plants, and over-filtering would hide
+    // real pooled data. Make/model is the join key that matches across tenants.
+    const q = new URLSearchParams();
+    if (manufacturer) q.set("manufacturer", manufacturer);
+    if (model) q.set("model", model);
+    fetch(`/api/network?${q.toString()}`).then((r) => r.json()).then((d) => setNet(d.network)).catch(() => {}).finally(() => setLoading(false));
+  }, [manufacturer, model]);
+
+  if (!manufacturer && !model) return null; // no OEM identity to query
+  return (
+    <div className="rounded-lg border border-[var(--color-accent)]/25 bg-[var(--color-accent)]/[0.04] p-3">
+      <div className="flex items-center gap-2 mb-1.5">
+        <span>🌐</span>
+        <h3 className="text-[12px] uppercase tracking-wide text-[var(--color-accent)]">Cross-plant intelligence</h3>
+        <span className="text-[10px] text-[var(--color-faint)]">anonymized · opt-in</span>
+      </div>
+      {loading ? (
+        <div className="h-8 rounded bg-[var(--color-surface-2)] animate-pulse" />
+      ) : net?.available ? (
+        <div className="text-[13px] space-y-1.5">
+          <p className="text-[var(--color-muted)]">
+            Across <strong className="text-[var(--color-text)]">{net.plantCount} plants</strong> and {net.signalCount} anonymized resolutions for {[manufacturer, model].filter(Boolean).join(" ")}:
+          </p>
+          <ul className="space-y-1">
+            {net.resolutionBreakdown.slice(0, 4).map((r) => (
+              <li key={r.category} className="flex items-center gap-2">
+                <span className="w-20 capitalize text-[var(--color-text)]">{r.category}</span>
+                <span className="flex-1 h-1.5 rounded-full bg-[var(--color-surface-2)] overflow-hidden">
+                  <span className="block h-full bg-[var(--color-accent)]" style={{ width: `${r.pct}%` }} />
+                </span>
+                <span className="text-[11px] text-[var(--color-muted)] w-8 text-right">{r.pct}%</span>
+              </li>
+            ))}
+          </ul>
+          {net.medianDowntimeMins != null && (
+            <p className="text-[11.5px] text-[var(--color-faint)]">Median downtime across the network: ~{net.medianDowntimeMins} min.</p>
+          )}
+        </div>
+      ) : (
+        <p className="text-[12.5px] text-[var(--color-muted)]">
+          {net?.reason || "Not enough pooled data yet."} As more plants opt in, EAS learns the fastest proven fix for this exact make and model.
+        </p>
+      )}
     </div>
   );
 }
