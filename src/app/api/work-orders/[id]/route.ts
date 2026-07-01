@@ -70,6 +70,15 @@ export const PATCH = safeHandler("workorders.update", async (req: NextRequest, {
     if (result.error === "not_found") {
       return NextResponse.json({ error: "not found" }, { status: 404 });
     }
+    if (result.error === "concurrent_modification") {
+      return NextResponse.json(
+        {
+          error: "concurrent_modification",
+          message: "This work order was just changed by someone else. Reload to see the latest status and try again.",
+        },
+        { status: 409 }
+      );
+    }
     if (result.error) {
       return NextResponse.json(
         { error: "invalid_transition", message: result.error },

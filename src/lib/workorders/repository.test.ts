@@ -175,3 +175,66 @@ describe("moat-aware OEM failure signal (Decision 3)", () => {
     expect(after).toBe(before);
   });
 });
+
+// Concurrency + idempotency of the state machine. Uses a UNIQUE manufacturer so
+// the emitted OEM signals never collide with other files' manufacturer-scoped
+// assertions (the in-memory DB is shared across test files).
+describe("work order transition — idempotency & concurrency", () => {
+  // Each test uses a DISTINCT manufacturer: the in-memory DB is shared across
+  // tests, and signalCount() counts by manufacturer, so a shared vendor would let
+  // one test's emitted signal leak into another's count.
+  async function correctiveWO(mfr: string) {
+    const asset = await createAsset(
+      ORG,
+      { name: "Conc Machine", manufacturer: mfr, model: "CT-1", assetType: "pump" },
+      "tester"
+    );
+    const wo = await createWorkOrder(
+      ORG,
+      { title: "Conc test", symptom: "F007 overload", assetId: asset.id, type: "corrective" },
+      "tester"
+    );
+    await transitionWorkOrder(ORG, wo.id, "in_progress", { actor: "tester" });
+    return wo;
+  }
+  const signalCount = async (mfr: string) =>
+    (await db.select().from(oemFailureSignals).where(eq(oemFailureSignals.manufacturer, mfr))).length;
+
+  it("treats a repeat →done as a no-op: no re-stamped close, no duplicate signal", async () => {
+    const MFR = "ConcIdempotencyCo";
+    const wo = await correctiveWO(MFR);
+    const first = await transitionWorkOrder(ORG, wo.id, "done", { resolution: "replaced seal", actor: "t" });
+    expect(first.workOrder?.status).toBe("done");
+    const closedAt = first.workOrder?.closedAt;
+    const afterOne = await signalCount(MFR);
+    expect(afterOne).toBe(1);
+
+    // Second identical close — must NOT re-run close-out side effects.
+    const second = await transitionWorkOrder(ORG, wo.id, "done", { resolution: "again", actor: "t" });
+    expect(second.error).toBeUndefined();
+    expect(second.workOrder?.status).toBe("done");
+    expect(second.workOrder?.closedAt).toEqual(closedAt); // unchanged
+    expect(await signalCount(MFR)).toBe(1); // NOT 2
+  });
+
+  it("survives two concurrent closes with exactly one real transition (one signal)", async () => {
+    const MFR = "ConcRaceCo";
+    const wo = await correctiveWO(MFR);
+    const results = await Promise.all([
+      transitionWorkOrder(ORG, wo.id, "done", { resolution: "tech A fix", actor: "A" }),
+      transitionWorkOrder(ORG, wo.id, "done", { resolution: "tech B fix", actor: "B" }),
+    ]);
+    // Final state is consistent.
+    const fresh = await getWorkOrder(ORG, wo.id);
+    expect(fresh?.status).toBe("done");
+    // Exactly one anonymized OEM signal was emitted, regardless of interleaving —
+    // the moat is never double-counted and downtime is stamped once.
+    expect(await signalCount(MFR)).toBe(1);
+    // At least one call reports success; any loser is a clean conflict, never a crash.
+    const successes = results.filter((r) => r.workOrder && !r.error);
+    expect(successes.length).toBeGreaterThanOrEqual(1);
+    for (const r of results) {
+      if (r.error) expect(r.error).toBe("concurrent_modification");
+    }
+  });
+});

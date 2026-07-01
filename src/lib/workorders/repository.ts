@@ -487,6 +487,14 @@ export async function transitionWorkOrder(
   if (!existing) return { error: "not_found" };
 
   const from = existing.status;
+  // Idempotent no-op: already in the target state. Return WITHOUT re-running any
+  // close-out side effects. Without this guard, a second "→ done" (a double
+  // click, a retried request, or a concurrent close) would re-stamp closedAt,
+  // recompute downtime, and re-emit the OEM failure signal / re-capture memory —
+  // corrupting downtime metrics and double-counting the moat signal.
+  if (from === toStatus) {
+    return { workOrder: existing };
+  }
   if (!canTransition(from, toStatus)) {
     return { error: `invalid_transition:${from}->${toStatus}` };
   }
@@ -514,10 +522,23 @@ export async function transitionWorkOrder(
     patch.downtimeMins = null;
   }
 
-  await db
+  // Optimistic concurrency control: only transition if the status is STILL what
+  // we read (`from`). If another request moved it first, `rowsAffected` is 0 and
+  // we bail with a conflict — so two technicians closing the same work order at
+  // once produce exactly one close (one downtime, one signal), not two.
+  const res = await db
     .update(workOrders)
     .set(patch)
-    .where(and(eq(workOrders.orgId, orgId), eq(workOrders.id, woId)));
+    .where(
+      and(
+        eq(workOrders.orgId, orgId),
+        eq(workOrders.id, woId),
+        eq(workOrders.status, from)
+      )
+    );
+  if ((res as { rowsAffected?: number }).rowsAffected === 0) {
+    return { error: "concurrent_modification" };
+  }
 
   await recordEvent(orgId, woId, {
     kind: "status",
