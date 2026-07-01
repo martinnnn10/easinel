@@ -14,6 +14,7 @@ const nav = [
   { href: "/", label: "Copilot", icon: SparkIcon },
   { href: "/sessions", label: "Sessions", icon: PulseIcon },
   { href: "/work-orders", label: "Work Orders", icon: WrenchIcon },
+  { href: "/handover", label: "Shift Handover", icon: PulseIcon },
   { href: "/pm", label: "PM Program", icon: CalendarIcon },
   { href: "/scenarios", label: "Scenarios", icon: BookIcon },
   { href: "/parts", label: "Parts", icon: BoltIcon },
