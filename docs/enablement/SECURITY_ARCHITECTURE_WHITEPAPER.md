@@ -108,16 +108,18 @@ customer organization is an isolated tenant.
 
 - **SDLC:** typed codebase (TypeScript, `tsc --noEmit` clean), an automated test
   suite (unit + tenant-isolation + retrieval + concurrency), and a green
-  production build gate on every change. Tests are hermetic (in-memory DB, no
-  external calls).
+  production build gate on every change, enforced in **CI on every push/PR**
+  (typecheck → test → build). Tests are hermetic (in-memory DB, no external
+  calls).
 - **Observability:** structured JSON logs (level-gated), a health/readiness probe
   (`/api/health`, DB-checked, leaks no tenant data) for load balancers and uptime
   monitoring.
 - **Data integrity:** the work-order state machine uses optimistic concurrency
   control and idempotent transitions so concurrent actions can't double-close or
   double-count.
-- **Dependency posture:** dependencies are pinned via lockfile; **Roadmap:**
-  automated dependency-vulnerability scanning in CI.
+- **Dependency posture:** dependencies are pinned via lockfile; CI runs
+  `npm audit` on every push/PR (advisory today). **Roadmap:** hard-fail the
+  pipeline on new high/critical advisories once the tree is clean.
 
 ## 9. Compliance posture
 

@@ -536,7 +536,15 @@ export async function transitionWorkOrder(
         eq(workOrders.status, from)
       )
     );
-  if ((res as { rowsAffected?: number }).rowsAffected === 0) {
+  // Driver-agnostic affected-row count: libSQL exposes `rowsAffected`, node-
+  // postgres exposes `rowCount`. Reading both keeps this concurrency guard
+  // working unchanged across a future SQLite→Postgres swap (see the PostgreSQL
+  // Readiness Audit — this is the one data-integrity check that depended on a
+  // driver-specific field). If neither is reported, we do NOT falsely claim a
+  // conflict (affected stays undefined), so normal transitions are never blocked.
+  const affected = (res as { rowsAffected?: number; rowCount?: number }).rowsAffected
+    ?? (res as { rowCount?: number }).rowCount;
+  if (affected === 0) {
     return { error: "concurrent_modification" };
   }
 

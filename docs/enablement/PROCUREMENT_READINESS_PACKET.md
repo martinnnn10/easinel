@@ -41,7 +41,7 @@ Runbook**, **PostgreSQL Readiness Audit**, **Enterprise Readiness Audit**,
 | Logging / monitoring | ✅ Implemented | Structured JSON logs; `/api/health` readiness probe |
 | Backups & DR | ✅ Procedure | Documented runbook + rehearsal cadence; provider PITR recommended |
 | Accessibility (WCAG AA) | ✅ Baseline | Keyboard focus, skip link, landmarks, reduced motion |
-| Vulnerability mgmt / dep scanning | ⏳ Roadmap | Pinned deps today; automated CI scanning to be added |
+| Vulnerability mgmt / dep scanning | ✅ Advisory | CI gate (typecheck+test+build) + `npm audit`; hard-fail on new high/critical = Roadmap |
 | SOC 2 Type II | ⏳ Roadmap | Architecture ready; examination is a pilot-phase activity |
 | Independent penetration test | ⏳ Roadmap | To be scheduled with the customer during pilot |
 | DPA / data-processing terms | ⏳ Contracting | Ready to execute; not self-certified |

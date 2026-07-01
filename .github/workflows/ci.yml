@@ -1,0 +1,60 @@
+name: CI
+
+# Quality gate: typecheck, tests, and a production build must pass on every push
+# and PR. A separate, non-blocking job reports dependency vulnerabilities so a
+# regression is visible without breaking the build on pre-existing advisories.
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+
+# Cancel superseded runs on the same ref to save CI minutes.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Typecheck · Test · Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Test
+        run: npm run test
+
+      - name: Build
+        run: npm run build
+        env:
+          NEXT_TELEMETRY_DISABLED: "1"
+
+  audit:
+    name: Dependency audit (advisory)
+    runs-on: ubuntu-latest
+    # Report vulnerabilities without failing the pipeline on pre-existing ones.
+    # Tighten to `--audit-level=high` (and drop continue-on-error) once the tree
+    # is clean, to make new high/critical advisories a hard gate.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: npm audit
+        run: npm audit --audit-level=high

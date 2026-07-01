@@ -75,13 +75,13 @@ project committed to holds up: a Postgres swap re-implements **schema.ts** and
 
 ## 4. Watch-items (get these right during the swap)
 
-1. **⚠️ Optimistic-concurrency result field.** The work-order transition OCC check
-   in `src/lib/workorders/repository.ts` reads `res.rowsAffected` from the update
-   result. libSQL returns `rowsAffected`; **drizzle-pg (node-postgres) returns
-   `rowCount`.** On a naive swap this check would read `undefined`, never equal 0,
-   and **silently disable the concurrency guard.** Fix when swapping: read
-   `rowCount` (or normalize both). This is the one place where a data-integrity
-   guarantee depends on a driver-specific field — call it out in the migration PR.
+1. **✅ Optimistic-concurrency result field — already handled.** The work-order
+   transition OCC check in `src/lib/workorders/repository.ts` originally read only
+   libSQL's `res.rowsAffected`; drizzle-pg (node-postgres) reports `rowCount`
+   instead, so a naive swap would have silently disabled the guard. This is now
+   **driver-agnostic** (`rowsAffected ?? rowCount`, with no false-conflict when
+   neither is reported), so the concurrency guarantee survives the swap unchanged.
+   No action required on migration.
 2. **LIKE case-sensitivity.** SQLite `LIKE` is case-insensitive for ASCII by
    default; Postgres `LIKE` is case-**sensitive**. The asset search already wraps
    the column in `lower(...)`; ensure the bound parameter is also lowercased (or
