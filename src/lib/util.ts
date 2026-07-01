@@ -38,14 +38,30 @@ export function isReservedOrg(orgId: string | null | undefined): boolean {
   return !!orgId && RESERVED_ORG_IDS.includes(orgId);
 }
 
-// The org that open (no-auth) mode resolves the synthetic owner to. Defaults to
-// the curated Demo Organization so sales demos work out of the box; set
-// OPEN_MODE_ORG=production for a real single-customer deployment so the workspace
-// is the genuine, empty-by-default Production Workspace instead of the demo data.
+// Demo mode is OFF by default. A real deployment starts with an EMPTY Production
+// Workspace and NEVER shows curated demo data (e.g. "Conveyor 3", "Pump 12").
+// The isolated sales demo is strictly OPT-IN — enable it explicitly with any of:
+//   • DEMO_MODE=true
+//   • OPEN_MODE_ORG=demo
+//   • SEED_DEMO_ORG=true   (kept for backward-compat; implies demo mode)
+// This makes "a real customer/operator ever sees a canned scenario" impossible
+// unless someone deliberately turns the demo on.
+export function demoModeEnabled(): boolean {
+  return (
+    process.env.DEMO_MODE === "true" ||
+    process.env.OPEN_MODE_ORG === "demo" ||
+    process.env.SEED_DEMO_ORG === "true"
+  );
+}
+
+// The org that open (no-auth) mode resolves the synthetic owner to. DEFAULTS to
+// the genuine, empty Production Workspace so equipment starts clean. Only the
+// explicit demo opt-in (demoModeEnabled) points open mode at the curated Demo
+// Organization that holds the sales dataset.
 export function openModeOrgId(): string {
-  return process.env.OPEN_MODE_ORG === "production" ? PROD_ORG : DEMO_ORG;
+  return demoModeEnabled() ? DEMO_ORG : PROD_ORG;
 }
 
 export function openModeOrgName(): string {
-  return process.env.OPEN_MODE_ORG === "production" ? PROD_ORG_NAME : DEMO_ORG_NAME;
+  return demoModeEnabled() ? DEMO_ORG_NAME : PROD_ORG_NAME;
 }

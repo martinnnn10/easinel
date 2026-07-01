@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db, ensureDb } from "@/lib/db";
 import { sql } from "drizzle-orm";
+import { demoModeEnabled } from "@/lib/util";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -21,15 +22,17 @@ export async function GET() {
     dbError = (err as Error).message;
   }
 
-  // Auth posture. Login is now secure-by-default: the production workspace
-  // enforces auth unless the operator EXPLICITLY opted out. We report the
-  // effective state, and flag the (deliberate) insecure opt-out for monitors.
-  const productionWorkspace = process.env.OPEN_MODE_ORG === "production";
+  // Auth posture. The default workspace is the EMPTY, real Production Workspace
+  // (the curated demo is opt-in via demoModeEnabled). We report the EFFECTIVE
+  // auth state and flag when a real (non-demo) workspace is being served without
+  // a login wall — the operator should set AUTH_REQUIRED=true before real users.
+  const realWorkspace = !demoModeEnabled();
+  const explicitProduction = process.env.OPEN_MODE_ORG === "production";
   const explicitOptOut = process.env.ALLOW_INSECURE_OPEN_PRODUCTION === "true";
   const authEnforced =
-    process.env.AUTH_REQUIRED === "true" || (productionWorkspace && !explicitOptOut);
-  // true only when someone deliberately turned OFF auth on real production data.
-  const insecureOpenProduction = productionWorkspace && !authEnforced;
+    process.env.AUTH_REQUIRED === "true" || (explicitProduction && !explicitOptOut);
+  // true = ACTION REQUIRED: a real workspace is reachable without login.
+  const insecureOpenProduction = realWorkspace && !authEnforced;
   const authRequired = authEnforced;
 
   const body = {

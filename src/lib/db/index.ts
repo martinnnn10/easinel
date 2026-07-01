@@ -597,7 +597,7 @@ async function initDb(): Promise<void> {
   //   2. __global__ — shared OEM knowledge library (read-only platform asset)
   //   3. org_*      — real customer tenants, always created EMPTY
   // There is intentionally NO shared 'default' org anymore.
-  const { DEMO_ORG, DEMO_ORG_NAME, PROD_ORG, PROD_ORG_NAME, GLOBAL_ORG } = await import("@/lib/util");
+  const { DEMO_ORG, DEMO_ORG_NAME, PROD_ORG, PROD_ORG_NAME, GLOBAL_ORG, demoModeEnabled } = await import("@/lib/util");
   await client.execute({
     sql: `INSERT OR IGNORE INTO orgs (id, name) VALUES (?, ?)`,
     args: [DEMO_ORG, DEMO_ORG_NAME],
@@ -617,15 +617,17 @@ async function initDb(): Promise<void> {
   globalForDb.__dbReady = true;
 
   // Preload the curated demo dataset (Conveyor 3 + PowerFlex docs + history)
-  // into the ISOLATED Demo Organization tenant. This is gated so a production
-  // deployment serving only real customers can disable it with
-  // SEED_DEMO_ORG=false; it defaults on so sales demos work out of the box.
+  // into the ISOLATED Demo Organization tenant. This is OPT-IN and OFF BY
+  // DEFAULT: a real deployment starts completely empty (no "Conveyor 3"), and
+  // the demo only exists when someone explicitly enables it (DEMO_MODE=true /
+  // OPEN_MODE_ORG=demo / SEED_DEMO_ORG=true). Even when seeded it lives only in
+  // the isolated org_demo tenant, never in a customer/production workspace.
   // Imported lazily to avoid a circular import (seed.ts imports from here).
   const isEphemeral =
     process.env.NODE_ENV === "test" ||
     url === ":memory:" ||
     url.includes(":memory:");
-  if (process.env.SEED_DEMO_ORG !== "false" && !isEphemeral) {
+  if (demoModeEnabled() && !isEphemeral) {
     try {
       const { seedDemo } = await import("@/lib/seed");
       await seedDemo();
