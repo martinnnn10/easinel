@@ -49,6 +49,7 @@ const kindMeta: Record<string, { icon: string; label: string }> = {
   vibration: { icon: "📊", label: "Vibration" },
   sop: { icon: "📋", label: "SOP / PM" },
   lesson: { icon: "🧠", label: "Lesson Learned" },
+  rca: { icon: "🧭", label: "Root Cause Analysis" },
   document: { icon: "📄", label: "Document" },
 };
 
