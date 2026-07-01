@@ -12,7 +12,19 @@ export const SESSION_COOKIE = "eas_session";
 const SESSION_DAYS = 30;
 
 export function authRequired(): boolean {
-  return process.env.AUTH_REQUIRED === "true";
+  if (process.env.AUTH_REQUIRED === "true") return true;
+  // Secure-by-default: the real PRODUCTION workspace requires login unless the
+  // operator EXPLICITLY opts out (ALLOW_INSECURE_OPEN_PRODUCTION=true) for an
+  // intentional single-user local run. The isolated DEMO workspace stays open so
+  // public sales demos keep working with zero friction. This makes "a protected
+  // page is reachable without auth on real customer data" impossible by default.
+  if (
+    process.env.OPEN_MODE_ORG === "production" &&
+    process.env.ALLOW_INSECURE_OPEN_PRODUCTION !== "true"
+  ) {
+    return true;
+  }
+  return false;
 }
 
 // Synthetic owner used in open mode (AUTH_REQUIRED not set), so the product runs

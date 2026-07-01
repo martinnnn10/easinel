@@ -67,6 +67,13 @@ Everything is documented in [`.env.example`](./.env.example). Summary:
 
 **Security & access**
 - `AUTH_REQUIRED=true` — enforce authentication + role-based access.
+- **Secure-by-default:** the real production workspace (`OPEN_MODE_ORG=production`)
+  now **requires login automatically** — no protected page or tenant API is
+  reachable without a session. The first visitor is sent to `/login`, where they
+  create the owner account. Only the isolated **demo** workspace stays open (public
+  sales demo). To intentionally run production open (a single-user local box), set
+  `ALLOW_INSECURE_OPEN_PRODUCTION=true` — `/api/health` then reports
+  `security.insecureOpenProduction: true` so monitors can catch it.
 - `OIDC_*` — enterprise SSO (Okta, Entra ID, Auth0, Google Workspace, Ping…).
 - `CSP_ENABLED=true` — turn on the Content-Security-Policy (validate first).
 - `RL_*` — tune rate limits (auth + public API) without code changes.

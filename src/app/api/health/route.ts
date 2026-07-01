@@ -21,12 +21,16 @@ export async function GET() {
     dbError = (err as Error).message;
   }
 
-  // Auth posture. Running the PRODUCTION workspace without AUTH_REQUIRED=true is a
-  // misconfiguration (open, unauthenticated access to real customer data), so we
-  // surface it explicitly for uptime/security monitors rather than hide it.
-  const authRequired = process.env.AUTH_REQUIRED === "true";
+  // Auth posture. Login is now secure-by-default: the production workspace
+  // enforces auth unless the operator EXPLICITLY opted out. We report the
+  // effective state, and flag the (deliberate) insecure opt-out for monitors.
   const productionWorkspace = process.env.OPEN_MODE_ORG === "production";
-  const insecureOpenProduction = productionWorkspace && !authRequired;
+  const explicitOptOut = process.env.ALLOW_INSECURE_OPEN_PRODUCTION === "true";
+  const authEnforced =
+    process.env.AUTH_REQUIRED === "true" || (productionWorkspace && !explicitOptOut);
+  // true only when someone deliberately turned OFF auth on real production data.
+  const insecureOpenProduction = productionWorkspace && !authEnforced;
+  const authRequired = authEnforced;
 
   const body = {
     status: dbOk ? "ok" : "degraded",
