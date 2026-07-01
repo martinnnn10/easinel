@@ -21,19 +21,26 @@ function harden(res: NextResponse): NextResponse {
   return res;
 }
 
-// Secure-by-default (mirrors authRequired() in lib/auth/session.ts; kept inline
-// so middleware stays edge-safe and never imports the DB layer): the real
-// production workspace requires login unless explicitly opted out; the isolated
-// demo workspace stays open.
+// Mirrors demoModeEnabled() in lib/util.ts. Inlined so middleware stays edge-safe
+// and never imports the (crypto/DB-bound) util or auth layers.
+function demoModeEnabled(): boolean {
+  return (
+    process.env.DEMO_MODE === "true" ||
+    process.env.OPEN_MODE_ORG === "demo" ||
+    process.env.SEED_DEMO_ORG === "true"
+  );
+}
+
+// Mirrors authRequired() in lib/auth/session.ts (kept inline for the edge
+// runtime). MANDATORY LOGIN BY DEFAULT: the real Production Workspace requires
+// authentication unless it is the isolated demo, or an operator explicitly opts
+// out for a single-user local run.
 function authGateActive(): boolean {
   if (process.env.AUTH_REQUIRED === "true") return true;
-  if (
-    process.env.OPEN_MODE_ORG === "production" &&
-    process.env.ALLOW_INSECURE_OPEN_PRODUCTION !== "true"
-  ) {
-    return true;
-  }
-  return false;
+  if (process.env.AUTH_REQUIRED === "false") return false;
+  if (demoModeEnabled()) return false;
+  if (process.env.ALLOW_INSECURE_OPEN_PRODUCTION === "true") return false;
+  return true;
 }
 
 export function middleware(req: NextRequest) {

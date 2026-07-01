@@ -66,13 +66,20 @@ Everything is documented in [`.env.example`](./.env.example). Summary:
 - `ANTHROPIC_API_KEY` (+ optional `ANTHROPIC_MODEL`) — the reasoning engine.
 
 **Security & access**
-- `AUTH_REQUIRED=true` — enforce authentication + role-based access.
-- **Secure-by-default:** the real production workspace (`OPEN_MODE_ORG=production`)
-  now **requires login automatically** — no protected page or tenant API is
-  reachable without a session. The first visitor is sent to `/login`, where they
-  create the owner account. Only the isolated **demo** workspace stays open (public
-  sales demo). To intentionally run production open (a single-user local box), set
-  `ALLOW_INSECURE_OPEN_PRODUCTION=true` — `/api/health` then reports
+- **Login is MANDATORY BY DEFAULT.** With no env configuration at all, a
+  deployment is the real, **empty Production Workspace** and **requires
+  authentication** — no protected page or tenant API is reachable without a
+  session. The first visitor is sent to `/login`, where they create the owner
+  account and an empty organization. This is the official production posture; you
+  do not need to set anything to get it.
+- `AUTH_REQUIRED=true` / `AUTH_REQUIRED=false` — explicit override in either
+  direction (wins over everything below).
+- **Demo (sales) mode** — the ONLY open-by-default path. Enable with `DEMO_MODE=true`
+  (or `OPEN_MODE_ORG=demo`). It serves the isolated **Demo Organization** (seeded
+  Conveyor 3 / PowerFlex dataset) with zero login friction. Real customer data is
+  never in this tenant; a real workspace never shows the demo data.
+- `ALLOW_INSECURE_OPEN_PRODUCTION=true` — deliberately run the real workspace
+  **open** (single-user local box). `/api/health` then reports
   `security.insecureOpenProduction: true` so monitors can catch it.
 - `OIDC_*` — enterprise SSO (Okta, Entra ID, Auth0, Google Workspace, Ping…).
 - `CSP_ENABLED=true` — turn on the Content-Security-Policy (validate first).

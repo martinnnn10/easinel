@@ -3,7 +3,7 @@ import { randomBytes } from "crypto";
 import { db, ensureDb } from "@/lib/db";
 import { users, sessions, orgs, invitations, type User } from "@/lib/db/schema";
 import { and, eq, gt } from "drizzle-orm";
-import { id, DEMO_ORG, GLOBAL_ORG, isReservedOrg, openModeOrgId } from "@/lib/util";
+import { id, DEMO_ORG, GLOBAL_ORG, isReservedOrg, openModeOrgId, demoModeEnabled } from "@/lib/util";
 import type { Role } from "./roles";
 
 const INVITE_DAYS = 14;
@@ -12,19 +12,19 @@ export const SESSION_COOKIE = "eas_session";
 const SESSION_DAYS = 30;
 
 export function authRequired(): boolean {
+  // Explicit override always wins, in either direction.
   if (process.env.AUTH_REQUIRED === "true") return true;
-  // Secure-by-default: the real PRODUCTION workspace requires login unless the
-  // operator EXPLICITLY opts out (ALLOW_INSECURE_OPEN_PRODUCTION=true) for an
-  // intentional single-user local run. The isolated DEMO workspace stays open so
-  // public sales demos keep working with zero friction. This makes "a protected
-  // page is reachable without auth on real customer data" impossible by default.
-  if (
-    process.env.OPEN_MODE_ORG === "production" &&
-    process.env.ALLOW_INSECURE_OPEN_PRODUCTION !== "true"
-  ) {
-    return true;
-  }
-  return false;
+  if (process.env.AUTH_REQUIRED === "false") return false;
+  // The isolated DEMO workspace is the ONLY open-by-default path — it holds no
+  // real customer data, so public sales demos run with zero login friction.
+  if (demoModeEnabled()) return false;
+  // MANDATORY LOGIN BY DEFAULT for the real Production Workspace: every real user
+  // must authenticate and belong to an organization. A single-user LOCAL run can
+  // deliberately opt out with ALLOW_INSECURE_OPEN_PRODUCTION=true (flagged as
+  // insecure by the health probe). This makes "a protected page reachable without
+  // auth on real customer data" impossible unless someone explicitly turns it off.
+  if (process.env.ALLOW_INSECURE_OPEN_PRODUCTION === "true") return false;
+  return true;
 }
 
 // Synthetic owner used in open mode (AUTH_REQUIRED not set), so the product runs
