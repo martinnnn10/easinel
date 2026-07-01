@@ -377,18 +377,22 @@ Here is a structured first-pass on: *"${summarizeRequest(q)}"*. This answer reas
 export function buildDemoAnswer(
   question: string,
   ctx: RetrievedChunk[],
-  failureContext?: string
+  failureContext?: string,
+  // The canned, machine-SPECIFIC demo cases (Conveyor 3, Pump 12, …) are curated
+  // for the isolated DEMO tenant only. In a real customer org they must NEVER
+  // fire — a fabricated "your Conveyor 3 panel filter PF-3" answer would be fake
+  // data. Off by default; the chat layer passes true only for org_demo.
+  allowCannedCases = false
 ): string {
+  const matched = allowCannedCases ? CASES.find((c) => c.match.test(question)) : undefined;
   // When the question resolved to the plant's OWN failure records (by asset
   // number, part number, or area), lead with those authoritative facts so the
   // offline answer is grounded in real history rather than a generic template.
   if (failureContext && failureContext.trim()) {
-    const found = CASES.find((c) => c.match.test(question));
-    const body = found ? found.build(question) : genericAnswer(question);
+    const body = matched ? matched.build(question) : genericAnswer(question);
     const memory = `## Matched Plant Failure Records\nResolved directly from your maintenance records for *"${summarizeRequest(question)}"*:\n\n\`\`\`\n${failureContext.trim()}\n\`\`\`\n\n`;
     return memory + body.replace("{{REFS}}", refs(ctx));
   }
-  const found = CASES.find((c) => c.match.test(question));
-  const body = found ? found.build(question) : genericAnswer(question);
+  const body = matched ? matched.build(question) : genericAnswer(question);
   return body.replace("{{REFS}}", refs(ctx));
 }

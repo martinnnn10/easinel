@@ -3,6 +3,7 @@ import { buildDemoAnswer } from "./demo";
 import { hybridRetrieve, type Citation, type RetrievalDiagnostics } from "@/lib/rag/hybrid";
 import { buildFailureLookupContext } from "./failureLookup";
 import type { RetrievedChunk } from "@/lib/rag/retrieve";
+import { DEMO_ORG } from "@/lib/util";
 import {
   getLiveChatProvider,
   getFallbackChatProvider,
@@ -82,7 +83,9 @@ export async function streamAnswer(opts: StreamOpts): Promise<StreamResult> {
   } else {
     // Deterministic fallback: precompute the grounded answer, stream it through
     // the SAME provider interface so callers have one code path.
-    const precomputed = buildDemoAnswer(opts.question, sources, failureContext);
+    // Canned machine-specific demo cases are allowed ONLY in the isolated demo
+    // tenant; a real customer org gets the honest generic-grounded answer.
+    const precomputed = buildDemoAnswer(opts.question, sources, failureContext, opts.orgId === DEMO_ORG);
     const fb = getFallbackChatProvider(precomputed);
     stream = fb.stream(buildChatRequest(optsWithFailure, retrieval.citations));
     providerMeta = { provider: fb.meta.provider, model: fb.meta.model };

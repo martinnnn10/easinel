@@ -18,6 +18,18 @@ interface Doc {
   plcFidelity?: string;
 }
 
+interface DrawingInfo {
+  drawingNumber: string | null;
+  revision: string | null;
+  title: string | null;
+  area: string | null;
+  equipmentTags: string[];
+  panels: string[];
+  plcRefs: string[];
+  wireNumbers: string[];
+  components: string[];
+}
+
 interface DocDetail {
   document: Doc & { assetId?: string | null; mimeType?: string | null; storagePath?: string | null };
   asset: { id: string; name: string } | null;
@@ -25,6 +37,7 @@ interface DocDetail {
   chunkCount: number;
   textPreview: string;
   hasOriginal: boolean;
+  drawing?: DrawingInfo | null;
 }
 
 const kindMeta: Record<string, { icon: string; label: string }> = {
@@ -362,6 +375,9 @@ function DocumentDrawer({
             </button>
           </div>
 
+          {/* Drawing intelligence — HONEST facts parsed from the indexed text */}
+          <DrawingIntelligence drawing={detail.drawing} />
+
           {/* Extracted text preview */}
           <div>
             <p className="text-[10px] uppercase tracking-wider text-[var(--color-muted)] mb-1.5">Extracted text preview</p>
@@ -384,6 +400,83 @@ function DocumentDrawer({
             )}
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// HONEST electrical-drawing facts. Renders nothing unless at least one field is
+// populated — an image-only/scanned drawing (no extractable text) shows nothing
+// here, matching the honest "no extractable text" note in the preview section.
+function DrawingIntelligence({ drawing }: { drawing?: DrawingInfo | null }) {
+  if (!drawing) return null;
+  const hasAny =
+    !!drawing.drawingNumber ||
+    !!drawing.revision ||
+    !!drawing.title ||
+    !!drawing.area ||
+    drawing.equipmentTags.length > 0 ||
+    drawing.panels.length > 0 ||
+    drawing.plcRefs.length > 0 ||
+    drawing.wireNumbers.length > 0 ||
+    drawing.components.length > 0;
+  if (!hasAny) return null;
+
+  const dwgLine = [
+    drawing.drawingNumber ? `Drawing no. ${drawing.drawingNumber}` : null,
+    drawing.revision ? `Rev ${drawing.revision}` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
+  return (
+    <div>
+      <p className="text-[10px] uppercase tracking-wider text-[var(--color-muted)] mb-1.5">
+        Drawing intelligence
+      </p>
+      <div className="rounded-xl border border-[var(--color-border)] p-3 space-y-2.5">
+        {dwgLine && (
+          <p className="text-[12.5px] font-medium">{dwgLine}</p>
+        )}
+        {drawing.title && (
+          <div>
+            <p className="text-[10px] uppercase tracking-wider text-[var(--color-muted)]">Title</p>
+            <p className="text-[12.5px] mt-0.5 break-words">{drawing.title}</p>
+          </div>
+        )}
+        {drawing.area && (
+          <div>
+            <p className="text-[10px] uppercase tracking-wider text-[var(--color-muted)]">Area</p>
+            <p className="text-[12.5px] mt-0.5 break-words">{drawing.area}</p>
+          </div>
+        )}
+        <ChipRow label="Equipment tags" items={drawing.equipmentTags} />
+        <ChipRow label="Panels" items={drawing.panels} />
+        <ChipRow label="PLC refs" items={drawing.plcRefs} />
+        <ChipRow label="Wire numbers" items={drawing.wireNumbers} />
+        <ChipRow label="Components" items={drawing.components} />
+      </div>
+      <p className="text-[11px] text-[var(--color-faint)] mt-1.5">
+        Parsed from the indexed drawing text — verify against the original.
+      </p>
+    </div>
+  );
+}
+
+function ChipRow({ label, items }: { label: string; items: string[] }) {
+  if (!items || items.length === 0) return null;
+  return (
+    <div>
+      <p className="text-[10px] uppercase tracking-wider text-[var(--color-muted)] mb-1">{label}</p>
+      <div className="flex flex-wrap gap-1.5">
+        {items.map((it) => (
+          <span
+            key={it}
+            className="text-[11px] px-2 py-0.5 rounded-full border border-[var(--color-border)] text-[var(--color-text)] bg-[var(--color-surface-2)]"
+          >
+            {it}
+          </span>
+        ))}
       </div>
     </div>
   );

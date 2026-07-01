@@ -637,6 +637,52 @@ export const partSuppliers = sqliteTable("part_suppliers", {
     .default(sql`(unixepoch() * 1000)`),
 });
 
+// ───────────────────────── Scenarios (user-authored plant reality) ─────────────────────────
+// A scenario is a real troubleshooting/training case captured from the plant:
+// symptom → diagnostic path → root cause → corrective action → lesson. Every
+// scenario is org-scoped and owned; it normally belongs to an ASSET (asset-first).
+// A scenario without an asset is an explicit "Unassigned draft", never treated as
+// complete. NOTHING here is seeded into a real customer org — scenarios exist only
+// because a user created them.
+export const scenarios = sqliteTable("scenarios", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().default("__unset__"),
+  title: text("title").notNull(),
+  // Asset-first: normally set. Null = "Unassigned draft".
+  assetId: text("asset_id"),
+  location: text("location"),
+  machineType: text("machine_type"),
+  symptom: text("symptom"),
+  faultCode: text("fault_code"),
+  operatingCondition: text("operating_condition"),
+  safetyCondition: text("safety_condition"),
+  knownHistory: text("known_history"),
+  // Related records (all optional refs into this org's own data).
+  relatedDocumentId: text("related_document_id"),
+  relatedDrawingId: text("related_drawing_id"),
+  relatedWorkOrderId: text("related_work_order_id"),
+  relatedPmId: text("related_pm_id"),
+  relatedPartId: text("related_part_id"),
+  // The diagnostic knowledge this scenario teaches.
+  expectedDiagnosticPath: text("expected_diagnostic_path"),
+  actualRootCause: text("actual_root_cause"),
+  correctiveAction: text("corrective_action"),
+  lessonLearned: text("lesson_learned"),
+  skillLevel: text("skill_level"), // apprentice|junior|mid|senior|lead
+  tags: text("tags"), // JSON array
+  status: text("status").notNull().default("draft"), // draft|complete|archived
+  createdBy: text("created_by"),
+  updatedBy: text("updated_by"),
+  createdAt: integer("created_at", { mode: "timestamp_ms" })
+    .notNull()
+    .default(sql`(unixepoch() * 1000)`),
+  updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+    .notNull()
+    .default(sql`(unixepoch() * 1000)`),
+});
+
+export type Scenario = typeof scenarios.$inferSelect;
+
 export type PmProgram = typeof pmPrograms.$inferSelect;
 export type PmTask = typeof pmTasks.$inferSelect;
 export type PmSchedule = typeof pmSchedules.$inferSelect;

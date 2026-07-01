@@ -21,6 +21,13 @@ export async function GET() {
     dbError = (err as Error).message;
   }
 
+  // Auth posture. Running the PRODUCTION workspace without AUTH_REQUIRED=true is a
+  // misconfiguration (open, unauthenticated access to real customer data), so we
+  // surface it explicitly for uptime/security monitors rather than hide it.
+  const authRequired = process.env.AUTH_REQUIRED === "true";
+  const productionWorkspace = process.env.OPEN_MODE_ORG === "production";
+  const insecureOpenProduction = productionWorkspace && !authRequired;
+
   const body = {
     status: dbOk ? "ok" : "degraded",
     service: "eas-intelligence",
@@ -29,7 +36,14 @@ export async function GET() {
       database: dbOk ? "ok" : "down",
       ...(dbError ? { databaseError: dbError } : {}),
     },
-    aiConfigured: Boolean(process.env.OPENAI_API_KEY || process.env.AI_API_KEY),
+    aiConfigured: Boolean(
+      process.env.ANTHROPIC_API_KEY || process.env.OPENAI_API_KEY || process.env.AI_API_KEY
+    ),
+    security: {
+      authRequired,
+      // true = ACTION REQUIRED: set AUTH_REQUIRED=true before serving real users.
+      insecureOpenProduction,
+    },
     latencyMs: Date.now() - startedAt,
     timestamp: new Date().toISOString(),
   };

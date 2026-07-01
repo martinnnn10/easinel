@@ -12,6 +12,7 @@ import { db, ensureDb } from "@/lib/db";
 import { assets, documents, chunks, conversations, messages } from "@/lib/db/schema";
 import { and, asc, desc, eq, sql } from "drizzle-orm";
 import { id } from "@/lib/util";
+import { extractDrawingInfo } from "@/lib/knowledge/drawing";
 
 export interface SessionSummary {
   id: string;
@@ -70,6 +71,12 @@ export interface DocumentDetail {
   textPreview: string;
   /** Whether the original binary is retrievable for open/download. */
   hasOriginal: boolean;
+  /**
+   * HONEST structured facts parsed from an electrical drawing's extracted text.
+   * Only set (non-null) when kind === "drawing" AND there is indexed text to
+   * parse — never fabricated for image-only/scanned drawings.
+   */
+  drawing?: import("@/lib/knowledge/drawing").DrawingInfo | null;
 }
 
 // Single document + everything the detail view needs, strictly org-scoped so a
@@ -107,6 +114,14 @@ export async function getDocumentDetail(
   const textPreview =
     fullText.length > PREVIEW_LIMIT ? fullText.slice(0, PREVIEW_LIMIT) + "…" : fullText;
 
+  // Electrical-drawing intelligence: parse structured facts from the indexed
+  // text, but ONLY when this is a drawing with real extracted text. No text
+  // (e.g. scanned/image-only PDF) => null, and the drawer surfaces nothing.
+  const drawing =
+    document.kind === "drawing" && fullText.trim().length > 0
+      ? extractDrawingInfo(fullText)
+      : null;
+
   return {
     document,
     asset,
@@ -114,6 +129,7 @@ export async function getDocumentDetail(
     chunkCount: pieces.length,
     textPreview,
     hasOriginal: Boolean(document.storagePath),
+    drawing,
   };
 }
 

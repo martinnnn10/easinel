@@ -15,6 +15,7 @@ const nav = [
   { href: "/sessions", label: "Sessions", icon: PulseIcon },
   { href: "/work-orders", label: "Work Orders", icon: WrenchIcon },
   { href: "/pm", label: "PM Program", icon: CalendarIcon },
+  { href: "/scenarios", label: "Scenarios", icon: BookIcon },
   { href: "/parts", label: "Parts", icon: BoltIcon },
   { href: "/knowledge", label: "Knowledge", icon: BookIcon },
   { href: "/plc", label: "PLC Explorer", icon: ChipIcon },
