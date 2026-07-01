@@ -16,9 +16,15 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
+        {/* Keyboard/AT users can jump straight past the nav to the content. */}
+        <a href="#main-content" className="skip-link">Skip to content</a>
         <div className="flex h-screen overflow-hidden">
           <Sidebar />
-          <main className="flex-1 min-w-0 flex flex-col overflow-hidden">
+          <main
+            id="main-content"
+            tabIndex={-1}
+            className="flex-1 min-w-0 flex flex-col overflow-hidden"
+          >
             {children}
           </main>
         </div>

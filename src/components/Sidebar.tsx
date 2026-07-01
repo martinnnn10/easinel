@@ -121,13 +121,15 @@ export function Sidebar() {
           <button
             onClick={toggleCollapse}
             title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            aria-expanded={!collapsed}
             className="hidden md:grid place-items-center w-6 h-6 rounded-md text-[var(--color-faint)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-2)]"
           >
             <ChevronIcon className={`w-4 h-4 transition-transform ${collapsed ? "rotate-180" : ""}`} />
           </button>
         </div>
 
-        <nav className="p-2.5 flex flex-col gap-0.5">
+        <nav aria-label="Primary" className="p-2.5 flex flex-col gap-0.5">
           {nav.map((item) => (
             <NavLink key={item.href} item={item} path={path} collapsed={collapsed} />
           ))}
@@ -164,6 +166,7 @@ export function Sidebar() {
                   {me.authRequired && (
                     <button
                       title="Sign out"
+                      aria-label="Sign out"
                       onClick={async () => {
                         await fetch("/api/auth/logout", { method: "POST" });
                         window.location.href = "/login";
@@ -208,6 +211,8 @@ function NavLink({
     <Link
       href={item.href}
       title={collapsed ? item.label : undefined}
+      aria-current={active ? "page" : undefined}
+      aria-label={collapsed ? item.label : undefined}
       className={`group flex items-center gap-3 rounded-lg px-3 py-2 text-[13px] transition-colors ${
         collapsed ? "md:justify-center md:px-0" : ""
       } ${

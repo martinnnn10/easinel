@@ -200,3 +200,61 @@ body {
 .fadeup {
   animation: fadeup 0.3s ease;
 }
+
+/* ───────────────────────── Accessibility ─────────────────────────
+   WCAG AA baseline: visible keyboard focus, a skip link, screen-reader-only
+   text, and respect for reduced-motion preferences. */
+
+/* Visible keyboard focus everywhere (WCAG 2.4.7). :focus-visible only triggers
+   for keyboard / assistive-tech navigation, so mouse users see no change. */
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Screen-reader-only content (skip link target text, icon-button labels). */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Skip-to-content link: off-screen until focused, then visible top-left so a
+   keyboard user can jump past the nav (WCAG 2.4.1). */
+.skip-link {
+  position: fixed;
+  top: 0.5rem;
+  left: 0.5rem;
+  z-index: 100;
+  padding: 0.5rem 0.9rem;
+  border-radius: 8px;
+  background: var(--color-accent);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  transform: translateY(-160%);
+  transition: transform 0.15s ease;
+}
+.skip-link:focus {
+  transform: translateY(0);
+}
+
+/* Respect prefers-reduced-motion (WCAG 2.3.3): neutralize motion without
+   removing any functionality. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
