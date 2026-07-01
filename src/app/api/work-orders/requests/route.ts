@@ -5,8 +5,22 @@ import {
 } from "@/lib/workorders/repository";
 import { requirePermission } from "@/lib/auth/guard";
 import { safeHandler } from "@/lib/api/safeHandler";
+import { parseBody, Priority, WoType } from "@/lib/api/validate";
+import { z } from "zod";
 
 export const runtime = "nodejs";
+
+const CreateRequestSchema = z
+  .object({
+    symptom: z.string().max(4000).optional().nullable(),
+    title: z.string().max(300).optional().nullable(),
+    description: z.string().max(20000).optional().nullable(),
+    assetId: z.string().trim().optional().nullable(),
+    area: z.string().max(200).optional().nullable(),
+    priority: Priority.optional(),
+    type: WoType.optional(),
+  })
+  .passthrough();
 
 // GET /api/work-orders/requests?approval=pending|rejected|approved
 // The approvals queue. Visible to anyone who can view; the approve/reject
@@ -30,7 +44,9 @@ export const POST = safeHandler("work-orders.requests.create", async (req: NextR
   if (gate instanceof NextResponse) return gate;
   const { user } = gate;
 
-  const body = await req.json().catch(() => ({}));
+  const parsed = await parseBody(req, CreateRequestSchema);
+  if (parsed.response) return parsed.response;
+  const body = parsed.data;
   const symptom = (body.symptom || body.description || body.title || "").trim();
   if (!symptom) {
     return NextResponse.json(
