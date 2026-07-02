@@ -65,25 +65,54 @@ function buildTerms(question: string): WeightedTerms {
   return { core, expanded };
 }
 
-// Split a (possibly messy, punctuation-poor) PDF/plaintext chunk into candidate
-// passages. We split on sentence terminators AND newlines, since extracted
-// drawing/manual text is often line-oriented rather than sentence-oriented.
+// Turn a (possibly messy, punctuation-poor) PDF/plaintext chunk into candidate
+// passages. Extracted drawing/manual text is frequently ONE TOKEN OR LABEL PER
+// LINE, so naive newline splitting shreds real content into sub-word fragments.
+// We therefore generate candidates two ways and let scoring pick the best:
+//   1. Sentence/line split — good for well-formed manuals with real sentences.
+//   2. Sliding word-windows over the FLATTENED chunk — rejoins content that a
+//      choppy PDF broke across many short lines (the common real-world case).
+const WINDOW_WORDS = 45;
+const WINDOW_STEP = 28;
+const MAX_PASSAGE_CHARS = 320;
+
 function splitPassages(text: string): string[] {
-  return text
-    .split(/(?<=[.!?])\s+|\n+/)
-    .map((s) => s.replace(/\s+/g, " ").trim())
-    .filter((s) => s.length >= 12 && s.length <= 400);
+  const out: string[] = [];
+
+  // (1) Natural sentence / line units.
+  for (const s of text.split(/(?<=[.!?])\s+|\n+/)) {
+    const t = s.replace(/\s+/g, " ").trim();
+    if (t.length >= 18 && t.length <= MAX_PASSAGE_CHARS) out.push(t);
+  }
+
+  // (2) Sliding windows over the flattened token stream — catches content split
+  // across short lines, which (1) would have dropped as tiny fragments.
+  const words = text.replace(/\s+/g, " ").trim().split(" ").filter(Boolean);
+  if (words.length > 8) {
+    for (let i = 0; i < words.length; i += WINDOW_STEP) {
+      const w = words.slice(i, i + WINDOW_WORDS).join(" ");
+      if (w.length >= 18) out.push(w.slice(0, MAX_PASSAGE_CHARS));
+      if (i + WINDOW_WORDS >= words.length) break;
+    }
+  }
+  return out;
 }
 
-function scorePassage(passage: string, terms: WeightedTerms): number {
+interface ScoredPassage {
+  score: number;
+  coreHits: number;
+}
+
+function scorePassage(passage: string, terms: WeightedTerms): ScoredPassage {
   const toks = new Set(tokenize(passage));
   let score = 0;
-  for (const t of terms.core) if (toks.has(t)) score += 2; // direct word hit
+  let coreHits = 0;
+  for (const t of terms.core) if (toks.has(t)) { score += 2; coreHits++; } // direct word hit
   for (const t of terms.expanded) if (toks.has(t)) score += 1; // synonym hit
   // Small bonus for passages that read like actionable guidance.
-  if (/\b(check|verify|inspect|replace|measure|ensure|confirm|caused|indicates?|means?)\b/i.test(passage))
+  if (/\b(check|verify|inspect|replace|measure|ensure|confirm|caused|indicates?|means?|fault|alarm)\b/i.test(passage))
     score += 1;
-  return score;
+  return { score, coreHits };
 }
 
 export interface GroundedPassage {
@@ -105,8 +134,11 @@ export function extractRelevantPassages(
   const scored: (GroundedPassage & { score: number })[] = [];
   ctx.forEach((chunk, i) => {
     for (const passage of splitPassages(chunk.content)) {
-      const score = scorePassage(passage, terms);
-      if (score >= 2) {
+      const { score, coreHits } = scorePassage(passage, terms);
+      // Require a direct word hit for a low score; a passage matching only via
+      // synonyms must clear a higher bar so unrelated topics don't leak in.
+      const threshold = coreHits > 0 ? 2 : 3;
+      if (score >= threshold) {
         scored.push({
           text: passage,
           filename: chunk.filename,
@@ -118,11 +150,13 @@ export function extractRelevantPassages(
     }
   });
   scored.sort((a, b) => b.score - a.score);
-  // De-duplicate near-identical passages (PDFs repeat headers/footers).
+  // De-duplicate near-identical / overlapping passages (windows overlap, and
+  // PDFs repeat headers/footers). Key on a normalized prefix of the content.
   const seen = new Set<string>();
   const out: GroundedPassage[] = [];
   for (const p of scored) {
-    const key = p.text.toLowerCase().slice(0, 60);
+    const norm = p.text.toLowerCase().replace(/[^a-z0-9 ]/g, "");
+    const key = norm.split(" ").slice(0, 8).join(" ");
     if (seen.has(key)) continue;
     seen.add(key);
     out.push({ text: p.text, filename: p.filename, kind: p.kind, marker: p.marker });

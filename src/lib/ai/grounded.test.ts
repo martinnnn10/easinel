@@ -57,6 +57,25 @@ describe("offline grounded synthesis (reads the retrieved documents)", () => {
     expect(buildGroundedFromDocuments("why is my rtd faulted", irrelevant)).toBe("");
   });
 
+  it("recovers content from CHOPPY PDF text (one token/label per line, like 5370.pdf)", () => {
+    // Mimics how a real installation-manual PDF extracts: labels and words each
+    // on their own line, so naive newline-splitting would shred the RTD note.
+    const choppy: RetrievedChunk[] = [
+      chunk({
+        filename: "5370 (1).pdf",
+        content:
+          "VIKING MASEK GLOBAL\nPACKAGING TECHNOLOGIES\nCOVER PAGE\n5370\nZONE\n3\nHEATER\nRTD\nSENSOR\nWIRING\nIF\nTHE\nRTD\nIS\nOPEN\nOR\nBROKEN\nTHE\nTEMPERATURE\nINPUT\nWILL\nFAULT\nAND\nDISPLAY\nOVERRANGE\nCHECK\nTHE\nWIRING\nAT\nTHE\nTERMINAL\nBLOCK",
+      }),
+    ];
+    const passages = extractRelevantPassages("my rtd is faulted out what do i do", choppy);
+    expect(passages.length).toBeGreaterThan(0);
+    const joined = passages.map((p) => p.text.toLowerCase()).join(" ");
+    // The windowed extractor must rejoin the split-across-lines RTD guidance.
+    expect(joined).toMatch(/rtd/);
+    expect(joined).toMatch(/open|broken|fault|overrange|wiring/);
+    expect(passages[0].filename).toBe("5370 (1).pdf");
+  });
+
   it("does not leak an unrelated topic as a match (comms vs temperature)", () => {
     const commsDoc: RetrievedChunk[] = [
       chunk({ filename: "net.pdf", content: "F081 loss of communications. Reseat the EtherNet cable and verify the scanner is in RUN." }),
