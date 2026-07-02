@@ -2,31 +2,47 @@
 
 /* ───────────────────────── EAS design tokens ───────────────────────── */
 @theme {
-  /* Industrial command-center dark — a NEUTRAL graphite/charcoal base (not navy),
-     restrained chrome, and blue reserved strictly for primary actions, links,
-     selected, and focus. Reads like a Rockwell/Ignition operations console, not a
-     startup SaaS gradient page. Greys are near-neutral (R≈G≈B) so the product
-     feels mature and professional rather than "AI blue." */
-  --color-bg: #0a0b0d;
-  --color-bg-2: #0e0f12;
-  --color-surface: #15161a;
-  --color-surface-2: #1c1e23;
-  --color-border: #2a2d34;
-  --color-border-soft: #1d1f25;
-  --color-text: #edeff2;
-  --color-muted: #9aa0aa;
-  --color-faint: #626770;
-  /* Matured steel-azure — clearly a "primary action" blue, less neon than before. */
-  --color-accent: #3f77cf;
-  --color-accent-soft: #1a2c46;
+  /* INDUSTRIAL AUTOMATION theme — gritty near-black shop-floor charcoal with an
+     electric "industrial green" as the single brand/action color (straight off
+     the EAS logo), and brushed-steel light text. Greys carry a faint warm-olive
+     cast (R,G slightly above B) so surfaces read like weathered steel and painted
+     machine housings, not cold navy SaaS. Green = brand/action/go; amber =
+     degraded; red = fault. Reads like a real control panel. */
+  --color-bg: #08090a;
+  --color-bg-2: #0b0d0b;
+  --color-surface: #131510;
+  --color-surface-2: #1a1d16;
+  --color-border: #2b3026;
+  --color-border-soft: #1d201a;
+  --color-text: #eef1ea;
+  --color-muted: #9ba295;
+  --color-faint: #646b5c;
+  /* Electric industrial green — the logo's lime/grass green. Vivid on dark for
+     links/headers/borders/focus; filled buttons get dark on-accent text (below)
+     because white-on-green fails contrast. */
+  --color-accent: #6fbe2e;
+  --color-accent-soft: #1c2b11;
+  --color-on-accent: #0a1305;
   --color-amber: #e6a94a;
-  --color-green: #37c795;
-  --color-red: #ec6079;
+  /* Success/healthy status — a cooler emerald so "operational" dots stay
+     distinct from the lime brand/action green. */
+  --color-green: #35c98a;
+  --color-red: #ec5f5f;
 
   --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
     Helvetica, Arial, sans-serif;
   --font-mono: ui-monospace, "SFMono-Regular", "JetBrains Mono", Menlo,
     Consolas, monospace;
+}
+
+/* Filled primary controls use the vivid industrial green; white-on-green fails
+   WCAG, so any element carrying BOTH the full-opacity accent background AND a
+   .text-white utility gets high-contrast dark text instead. Scoped with ~= so it
+   matches ONLY the exact token — never the low-opacity `bg-[var(--color-accent)]/5`
+   tint surfaces, which keep their normal text. Specificity (0,2,0) beats
+   .text-white without !important. */
+[class~="bg-[var(--color-accent)]"][class~="text-white"] {
+  color: var(--color-on-accent);
 }
 
 * {
@@ -45,12 +61,15 @@ body {
      like a serious operations console, not a chatbot. */
   background-color: var(--color-bg);
   background-image:
-    radial-gradient(120% 80% at 50% -10%, rgba(220, 224, 230, 0.04) 0%, transparent 60%),
+    /* faint industrial-green glow, low bottom-left — echoes the logo's lit edge */
+    radial-gradient(90% 70% at 8% 108%, rgba(111, 190, 46, 0.05) 0%, transparent 55%),
+    /* cool steel highlight top-center for depth */
+    radial-gradient(120% 80% at 50% -10%, rgba(220, 226, 220, 0.035) 0%, transparent 60%),
     linear-gradient(to bottom, var(--color-bg-2) 0%, var(--color-bg) 46%),
     linear-gradient(rgba(255, 255, 255, 0.012) 1px, transparent 1px),
     linear-gradient(90deg, rgba(255, 255, 255, 0.012) 1px, transparent 1px);
-  background-size: 100% 100%, 100% 100%, 56px 56px, 56px 56px;
-  background-position: 0 0, 0 0, 0 0, 0 0;
+  background-size: 100% 100%, 100% 100%, 100% 100%, 56px 56px, 56px 56px;
+  background-position: 0 0, 0 0, 0 0, 0 0, 0 0;
   background-attachment: fixed;
   color: var(--color-text);
   font-family: var(--font-sans);
@@ -68,12 +87,12 @@ body {
   height: 10px;
 }
 ::-webkit-scrollbar-thumb {
-  background: #232a37;
+  background: #2b3324;
   border-radius: 8px;
   border: 2px solid var(--color-bg);
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #2f3848;
+  background: #3a4630;
 }
 
 /* ───────────────────────── Markdown answer styling ───────────────────────── */
@@ -237,7 +256,7 @@ body {
   padding: 0.5rem 0.9rem;
   border-radius: 8px;
   background: var(--color-accent);
-  color: #fff;
+  color: var(--color-on-accent);
   font-size: 13px;
   font-weight: 600;
   transform: translateY(-160%);

@@ -107,7 +107,7 @@ export function Sidebar() {
       >
         {/* Brand + collapse toggle */}
         <div className="px-3 h-14 flex items-center gap-2.5 border-b border-[var(--color-border)]">
-          <div className="w-7 h-7 shrink-0 rounded-md bg-gradient-to-br from-[var(--color-accent)] to-[#1456b0] grid place-items-center text-white font-bold text-sm shadow-lg shadow-blue-900/30">
+          <div className="w-7 h-7 shrink-0 rounded-md bg-gradient-to-br from-[var(--color-accent)] to-[#2f7a12] grid place-items-center text-[var(--color-on-accent)] font-bold text-sm shadow-lg shadow-black/40">
             E
           </div>
           {!collapsed && (
