@@ -1,4 +1,5 @@
 import type { RetrievedChunk } from "@/lib/rag/retrieve";
+import { buildGroundedFromDocuments } from "./grounded";
 
 // Offline reasoning engine. Not a real LLM — a curated template engine that
 // produces correctly-structured, domain-plausible answers so the product is
@@ -335,40 +336,133 @@ function summarizeRequest(q: string): string {
   return clean.length > 80 ? clean.slice(0, 77) + "…" : clean;
 }
 
+// Real, symptom-class general guidance for the common cases a maintenance tech
+// actually types. This is genuine engineering knowledge (NOT fabricated
+// plant-specific data or fake probability tables) and is clearly labelled as
+// general so it can never be mistaken for this plant's own records.
+interface GuidanceTopic {
+  match: RegExp;
+  title: string;
+  causes: string; // "cause — why" bullet lines
+  checks: string; // numbered steps
+  tools: string;
+  parts: string;
+}
+
+const GUIDANCE: GuidanceTopic[] = [
+  {
+    match: /\brtd\b|thermocouple|\btc\b|temp(erature)? (sensor|probe|input|reading)|pt100|pt1000|faulted temp/i,
+    title: "Temperature sensor (RTD / thermocouple) faulted or reading bad",
+    causes: [
+      "**Open circuit — broken lead or loose terminal** — the most common RTD/TC fault; an open element drives the analog channel to its over/under-range fault state.",
+      "**Failed sensing element** — the RTD/TC itself is open or drifted out of tolerance.",
+      "**Wiring / lead-resistance error** — a 3-wire RTD with unequal or miswired compensation legs, or the wrong 2/3/4-wire landing, reads wrong or faults.",
+      "**Bad analog input channel or module** — a failed channel or a module in a fault/over-range state, less common than a field-side open.",
+    ].join("\n"),
+    checks: [
+      "LOTO as required; the sensor circuit is low voltage but the machine it controls may not be.",
+      "At the sensor, disconnect and **measure resistance across the element**. A Pt100 reads ~100 Ω at 0 °C and ~110 Ω near room temp; **open (OL / infinite) = broken element or lead**, **~0 Ω = shorted**. For a thermocouple, check for continuity and correct polarity.",
+      "For a 3-wire RTD, measure each lead pair — the two compensation legs should read **equal, low** resistance. Unequal legs = wiring/terminal problem.",
+      "Reseat and torque every terminal from the sensor head → junction box → input card. Look for corrosion, a backed-out ferrule, or a broken strand.",
+      "Confirm the wire lands on the **correct module channel** and the channel is configured for the right sensor type (RTD vs TC, Pt100 vs Pt1000, 2/3/4-wire).",
+      "**Move the field wiring to a known-good spare channel** (or jump a resistor/decade box in place of the sensor). If the fault follows the wiring, it's field-side; if it stays on the channel, the module is suspect.",
+      "Read the module's diagnostic/status bits for over-range / under-range / open-circuit to confirm which failure mode the controller sees.",
+    ].join("\n"),
+    tools: "Precision DMM (Ω), RTD/thermocouple loop calibrator or decade resistance box, small insulated screwdrivers, contact cleaner.",
+    parts: "Matching RTD element or thermocouple (verify Pt100 vs Pt1000 and 2/3/4-wire, or TC type J/K), sensor lead/connector; analog input module ONLY if the channel is proven bad.",
+  },
+  {
+    match: /overload|overcurrent|drawing (high )?amps|\bol\b trip|motor.*(trip|hot)/i,
+    title: "Motor / drive overload trip",
+    causes: [
+      "**Mechanical load increase** — added drag, misalignment, or a seizing bearing raises running current until the overload trips.",
+      "**Overload relay set too tight or aging** — a marginal setting clips normal running current.",
+      "**Supply / winding problem** — single-phasing, voltage imbalance, or a degrading winding raises current.",
+      "**Thermal / cooling** — clogged filters or a failed fan let the motor or drive heat-soak and trip after it warms.",
+    ].join("\n"),
+    checks: [
+      "LOTO and verify zero energy before any contact work.",
+      "Clamp-meter all three phases at start and running; compare to the **motor nameplate FLA** and check phase balance.",
+      "Verify the overload relay/parameter is set to ~115–125 % of FLA, not lower.",
+      "Hand-rotate the load (de-energized) for drag; check alignment and bearings.",
+      "Check cooling — filters, fans, ambient — if the trip only happens once warm.",
+    ].join("\n"),
+    tools: "True-RMS clamp ammeter, IR thermometer, insulated hand tools, megohmmeter for winding checks.",
+    parts: "Overload relay/heater element sized to FLA; bearings only if drag is confirmed.",
+  },
+  {
+    match: /comm|network|ethernet|loss of comm|f0?81|no connection|offline node/i,
+    title: "Loss of communications (network / drive comms)",
+    causes: [
+      "**Loose or damaged comms cable / connector** — vibration loosens RJ45/DPI connectors; the most common comms-loss root cause.",
+      "**Controller or scanner faulted / in program** — if the controlling PLC drops the connection, the device sees comms loss.",
+      "**Switch / media / power problem** — a failed port or power-cycled switch breaks the path.",
+      "**Failing comms adapter** — device adapter firmware/hardware fault.",
+    ].join("\n"),
+    checks: [
+      "Read the fault buffer/timestamp at the device; note any correlation with vibration or a shift change.",
+      "Reseat and inspect the network cable at BOTH ends; test the pairs with a cable tester.",
+      "Ping the device IP from a laptop on the same subnet — stable replies = good path.",
+      "Confirm the controlling PLC is in RUN with no I/O/connection faults.",
+      "If comms is clean but the fault persists, swap/upgrade the comms adapter.",
+    ].join("\n"),
+    tools: "Cat5e/6 cable tester, laptop with the relevant EtherNet/IP or fieldbus tools, insulated screwdrivers.",
+    parts: "Replacement patch cable; comms adapter (verify P/N against the device nameplate).",
+  },
+];
+
+function detectGuidance(q: string): GuidanceTopic | null {
+  return GUIDANCE.find((g) => g.match.test(q)) ?? null;
+}
+
 function genericAnswer(q: string): string {
-  return `## Problem Summary
-Here is a structured first-pass on: *"${summarizeRequest(q)}"*. This answer reasons from general industrial knowledge and any matching plant documents; once your manuals, drawings, and work-order history are uploaded, every step is grounded in this plant's own records.
+  const topic = detectGuidance(q);
+  if (topic) {
+    return `## Problem Summary
+General guidance for **${topic.title}** — *"${summarizeRequest(q)}"*. This is standard troubleshooting knowledge, **not** from your plant's documents. Upload the wiring/loop drawing, manual, or this asset's history and I'll ground every step in your own records and name the exact terminals and part numbers.
 
 ## Most Likely Causes
-| Cause | Probability | Why |
-|---|---|---|
-| Most likely failure mode for this symptom | 40% | Based on typical failure patterns for this equipment class |
-| Secondary contributing factor | 30% | Common co-occurring condition |
-| Less common but high-impact cause | 20% | Worth ruling out early given downtime cost |
-| Environmental / process input | 10% | Upstream condition that can mimic a machine fault |
+${topic.causes}
 
 ## Recommended Troubleshooting Order
-1. LOTO and verify zero energy before any contact work.
-2. Reproduce/observe the symptom and capture data (amps, temps, pressures, fault codes).
-3. Inspect the highest-probability item first; confirm with a measurement that has a clear good/bad threshold.
-4. Work down the cause list, eliminating with evidence rather than swapping parts.
+${topic.checks.split("\n").map((l, i) => `${i + 1}. ${l}`).join("\n")}
+
+## Required Tools
+- ${topic.tools}
+
+## Required Spare Parts
+- ${topic.parts}
+
+## Safety Considerations
+- Lockout/tagout and verify stored energy (electrical bus, hydraulic/pneumatic pressure, gravity/spring) is discharged before touching wiring or terminals.
+- Use PPE appropriate to the task; arc-flash rated for any energized verification.
+
+## Confidence
+**Low–Medium** — sound general guidance, but not yet grounded in your documents. Attach the relevant drawing/manual to raise it and pinpoint specifics.
+
+## Sources Used
+{{REFS}}`;
+  }
+
+  return `## Problem Summary
+I don't have enough grounded information yet for *"${summarizeRequest(q)}"* — no uploaded document clearly matched this question. Here is an honest, general starting point; the more you attach, the more specific I get.
+
+## How to Narrow It Down
+1. **LOTO and verify zero energy** before any contact work.
+2. Capture the exact symptom and any data — fault code, amps, temperature, pressure, the reading on the HMI/keypad.
+3. Identify the specific component and its make/model/part number so the right manual and wiring can be found.
+4. Inspect the most likely item first and confirm with a measurement that has a clear good/bad threshold — eliminate with evidence, don't swap parts.
 5. Verify the fix under load and document what you found.
 
 ## Required Tools
 - Multimeter (CAT III), clamp ammeter, IR thermometer, basic hand tools.
 
-## Required Spare Parts
-- Determine after diagnosis; verify part numbers against the manual/BOM.
-
 ## Safety Considerations
 - Lockout/tagout and verify stored energy (electrical bus, hydraulic/pneumatic pressure, gravity/spring) is discharged.
 - Use PPE appropriate to the task; arc-flash rated for any energized verification.
 
-## Estimated Repair Time
-30–90 minutes for a qualified tech once the cause is confirmed.
-
 ## Confidence
-**Low** — upload the relevant manual, drawing, PLC export, or this asset's failure history and I'll tailor every step and raise confidence.
+**Low** — upload the relevant manual, drawing, PLC export, or this asset's failure history (or paste the exact fault code) and I'll tailor every step and cite your own records.
 
 ## Sources Used
 {{REFS}}`;
@@ -385,14 +479,24 @@ export function buildDemoAnswer(
   allowCannedCases = false
 ): string {
   const matched = allowCannedCases ? CASES.find((c) => c.match.test(question)) : undefined;
+  // Answer body precedence for the offline engine:
+  //   1. a curated demo case (isolated demo tenant only), else
+  //   2. EXTRACTIVE grounding — actually read the retrieved document chunks and
+  //      quote the passages that answer the question, else
+  //   3. the honest general-guidance fallback (asks for an upload).
+  // (2) is the real fix for "it cites my schematic but never uses it": the
+  // retrieved content is now surfaced instead of discarded.
+  const bodyFor = (q: string): string =>
+    matched ? matched.build(q) : buildGroundedFromDocuments(q, ctx) || genericAnswer(q);
+
   // When the question resolved to the plant's OWN failure records (by asset
   // number, part number, or area), lead with those authoritative facts so the
   // offline answer is grounded in real history rather than a generic template.
   if (failureContext && failureContext.trim()) {
-    const body = matched ? matched.build(question) : genericAnswer(question);
+    const body = bodyFor(question);
     const memory = `## Matched Plant Failure Records\nResolved directly from your maintenance records for *"${summarizeRequest(question)}"*:\n\n\`\`\`\n${failureContext.trim()}\n\`\`\`\n\n`;
     return memory + body.replace("{{REFS}}", refs(ctx));
   }
-  const body = matched ? matched.build(question) : genericAnswer(question);
+  const body = bodyFor(question);
   return body.replace("{{REFS}}", refs(ctx));
 }
