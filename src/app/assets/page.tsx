@@ -32,7 +32,7 @@ const statusStyle: Record<string, { label: string; color: string; dot: string }>
   operational: { label: "Operational", color: "var(--color-green, #34d399)", dot: "#34d399" },
   degraded: { label: "Degraded", color: "var(--color-amber)", dot: "#f59e0b" },
   down: { label: "Down", color: "var(--color-red)", dot: "#ef4444" },
-  maintenance: { label: "Maintenance", color: "var(--color-accent)", dot: "#60a5fa" },
+  maintenance: { label: "Maintenance", color: "var(--color-muted)", dot: "var(--color-muted)" },
   retired: { label: "Retired", color: "var(--color-faint)", dot: "#6b7280" },
 };
 

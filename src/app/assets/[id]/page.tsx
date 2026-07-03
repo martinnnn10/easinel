@@ -39,10 +39,10 @@ const statusStyle: Record<string, { label: string; dot: string; color: string }>
   operational: { label: "Operational", dot: "#34d399", color: "#34d399" },
   degraded: { label: "Degraded", dot: "#f59e0b", color: "#f59e0b" },
   down: { label: "Down", dot: "#ef4444", color: "#ef4444" },
-  maintenance: { label: "Maintenance", dot: "#60a5fa", color: "#60a5fa" },
+  maintenance: { label: "Maintenance", dot: "var(--color-muted)", color: "var(--color-muted)" },
   retired: { label: "Retired", dot: "#6b7280", color: "#6b7280" },
 };
-const sevColor: Record<string, string> = { info: "#60a5fa", warning: "#f59e0b", fault: "#ef4444", critical: "#dc2626" };
+const sevColor: Record<string, string> = { info: "var(--color-muted)", warning: "#f59e0b", fault: "#ef4444", critical: "#dc2626" };
 const kindIcon: Record<string, string> = { manual: "📘", drawing: "📐", plc: "🧩", photo: "📷", alarm: "🚨", vibration: "📊", sop: "📋", lesson: "🧠", document: "📄" };
 
 type Tab = "overview" | "pms" | "parts" | "workorders" | "failures" | "documents" | "lessons" | "plc" | "alarms" | "sessions" | "ai";

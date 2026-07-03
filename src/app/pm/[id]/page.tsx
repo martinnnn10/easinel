@@ -260,9 +260,9 @@ export default function PmDetailPage({ params }: { params: Promise<{ id: string 
 
         {/* Tools / Parts / Safety */}
         <div className="mt-4 grid sm:grid-cols-3 gap-3">
-          <ChipCard title="Tools" items={tools} accent="#60a5fa" />
-          <ChipCard title="Parts" items={parts} accent="#34d399" />
-          <ChipCard title="Safety steps" items={safety} accent="#ef4444" />
+          <ChipCard title="Tools" items={tools} accent="var(--color-amber)" />
+          <ChipCard title="Parts" items={parts} accent="var(--color-green)" />
+          <ChipCard title="Safety steps" items={safety} accent="var(--color-red)" />
         </div>
 
         {/* AI rationale */}
@@ -426,9 +426,9 @@ function StepCard({ index, task }: { index: number; task: Task }) {
       {open && d && (
         <div className="px-3 pb-3 pl-12">
           {d.purpose && <p className="text-[12px] text-[var(--color-muted)] leading-relaxed"><span className="text-[var(--color-faint)]">Purpose: </span>{d.purpose}</p>}
-          <StepList label="Procedure" items={d.procedure} accent="#60a5fa" />
-          <StepList label="Measurements / readings" items={d.measurements} accent="#a78bfa" />
-          <StepList label="Acceptance criteria" items={d.acceptanceCriteria} accent="#34d399" />
+          <StepList label="Procedure" items={d.procedure} accent="var(--color-accent)" />
+          <StepList label="Measurements / readings" items={d.measurements} accent="var(--color-muted)" />
+          <StepList label="Acceptance criteria" items={d.acceptanceCriteria} accent="var(--color-green)" />
           {d.outOfSpecAction && (
             <div className="mt-2">
               <div className="text-[10px] uppercase tracking-wide text-[var(--color-faint)] mb-1">If out of spec</div>
@@ -436,12 +436,12 @@ function StepCard({ index, task }: { index: number; task: Task }) {
             </div>
           )}
           <div className="grid sm:grid-cols-2 gap-x-4">
-            <StepList label="PPE" items={d.ppe} accent="#ef4444" />
-            <StepList label="Safety" items={d.safety} accent="#ef4444" />
-            <StepList label="Tools" items={d.tools} accent="#60a5fa" />
-            <StepList label="Parts" items={d.parts} accent="#34d399" />
-            <StepList label="Common failure modes" items={d.failureModes} accent="#f59e0b" />
-            <StepList label="References / standards" items={[...(d.oemRefs || []), ...(d.standards || [])]} accent="#9ca3af" />
+            <StepList label="PPE" items={d.ppe} accent="var(--color-red)" />
+            <StepList label="Safety" items={d.safety} accent="var(--color-red)" />
+            <StepList label="Tools" items={d.tools} accent="var(--color-amber)" />
+            <StepList label="Parts" items={d.parts} accent="var(--color-green)" />
+            <StepList label="Common failure modes" items={d.failureModes} accent="var(--color-amber)" />
+            <StepList label="References / standards" items={[...(d.oemRefs || []), ...(d.standards || [])]} accent="var(--color-faint)" />
           </div>
         </div>
       )}

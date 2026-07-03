@@ -42,9 +42,12 @@ export const POST = safeHandler("org.invitations.post", async (req: NextRequest)
   await audit(gate.user.orgId, gate.user.email, "invite.create", invite.id, { email, role: wantRole });
 
   // The accept link the customer shares with their teammate. In production an
-  // email is sent; we also return it so the inviter can copy it directly.
-  const origin = req.nextUrl.origin;
-  const acceptUrl = `${origin}/accept-invite?token=${invite.token}`;
+  // email is sent; we also return it so the inviter can copy it directly. Behind
+  // a reverse proxy, req.nextUrl.origin is the INTERNAL address (e.g.
+  // 0.0.0.0:3020), which produces an unusable link — so prefer the configured
+  // public base URL when set.
+  const base = (process.env.APP_BASE_URL || req.nextUrl.origin).replace(/\/+$/, "");
+  const acceptUrl = `${base}/accept-invite?token=${invite.token}`;
   return NextResponse.json({
     invitation: { id: invite.id, email: invite.email, role: invite.role, expiresAt: invite.expiresAt.getTime() },
     acceptUrl,

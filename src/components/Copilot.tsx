@@ -402,7 +402,7 @@ function MessageBubble({
 
   return (
     <div className="flex gap-3 fadeup">
-      <div className="shrink-0 w-7 h-7 rounded-md bg-gradient-to-br from-[var(--color-accent)] to-[#1456b0] grid place-items-center text-white text-[12px] font-bold mt-0.5">
+      <div className="shrink-0 w-7 h-7 rounded-md bg-gradient-to-br from-[var(--color-accent)] to-[#2f7a12] grid place-items-center text-[var(--color-on-accent)] text-[12px] font-bold mt-0.5">
         E
       </div>
       <div className="min-w-0 flex-1">

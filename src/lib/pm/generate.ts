@@ -287,7 +287,17 @@ export async function generatePmProgram(
   actor = "system"
 ): Promise<GeneratePmResult> {
   if (!orgId) throw new Error("generatePmProgram() requires orgId");
-  if (!input.assetId && !input.model && !input.serialNumber && !input.manufacturer) {
+  // A brand-new machine is provided via `createAsset` (name + optional nameplate)
+  // and must be accepted even when no existing assetId or model/serial is given —
+  // otherwise "generate a PM for a new machine" fails with a spurious
+  // "Provide an asset" error before the asset is even created (below).
+  if (
+    !input.assetId &&
+    !input.createAsset?.name &&
+    !input.model &&
+    !input.serialNumber &&
+    !input.manufacturer
+  ) {
     throw new Error("Provide an asset, or a manufacturer/model/serial number.");
   }
 

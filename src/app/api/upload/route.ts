@@ -10,6 +10,17 @@ export const POST = safeHandler("upload.post", async (req: NextRequest) => {
   const gate = await requirePermission("upload_documents");
   if (gate instanceof NextResponse) return gate;
   const orgId = gate.user.orgId;
+
+  // Guard the content type BEFORE parsing: calling req.formData() on a
+  // non-multipart request throws deep in the runtime and surfaces as an opaque
+  // 500. Fail fast with an honest 400 instead.
+  const contentType = req.headers.get("content-type") || "";
+  if (!contentType.includes("multipart/form-data")) {
+    return NextResponse.json(
+      { error: "bad_content_type", message: "Uploads must be sent as multipart/form-data." },
+      { status: 400 }
+    );
+  }
   const form = await req.formData();
   const assetId = (form.get("assetId") as string) || null;
   const files = form.getAll("files").filter((f): f is File => f instanceof File);

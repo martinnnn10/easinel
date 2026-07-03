@@ -49,6 +49,9 @@ export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
   const isPublic =
     pathname.startsWith("/login") ||
+    // A newly invited user must reach the invite-acceptance page (to set their
+    // password) BEFORE they have a session — gating it would trap them at /login.
+    pathname.startsWith("/accept-invite") ||
     pathname.startsWith("/api/auth") ||
     pathname.startsWith("/api/v1") ||
     pathname === "/api/health";
