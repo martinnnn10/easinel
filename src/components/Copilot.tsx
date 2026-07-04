@@ -433,9 +433,10 @@ function MessageBubble({
 // numbered citations that map to the inline [n] markers in the answer, and an
 // optional retrieval-diagnostics panel for technical reviewers / auditors.
 const PROVIDER_LABEL: Record<string, string> = {
-  anthropic: "Claude",
-  openai: "OpenAI",
-  fallback: "Grounded engine",
+  anthropic: "Anthropic (Claude)",
+  openai: "OpenAI-compatible",
+  fallback: "Deterministic fallback",
+  "deterministic-fallback": "Deterministic fallback",
 };
 
 function confidenceStyle(label?: string): string {

@@ -2,32 +2,32 @@
 
 /* ───────────────────────── EAS design tokens ───────────────────────── */
 @theme {
-  /* INDUSTRIAL AUTOMATION theme — gritty near-black shop-floor charcoal with an
-     electric "industrial green" as the single brand/action color (straight off
-     the EAS logo), and brushed-steel light text. Greys carry a faint warm-olive
-     cast (R,G slightly above B) so surfaces read like weathered steel and painted
-     machine housings, not cold navy SaaS. Green = brand/action/go; amber =
-     degraded; red = fault. Reads like a real control panel. */
-  --color-bg: #08090a;
-  --color-bg-2: #0b0d0b;
-  --color-surface: #131510;
-  --color-surface-2: #1a1d16;
-  --color-border: #2b3026;
-  --color-border-soft: #1d201a;
-  --color-text: #eef1ea;
-  --color-muted: #9ba295;
-  --color-faint: #646b5c;
-  /* Electric industrial green — the logo's lime/grass green. Vivid on dark for
-     links/headers/borders/focus; filled buttons get dark on-accent text (below)
-     because white-on-green fails contrast. */
-  --color-accent: #6fbe2e;
-  --color-accent-soft: #1c2b11;
-  --color-on-accent: #0a1305;
-  --color-amber: #e6a94a;
-  /* Success/healthy status — a cooler emerald so "operational" dots stay
-     distinct from the lime brand/action green. */
-  --color-green: #35c98a;
-  --color-red: #ec5f5f;
+  /* PREMIUM INDUSTRIAL GRAPHITE — a calm control-room palette meant to be stared
+     at for a 12-hour shift and taken seriously by a VP of Maintenance. Near-black
+     graphite base (not pure black), charcoal panels with a faint green-gray cast,
+     soft off-white text. Green is a CONTROLLED accent reserved for primary
+     actions, the active nav item, and healthy/success status — it does NOT coat
+     the whole UI. Amber = warning, red = down/critical, muted blue = links/info. */
+  --color-bg: #0f1110;         /* app background — graphite, not black */
+  --color-bg-2: #141814;       /* shell */
+  --color-surface: #181d18;    /* panels */
+  --color-surface-2: #1f261f;  /* cards / raised */
+  --color-border: #2d352d;     /* subtle border */
+  --color-border-soft: #232a23;
+  --color-text: #f1f5ee;       /* soft off-white */
+  --color-muted: #b8c2b4;      /* secondary text */
+  --color-faint: #7f8b7b;      /* muted — still AA on panels for non-critical text */
+  /* Controlled industrial green (not neon). Reserved for primary buttons, active
+     nav, and healthy status. Filled buttons get dark on-accent text (below). */
+  --color-accent: #74b843;
+  --color-accent-soft: #22331d;
+  --color-on-accent: #0b1406;
+  --color-amber: #d6a23a;      /* warning */
+  --color-green: #57b06a;      /* healthy/success — muted, distinct from accent */
+  --color-red: #e05252;        /* down / critical */
+  /* Links / secondary info only — a restrained muted blue, used sparingly. */
+  --color-info: #6f9fd8;
+  --color-info-soft: #172233;
 
   --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
     Helvetica, Arial, sans-serif;
@@ -55,21 +55,16 @@ body {
 }
 
 body {
-  /* Flat, structured enterprise surface: a deep graphite base with a calm
-     engineering grid and a barely-there vertical tone shift. A single neutral
-     highlight at the top adds quiet depth — no colored glow. This should feel
-     like a serious operations console, not a chatbot. */
+  /* Calm graphite operations surface — NO colored glow, no neon. Just a deep
+     graphite base with a barely-there vertical tone shift and a whisper-faint
+     engineering grid for depth. Reads like a premium controls-room console. */
   background-color: var(--color-bg);
   background-image:
-    /* faint industrial-green glow, low bottom-left — echoes the logo's lit edge */
-    radial-gradient(90% 70% at 8% 108%, rgba(111, 190, 46, 0.05) 0%, transparent 55%),
-    /* cool steel highlight top-center for depth */
-    radial-gradient(120% 80% at 50% -10%, rgba(220, 226, 220, 0.035) 0%, transparent 60%),
-    linear-gradient(to bottom, var(--color-bg-2) 0%, var(--color-bg) 46%),
-    linear-gradient(rgba(255, 255, 255, 0.012) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.012) 1px, transparent 1px);
-  background-size: 100% 100%, 100% 100%, 100% 100%, 56px 56px, 56px 56px;
-  background-position: 0 0, 0 0, 0 0, 0 0, 0 0;
+    linear-gradient(to bottom, var(--color-bg-2) 0%, var(--color-bg) 52%),
+    linear-gradient(rgba(255, 255, 255, 0.008) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.008) 1px, transparent 1px);
+  background-size: 100% 100%, 64px 64px, 64px 64px;
+  background-position: 0 0, 0 0, 0 0;
   background-attachment: fixed;
   color: var(--color-text);
   font-family: var(--font-sans);
@@ -87,12 +82,12 @@ body {
   height: 10px;
 }
 ::-webkit-scrollbar-thumb {
-  background: #2b3324;
+  background: #2f362f;
   border-radius: 8px;
   border: 2px solid var(--color-bg);
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #3a4630;
+  background: #3d453d;
 }
 
 /* ───────────────────────── Markdown answer styling ───────────────────────── */
@@ -105,9 +100,13 @@ body {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: var(--color-accent);
-  margin: 1.4rem 0 0.55rem;
-  padding-bottom: 0.3rem;
+  /* Calm secondary color for section headers (not green) so the answer scans
+     cleanly; a thin green rule on the left keeps a subtle brand cue. */
+  color: var(--color-muted);
+  margin: 1.5rem 0 0.6rem;
+  padding-bottom: 0.32rem;
+  padding-left: 0.5rem;
+  border-left: 2px solid var(--color-accent-soft);
   border-bottom: 1px solid var(--color-border-soft);
 }
 .answer h2:first-child {

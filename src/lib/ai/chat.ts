@@ -7,8 +7,38 @@ import { DEMO_ORG } from "@/lib/util";
 import {
   getLiveChatProvider,
   getFallbackChatProvider,
+  recordProviderError,
   type ChatMessage,
+  type ChatProvider,
+  type ChatRequest,
 } from "./providers";
+
+// Stream a LIVE provider, but if it throws BEFORE emitting any token, record the
+// error and transparently stream the deterministic answer instead — so a live
+// outage degrades gracefully and the failure is surfaced (never silent).
+async function* liveWithFallback(
+  provider: ChatProvider,
+  req: ChatRequest,
+  precomputed: string
+): AsyncGenerator<string> {
+  let emitted = false;
+  try {
+    for await (const delta of provider.stream(req)) {
+      emitted = true;
+      yield delta;
+    }
+    recordProviderError(null); // success → clear any prior error
+  } catch (err) {
+    const msg = (err as Error).message || "live provider error";
+    recordProviderError(msg);
+    if (!emitted) {
+      // Nothing streamed yet — fall back cleanly to the deterministic answer.
+      for (const chunk of precomputed.match(/[\s\S]{1,120}/g) ?? []) yield chunk;
+    } else {
+      yield `\n\n_(Live AI response interrupted: ${msg}. Showing what was generated.)_`;
+    }
+  }
+}
 
 export interface ChatTurn {
   role: "user" | "assistant";
@@ -71,24 +101,29 @@ export async function streamAnswer(opts: StreamOpts): Promise<StreamResult> {
   const optsWithFailure: StreamOpts = { ...opts, failureContext };
 
   const liveProvider = getLiveChatProvider();
-  const live = Boolean(liveProvider);
+
+  // Always compute the deterministic expert answer — it is both the fallback
+  // when no live key is set AND the safety net if a live call fails mid-flight.
+  // Canned machine-specific demo cases are allowed ONLY in the isolated demo
+  // tenant; a real customer org gets the honest expert/grounded answer.
+  const precomputed = buildDemoAnswer(opts.question, sources, failureContext, opts.orgId === DEMO_ORG);
 
   let stream: AsyncGenerator<string>;
   let providerMeta: { provider: string; model: string };
+  let live = Boolean(liveProvider);
 
   if (liveProvider) {
     const req = buildChatRequest(optsWithFailure, retrieval.citations);
-    stream = liveProvider.stream(req);
+    // Wrap the live stream: if it errors BEFORE producing output, record the
+    // error (surfaced in /api/health.lastProviderError) and fall back to the
+    // deterministic answer rather than failing the request silently.
+    stream = liveWithFallback(liveProvider, req, precomputed);
     providerMeta = { provider: liveProvider.meta.provider, model: liveProvider.meta.model };
   } else {
-    // Deterministic fallback: precompute the grounded answer, stream it through
-    // the SAME provider interface so callers have one code path.
-    // Canned machine-specific demo cases are allowed ONLY in the isolated demo
-    // tenant; a real customer org gets the honest generic-grounded answer.
-    const precomputed = buildDemoAnswer(opts.question, sources, failureContext, opts.orgId === DEMO_ORG);
     const fb = getFallbackChatProvider(precomputed);
     stream = fb.stream(buildChatRequest(optsWithFailure, retrieval.citations));
     providerMeta = { provider: fb.meta.provider, model: fb.meta.model };
+    live = false;
   }
 
   return {

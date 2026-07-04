@@ -321,6 +321,23 @@ const DDL = [
     origin_org_id TEXT NOT NULL DEFAULT '__unset__',
     created_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000)
   )`,
+  `CREATE TABLE IF NOT EXISTS handover_notes (
+    id TEXT PRIMARY KEY,
+    org_id TEXT NOT NULL DEFAULT '__unset__',
+    category TEXT NOT NULL DEFAULT 'watch_item',
+    note TEXT NOT NULL,
+    priority TEXT NOT NULL DEFAULT 'normal',
+    status TEXT NOT NULL DEFAULT 'open',
+    asset_id TEXT,
+    work_order_id TEXT,
+    pm_program_id TEXT,
+    part_id TEXT,
+    follow_up_owner TEXT,
+    shift_label TEXT,
+    created_by TEXT,
+    created_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000)
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_handover_org ON handover_notes(org_id, created_at)`,
   `CREATE INDEX IF NOT EXISTS idx_wo_events_wo ON work_order_events(work_order_id)`,
   `CREATE INDEX IF NOT EXISTS idx_oem_signals_model ON oem_failure_signals(manufacturer, model, fault_code)`,
   `CREATE TABLE IF NOT EXISTS scenarios (

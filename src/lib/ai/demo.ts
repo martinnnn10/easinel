@@ -1,5 +1,6 @@
 import type { RetrievedChunk } from "@/lib/rag/retrieve";
 import { buildGroundedFromDocuments } from "./grounded";
+import { buildFaultCodeAnswer } from "./expert";
 
 // Offline reasoning engine. Not a real LLM — a curated template engine that
 // produces correctly-structured, domain-plausible answers so the product is
@@ -479,15 +480,17 @@ export function buildDemoAnswer(
   allowCannedCases = false
 ): string {
   const matched = allowCannedCases ? CASES.find((c) => c.match.test(question)) : undefined;
-  // Answer body precedence for the offline engine:
+  // Answer body precedence for the offline engine — ANSWER FIRST, cite second:
   //   1. a curated demo case (isolated demo tenant only), else
-  //   2. EXTRACTIVE grounding — actually read the retrieved document chunks and
-  //      quote the passages that answer the question, else
-  //   3. the honest general-guidance fallback (asks for an upload).
-  // (2) is the real fix for "it cites my schematic but never uses it": the
-  // retrieved content is now surfaced instead of discarded.
+  //   2. EXPERT FAULT-CODE answer — a direct "F004 — UnderVoltage" answer parsed
+  //      from the OEM fault tables (not a passage dump), else
+  //   3. EXTRACTIVE grounding — read the retrieved chunks and quote the passages
+  //      that answer the question, else
+  //   4. the honest general-guidance fallback (asks for an upload).
   const bodyFor = (q: string): string =>
-    matched ? matched.build(q) : buildGroundedFromDocuments(q, ctx) || genericAnswer(q);
+    matched
+      ? matched.build(q)
+      : buildFaultCodeAnswer(q, ctx) || buildGroundedFromDocuments(q, ctx) || genericAnswer(q);
 
   // When the question resolved to the plant's OWN failure records (by asset
   // number, part number, or area), lead with those authoritative facts so the

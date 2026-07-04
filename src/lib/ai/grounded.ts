@@ -187,28 +187,34 @@ export function buildGroundedFromDocuments(
   const passages = extractRelevantPassages(question, ctx);
   if (!passages.length) return ""; // caller falls back to the honest generic
 
+  // ANSWER FIRST: lead with the single most relevant passage stated as the
+  // answer, then the remaining passages as supporting evidence — never a raw
+  // "here are some passages" dump.
+  const lead = passages[0];
+  const supporting = passages.slice(1);
   const evidence = passages
     .map((p) => `- "${p.text}" — **${p.filename}** [${p.marker}]`)
     .join("\n");
 
-  return `## What Your Documents Say
-These passages from your uploaded documents match *"${summarizeRequest(question)}"* — read directly from the files, cited by source number:
+  return `## Answer
+Based on your uploaded documentation for *"${summarizeRequest(question)}"*, the most directly relevant guidance is:
 
-${evidence}
+> "${lead.text}" — **${lead.filename}** [${lead.marker}]
 
-## How to Act on This
+## What It Means / What To Check First
 1. **LOTO and verify zero energy** before any contact work on wiring or terminals.
-2. Start with the highest-scoring passage above — it is the closest match in your documentation. Confirm the specific terminals, channel, or part numbers it names against the physical device.
-3. Where the passage names a check (a reading, a terminal, a setting), take that measurement and compare it to the good/bad threshold the document gives.
-4. If the document specifies a fault code or wiring detail, verify it end-to-end (source → wiring → input channel → controller) rather than swapping parts.
+2. Act on the passage above first — it is the closest match in your own documentation. Confirm the specific terminals, channel, fault code, or part numbers it names against the physical device.
+3. Where it names a check (a reading, a terminal, a setting), take that measurement and compare it to the good/bad threshold the document gives.
+4. Verify end-to-end (source → wiring → input/channel → controller) rather than swapping parts.
 5. Record what you found and close the loop against this document.
+${supporting.length ? `\n## Supporting Evidence\n${supporting.map((p) => `- "${p.text}" — **${p.filename}** [${p.marker}]`).join("\n")}` : ""}
 
-## Safety Considerations
+## Safety Notes
 - Lockout/tagout and verify stored energy (electrical bus, hydraulic/pneumatic, gravity/spring) is discharged before touching wiring or terminals.
 - Use PPE appropriate to the task; arc-flash rated for any energized verification.
 
 ## Confidence
-**Medium** — grounded in ${passages.length} matching passage${passages.length === 1 ? "" : "s"} from your own documents. If a wiring/loop drawing for this exact device is attached, I can point to the specific terminals and channel.
+**Medium** — grounded in ${passages.length} matching passage${passages.length === 1 ? "" : "s"} from your own documents. Attach the wiring/loop drawing for this exact device and I can point to the specific terminals and channel.
 
 ## Sources Used
 {{REFS}}`;

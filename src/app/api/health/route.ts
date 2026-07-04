@@ -3,6 +3,7 @@ import { db, ensureDb } from "@/lib/db";
 import { sql } from "drizzle-orm";
 import { demoModeEnabled } from "@/lib/util";
 import { authRequired as authRequiredFn } from "@/lib/auth/session";
+import { activeProviderName, activeProviderModel, hasLiveProvider, lastProviderError } from "@/lib/ai/providers";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -39,9 +40,16 @@ export async function GET() {
       database: dbOk ? "ok" : "down",
       ...(dbError ? { databaseError: dbError } : {}),
     },
-    aiConfigured: Boolean(
-      process.env.ANTHROPIC_API_KEY || process.env.OPENAI_API_KEY || process.env.AI_API_KEY
-    ),
+    // AI provider posture — surfaced so a silent deterministic fallback is never
+    // invisible. aiProviderConfigured=false means the Copilot is running the
+    // deterministic engine (no live LLM key set, e.g. ANTHROPIC_API_KEY="").
+    aiProviderConfigured: hasLiveProvider(),
+    aiProvider: activeProviderName(),
+    aiProviderName: activeProviderName(),
+    aiModel: activeProviderModel(),
+    mode: hasLiveProvider() ? "live" : "fallback",
+    lastProviderError: lastProviderError(),
+    aiConfigured: hasLiveProvider(),
     security: {
       authRequired,
       // true = ACTION REQUIRED: set AUTH_REQUIRED=true before serving real users.

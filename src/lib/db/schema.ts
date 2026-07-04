@@ -731,3 +731,27 @@ export const subscriptions = sqliteTable("subscriptions", {
 });
 
 export type SubscriptionRow = typeof subscriptions.$inferSelect;
+
+// ───────────────────────── Shift Handover Notes ─────────────────────────
+// Real, user-entered shift-to-shift communication (not a generated digest).
+// Org-scoped; optionally linked to an asset / work order / PM / part.
+export const handoverNotes = sqliteTable("handover_notes", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().default("__unset__"),
+  category: text("category").notNull().default("watch_item"),
+  note: text("note").notNull(),
+  priority: text("priority").notNull().default("normal"), // low|normal|high|critical
+  status: text("status").notNull().default("open"), // open|resolved
+  assetId: text("asset_id"),
+  workOrderId: text("work_order_id"),
+  pmProgramId: text("pm_program_id"),
+  partId: text("part_id"),
+  followUpOwner: text("follow_up_owner"),
+  shiftLabel: text("shift_label"),
+  createdBy: text("created_by"),
+  createdAt: integer("created_at", { mode: "number" })
+    .notNull()
+    .default(sql`(unixepoch() * 1000)`),
+});
+
+export type HandoverNote = typeof handoverNotes.$inferSelect;

@@ -38,9 +38,12 @@ describe("offline grounded synthesis (reads the retrieved documents)", () => {
     expect(passages[0].marker).toBeGreaterThanOrEqual(1);
   });
 
-  it("builds an answer that QUOTES the document instead of a generic template", () => {
+  it("builds an ANSWER-FIRST response that quotes the document (not a passage dump)", () => {
     const answer = buildGroundedFromDocuments("rtd faulted out", rtdDocs);
-    expect(answer).toContain("What Your Documents Say");
+    // Answer-first: leads with "## Answer", not a raw "passages from documents" header.
+    expect(answer).toContain("## Answer");
+    expect(answer).not.toContain("What Your Documents Say");
+    expect(answer.indexOf("## Answer")).toBeLessThan(answer.indexOf("## Sources Used"));
     // The literal document wording must appear in the answer body (grounded, not templated).
     expect(answer.toLowerCase()).toContain("open rtd circuit");
     expect(answer).toContain("[1]"); // cites the first source

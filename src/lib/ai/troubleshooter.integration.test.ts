@@ -63,9 +63,10 @@ describe("AI troubleshooter (offline) reads an uploaded PDF end-to-end", () => {
     expect(r.live).toBe(false); // offline grounded engine
     // It must actually retrieve the uploaded doc as a source.
     expect(r.sources.some((s) => s.filename === "5370 (1).pdf")).toBe(true);
-    // And the ANSWER must contain the document's own guidance — not a template.
+    // And the ANSWER must lead with a direct answer + the document's own guidance.
     const a = r.answer.toLowerCase();
-    expect(a).toContain("what your documents say");
+    expect(a).toContain("## answer");
+    expect(a).not.toContain("what your documents say");
     expect(a).toMatch(/rtd/);
     expect(a).toMatch(/open|overrange|terminal|resistance|pt100/);
     expect(a).not.toContain("most likely failure mode for this symptom");
@@ -74,5 +75,28 @@ describe("AI troubleshooter (offline) reads an uploaded PDF end-to-end", () => {
   it("cites the uploaded document as a source", async () => {
     const r = await answerOnce({ orgId: ORG, question: "rtd open circuit overrange fault" });
     expect(r.citations.some((c) => c.filename === "5370 (1).pdf")).toBe(true);
+  }, 20000);
+});
+
+describe("Copilot answers fault-code questions like an expert (not a passage dump)", () => {
+  beforeAll(async () => {
+    await ensureDb();
+    const { seedOemKnowledge } = await import("@/lib/knowledge/oem");
+    await seedOemKnowledge(); // global PowerFlex fault reference, visible to every org
+  });
+
+  it("answers 'undervoltage code for a PowerFlex drive' directly with F004", async () => {
+    const r = await answerOnce({
+      orgId: "org_expert_test",
+      question: "what code is under voltage for a PowerFlex drive?",
+    });
+    const a = r.answer;
+    // Direct answer up top, before any Sources section.
+    expect(a).toMatch(/F004/);
+    expect(a.toLowerCase()).toContain("## answer");
+    expect(a.indexOf("## Answer")).toBeLessThan(a.indexOf("## Sources"));
+    // Expert structure, not a document dump.
+    expect(a).toContain("## What To Check First");
+    expect(a).not.toContain("What Your Documents Say");
   }, 20000);
 });
