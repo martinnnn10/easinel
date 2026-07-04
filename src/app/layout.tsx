@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { Sidebar } from "@/components/Sidebar";
+import { AppShell } from "@/components/AppShell";
 
 export const metadata: Metadata = {
   title: "EAS Copilot — The AI Technician",
@@ -25,7 +26,7 @@ export default function RootLayout({
             tabIndex={-1}
             className="flex-1 min-w-0 flex flex-col overflow-hidden"
           >
-            {children}
+            <AppShell>{children}</AppShell>
           </main>
         </div>
       </body>

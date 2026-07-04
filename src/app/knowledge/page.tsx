@@ -344,6 +344,49 @@ function DocumentDrawer({
             )}
           </div>
 
+          {/* Inline viewer — render PDFs and images directly in the panel so a
+              drawing/manual can be SEEN on screen, not just downloaded. Falls
+              back silently to the Open/Download actions below for other types
+              or if the embed fails to load. */}
+          {detail.hasOriginal && (() => {
+            const mime = d.mimeType ?? "";
+            const isPdf = mime === "application/pdf" || (d.filename ?? "").toLowerCase().endsWith(".pdf");
+            const isImg = mime.startsWith("image/") || /\.(png|jpe?g|gif|webp|svg)$/i.test(d.filename ?? "");
+            const src = `/api/knowledge/${d.id}/file`;
+            if (!isPdf && !isImg) return null;
+            return (
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <p className="text-[10px] uppercase tracking-wider text-[var(--color-muted)]">Preview</p>
+                  <a
+                    href={src}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[11px] text-[var(--color-accent)] hover:underline"
+                  >
+                    Open full size ↗
+                  </a>
+                </div>
+                <div className="rounded-xl border border-[var(--color-border)] overflow-hidden bg-[var(--color-bg)]">
+                  {isPdf ? (
+                    <iframe
+                      src={`${src}#toolbar=1&navpanes=0&view=FitH`}
+                      title={`Preview of ${d.filename}`}
+                      className="w-full h-[420px] bg-white"
+                    />
+                  ) : (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={src}
+                      alt={`Preview of ${d.filename}`}
+                      className="w-full max-h-[420px] object-contain bg-white"
+                    />
+                  )}
+                </div>
+              </div>
+            );
+          })()}
+
           {/* Actions */}
           <div className="flex flex-wrap gap-2">
             {detail.hasOriginal ? (
@@ -392,9 +435,9 @@ function DocumentDrawer({
               <p className="text-[12.5px] text-[var(--color-muted)]">
                 No extractable text was indexed for this file
                 {d.kind === "photo" || (d.mimeType ?? "").startsWith("image/")
-                  ? " (image — text/OCR extraction is not performed)."
+                  ? " (image — the Copilot reads it visually on demand)."
                   : d.mimeType === "application/pdf"
-                  ? " (this may be a scanned/image-only PDF — OCR is not performed)."
+                  ? " (even after OCR, no readable text was found — the scan may be too low-quality)."
                   : "."}{" "}
                 You can still open the original above.
               </p>

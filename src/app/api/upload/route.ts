@@ -10,6 +10,13 @@ export const POST = safeHandler("upload.post", async (req: NextRequest) => {
   const gate = await requirePermission("upload_documents");
   if (gate instanceof NextResponse) return gate;
   const orgId = gate.user.orgId;
+  const ct = req.headers.get("content-type") || "";
+  if (!ct.includes("multipart/form-data")) {
+    return NextResponse.json(
+      { error: "invalid_content_type", message: "Expected multipart/form-data" },
+      { status: 400 }
+    );
+  }
   const form = await req.formData();
   const assetId = (form.get("assetId") as string) || null;
   const files = form.getAll("files").filter((f): f is File => f instanceof File);

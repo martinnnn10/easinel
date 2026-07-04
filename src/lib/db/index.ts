@@ -501,6 +501,19 @@ const DDL = [
   `CREATE INDEX IF NOT EXISTS idx_part_wo_links_part ON part_work_order_links(org_id, part_id)`,
   `CREATE INDEX IF NOT EXISTS idx_part_pm_links_part ON part_pm_links(org_id, part_id)`,
   `CREATE INDEX IF NOT EXISTS idx_part_suppliers_part ON part_suppliers(org_id, part_id)`,
+  // ── Billing / Subscriptions ──
+  `CREATE TABLE IF NOT EXISTS subscriptions (
+    id TEXT PRIMARY KEY,
+    org_id TEXT NOT NULL,
+    plan TEXT NOT NULL DEFAULT 'free_trial',
+    status TEXT NOT NULL DEFAULT 'trialing',
+    trial_ends_at INTEGER,
+    current_period_end INTEGER,
+    stripe_customer_id TEXT,
+    stripe_subscription_id TEXT,
+    created_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000)
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_subscriptions_org ON subscriptions(org_id)`,
 ];
 
 // Idempotent additive column migrations for databases created before the rich
@@ -615,6 +628,14 @@ async function initDb(): Promise<void> {
     args: [GLOBAL_ORG, "Global Knowledge Library (system)"],
   });
   globalForDb.__dbReady = true;
+
+  // Bootstrap billing: grandfather existing orgs that predate the paywall.
+  if (process.env.NODE_ENV !== "test") {
+    const { bootstrapBilling } = await import("@/lib/billing/bootstrap");
+    await bootstrapBilling().catch((e: unknown) =>
+      console.warn("[billing/bootstrap] non-fatal:", e)
+    );
+  }
 
   // Preload the curated demo dataset (Conveyor 3 + PowerFlex docs + history)
   // into the ISOLATED Demo Organization tenant. This is OPT-IN and OFF BY

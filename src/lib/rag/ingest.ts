@@ -92,6 +92,7 @@ export async function ingestFile(
   let message: string | undefined;
   let plcProjectId: string | undefined;
   let plcFidelity: string | undefined;
+  let extractMethod: "text_layer" | "ocr" | undefined;
 
   // ── PLC files (.l5x/.acd): parse into the structured IR for the Explorer,
   // and index a compact human-readable summary for RAG (instead of dumping
@@ -131,6 +132,7 @@ export async function ingestFile(
     status = result.status;
     message = result.detail;
     charCount = result.text.length;
+    extractMethod = result.method;
     if (result.status === "extracted" && result.text.trim()) {
       const pieces = chunkText(result.text);
       await insertChunksWithEmbeddings(orgId, documentId, opts.assetId ?? null, pieces);
@@ -150,7 +152,10 @@ export async function ingestFile(
     if (status === "image") {
       schematicConfirmation = `Schematic "${file.name}" loaded as an image. It is stored and the Copilot will read it visually when you ask about it, but its text is NOT indexed for keyword search. For full searchable text, upload a text-based PDF or the CAD/DXF export.`;
     } else if (indexed) {
-      schematicConfirmation = `Schematic "${file.name}" loaded and indexed — its text is searchable and the Copilot can cite it.`;
+      schematicConfirmation =
+        extractMethod === "ocr"
+          ? `Schematic "${file.name}" loaded and indexed via OCR — it was a scanned/image drawing, so its text was recovered by optical character recognition and is now searchable (accuracy depends on scan quality).`
+          : `Schematic "${file.name}" loaded and indexed — its text is searchable and the Copilot can cite it.`;
     } else if (status === "binary_unsupported") {
       schematicConfirmation = `Schematic "${file.name}" was stored, but it appears to be a scanned/image-only file with no embedded text, so it could not be indexed for search. Upload a text-based or OCR'd version to make it searchable.`;
     } else {

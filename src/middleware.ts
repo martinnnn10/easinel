@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { applySecurityHeaders } from "@/lib/security/headers";
+import { applySecurityHeaders, pathAllowsSameOriginFrame } from "@/lib/security/headers";
 
 // Kept in sync with SESSION_COOKIE in src/lib/auth/session.ts. Inlined here so
 // middleware doesn't import the DB layer (edge runtime).
@@ -15,9 +15,13 @@ const SESSION_COOKIE = "eas_session";
 // Public always-allowed: /login, /api/auth/*, the public API /api/v1/* (API-key
 // auth), the health probe, and Next internals/static assets.
 
-// Finalize a response with the shared security headers.
-function harden(res: NextResponse): NextResponse {
-  applySecurityHeaders(res.headers);
+// Finalize a response with the shared security headers. First-party file-serving
+// routes (which the app embeds inline in its own <iframe>/<img>) get framing
+// relaxed to same-origin; everything else keeps the strict DENY / 'none'.
+function harden(res: NextResponse, pathname?: string): NextResponse {
+  applySecurityHeaders(res.headers, {
+    allowSameOriginFrame: pathname ? pathAllowsSameOriginFrame(pathname) : false,
+  });
   return res;
 }
 
@@ -44,29 +48,33 @@ function authGateActive(): boolean {
 }
 
 export function middleware(req: NextRequest) {
-  if (!authGateActive()) return harden(NextResponse.next());
-
   const { pathname } = req.nextUrl;
+  if (!authGateActive()) return harden(NextResponse.next(), pathname);
+
   const isPublic =
     pathname.startsWith("/login") ||
+    pathname.startsWith("/accept-invite") ||
+    pathname.startsWith("/billing") ||
     pathname.startsWith("/api/auth") ||
+    pathname.startsWith("/api/billing") ||
     pathname.startsWith("/api/v1") ||
     pathname === "/api/health";
-  if (isPublic) return harden(NextResponse.next());
+  if (isPublic) return harden(NextResponse.next(), pathname);
 
   const hasSession = Boolean(req.cookies.get(SESSION_COOKIE)?.value);
-  if (hasSession) return harden(NextResponse.next());
+  if (hasSession) return harden(NextResponse.next(), pathname);
 
   // Redirect page navigations to /login; reject API calls with 401.
   if (pathname.startsWith("/api/")) {
     return harden(
-      NextResponse.json({ error: "unauthenticated" }, { status: 401 })
+      NextResponse.json({ error: "unauthenticated" }, { status: 401 }),
+      pathname
     );
   }
   const url = req.nextUrl.clone();
   url.pathname = "/login";
   url.searchParams.set("next", pathname);
-  return harden(NextResponse.redirect(url));
+  return harden(NextResponse.redirect(url), pathname);
 }
 
 export const config = {

@@ -43,7 +43,7 @@ export const POST = safeHandler("org.invitations.post", async (req: NextRequest)
 
   // The accept link the customer shares with their teammate. In production an
   // email is sent; we also return it so the inviter can copy it directly.
-  const origin = req.nextUrl.origin;
+  const origin = process.env.APP_BASE_URL || req.nextUrl.origin;
   const acceptUrl = `${origin}/accept-invite?token=${invite.token}`;
   return NextResponse.json({
     invitation: { id: invite.id, email: invite.email, role: invite.role, expiresAt: invite.expiresAt.getTime() },

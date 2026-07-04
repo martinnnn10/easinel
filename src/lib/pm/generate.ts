@@ -287,7 +287,7 @@ export async function generatePmProgram(
   actor = "system"
 ): Promise<GeneratePmResult> {
   if (!orgId) throw new Error("generatePmProgram() requires orgId");
-  if (!input.assetId && !input.model && !input.serialNumber && !input.manufacturer) {
+  if (!input.assetId && !input.createAsset && !input.model && !input.serialNumber && !input.manufacturer) {
     throw new Error("Provide an asset, or a manufacturer/model/serial number.");
   }
 

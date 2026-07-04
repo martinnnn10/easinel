@@ -1,5 +1,9 @@
 import { describe, it, expect, afterEach } from "vitest";
-import { securityHeaders, applySecurityHeaders } from "./headers";
+import {
+  securityHeaders,
+  applySecurityHeaders,
+  pathAllowsSameOriginFrame,
+} from "./headers";
 
 const ORIGINAL = { ...process.env };
 afterEach(() => {
@@ -47,5 +51,33 @@ describe("securityHeaders (OWASP baseline)", () => {
     const target = new Headers();
     applySecurityHeaders(target);
     expect(target.get("X-Frame-Options")).toBe("DENY");
+  });
+
+  it("relaxes framing to SAMEORIGIN when explicitly allowed (file routes)", () => {
+    const h = securityHeaders({ allowSameOriginFrame: true });
+    expect(h["X-Frame-Options"]).toBe("SAMEORIGIN");
+  });
+
+  it("uses frame-ancestors 'self' in CSP when same-origin framing is allowed", () => {
+    process.env.CSP_ENABLED = "true";
+    const csp = securityHeaders({ allowSameOriginFrame: true })["Content-Security-Policy"];
+    expect(csp).toContain("frame-ancestors 'self'");
+    expect(csp).not.toContain("frame-ancestors 'none'");
+  });
+
+  it("applies SAMEORIGIN onto a Headers object when opted in", () => {
+    const target = new Headers();
+    applySecurityHeaders(target, { allowSameOriginFrame: true });
+    expect(target.get("X-Frame-Options")).toBe("SAMEORIGIN");
+  });
+
+  it("only allows same-origin framing for the knowledge file route", () => {
+    expect(pathAllowsSameOriginFrame("/api/knowledge/doc_abc123/file")).toBe(true);
+    expect(pathAllowsSameOriginFrame("/api/knowledge/doc_abc123/file/")).toBe(true);
+    // everything else stays fully frame-denied
+    expect(pathAllowsSameOriginFrame("/api/knowledge/doc_abc123")).toBe(false);
+    expect(pathAllowsSameOriginFrame("/knowledge")).toBe(false);
+    expect(pathAllowsSameOriginFrame("/")).toBe(false);
+    expect(pathAllowsSameOriginFrame("/api/upload")).toBe(false);
   });
 });

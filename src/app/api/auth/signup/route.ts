@@ -7,6 +7,7 @@ import {
   findUserByEmail,
 } from "@/lib/auth/session";
 import { hashPassword } from "@/lib/auth/password";
+import { createTrialSubscription } from "@/lib/billing/subscription";
 import { enforceRateLimit } from "@/lib/security/enforce";
 import { RATE_RULES } from "@/lib/security/rateLimit";
 import { safeHandler } from "@/lib/api/safeHandler";
@@ -45,6 +46,9 @@ export const POST = safeHandler("auth.signup", async (req: NextRequest) => {
     role: "owner",
     passwordHash: await hashPassword(password),
   });
+  // Start the 14-day free trial for the new organization.
+  await createTrialSubscription(orgId);
+
   const token = await createSession(user.id, orgId);
   await setSessionCookieValue(token);
   return NextResponse.json({
