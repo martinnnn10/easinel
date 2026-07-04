@@ -54,6 +54,7 @@ export const POST = safeHandler("chat.post", async (req: NextRequest) => {
     assetId: body.assetId ?? null,
     assetContext,
     images: body.images ?? [],
+    userId: gate.user.id,
   });
 
   const conversationId = await getOrCreateConversation(

@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { TopBar } from "@/components/TopBar";
+import { AiStatusPanel } from "@/components/AiStatusPanel";
 
 interface Member {
   id: string;
@@ -98,6 +99,14 @@ export default function TeamPage() {
             </div>
           ) : (
             <>
+              {/* AI provider status + monthly usage / cost (admin) */}
+              <section className="mb-7">
+                <h2 className="text-[12px] font-semibold uppercase tracking-wide text-[var(--color-muted)] mb-2">
+                  AI Copilot
+                </h2>
+                <AiStatusPanel />
+              </section>
+
               {/* Organization settings */}
               <section className="mb-7">
                 <h2 className="text-[12px] font-semibold uppercase tracking-wide text-[var(--color-muted)] mb-2">

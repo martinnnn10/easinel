@@ -37,7 +37,7 @@ export class AnthropicChatProvider implements ChatProvider {
     });
 
     const streamed = await this.client.messages.stream({
-      model: MODEL,
+      model: req.model ?? MODEL, // per-request model (cost tiering: Sonnet/Opus)
       max_tokens: req.maxTokens ?? 2400,
       temperature: req.temperature,
       system: req.system,

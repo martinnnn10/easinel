@@ -755,3 +755,23 @@ export const handoverNotes = sqliteTable("handover_notes", {
 });
 
 export type HandoverNote = typeof handoverNotes.$inferSelect;
+
+// ───────────────────────── AI usage / cost tracking ─────────────────────────
+// One row per Copilot answer, org-scoped, for quota enforcement and admin cost
+// reporting (per org / user / route / model / mode).
+export const aiUsage = sqliteTable("ai_usage", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().default("__unset__"),
+  userId: text("user_id"),
+  route: text("route").notNull().default("chat"),
+  model: text("model").notNull().default("deterministic"),
+  mode: text("mode").notNull().default("fallback"), // live|fallback|deterministic
+  promptTokens: integer("prompt_tokens").notNull().default(0),
+  completionTokens: integer("completion_tokens").notNull().default(0),
+  costUsd: real("cost_usd").notNull().default(0),
+  createdAt: integer("created_at", { mode: "number" })
+    .notNull()
+    .default(sql`(unixepoch() * 1000)`),
+});
+
+export type AiUsageRow = typeof aiUsage.$inferSelect;

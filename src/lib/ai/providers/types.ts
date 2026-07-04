@@ -23,6 +23,8 @@ export interface ChatRequest {
   messages: ChatMessage[];
   maxTokens?: number;
   temperature?: number;
+  /** Per-request model override (cost tiering: Sonnet vs Opus). */
+  model?: string;
 }
 
 export interface ProviderMeta {

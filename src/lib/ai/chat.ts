@@ -1,5 +1,8 @@
 import { COPILOT_SYSTEM_PROMPT } from "./systemPrompt";
 import { buildDemoAnswer } from "./demo";
+import { buildFaultCodeAnswer } from "./expert";
+import { selectLiveModel, estimateTokens, looksComplex } from "./model";
+import { canUseLive, recordAiUsage, recordLiveSuccess } from "./usage";
 import { hybridRetrieve, type Citation, type RetrievalDiagnostics } from "@/lib/rag/hybrid";
 import { buildFailureLookupContext } from "./failureLookup";
 import type { RetrievedChunk } from "@/lib/rag/retrieve";
@@ -28,6 +31,7 @@ async function* liveWithFallback(
       yield delta;
     }
     recordProviderError(null); // success → clear any prior error
+    recordLiveSuccess(); // stamp last successful live answer (health/admin)
   } catch (err) {
     const msg = (err as Error).message || "live provider error";
     recordProviderError(msg);
@@ -58,6 +62,7 @@ export interface StreamOpts {
   assetId?: string | null;
   assetContext?: string; // pre-built asset profile summary
   images?: ImageAttachment[];
+  userId?: string | null; // for per-user AI usage attribution
   /** Injected grounded failure records resolved from the question (internal). */
   failureContext?: string;
 }
@@ -72,6 +77,9 @@ export interface StreamResult {
   live: boolean;
   provider: string;
   model: string;
+  mode: "live" | "fallback" | "deterministic";
+  /** When live was skipped by cost controls, why (quota / kill switch). */
+  blockedReason?: string | null;
 }
 
 export async function streamAnswer(opts: StreamOpts): Promise<StreamResult> {
@@ -104,27 +112,58 @@ export async function streamAnswer(opts: StreamOpts): Promise<StreamResult> {
 
   // Always compute the deterministic expert answer — it is both the fallback
   // when no live key is set AND the safety net if a live call fails mid-flight.
-  // Canned machine-specific demo cases are allowed ONLY in the isolated demo
-  // tenant; a real customer org gets the honest expert/grounded answer.
   const precomputed = buildDemoAnswer(opts.question, sources, failureContext, opts.orgId === DEMO_ORG);
+
+  // COST CONTROL #1 — SIMPLE known fault-code questions are answered
+  // deterministically from the OEM tables, with NO LLM spend, even when a live
+  // key is set. A fault code embedded in a COMPLEX ask (ladder trace / RCA) is
+  // NOT short-circuited — it goes to the live model for real reasoning.
+  const isFaultCodeAnswerable =
+    Boolean(buildFaultCodeAnswer(opts.question, sources)) && !looksComplex(opts.question);
+
+  // COST CONTROL #4/#10 — per-org monthly question quota + global kill switch.
+  const decision = liveProvider ? await canUseLive(opts.orgId) : { allowed: false, reason: null };
+
+  const useLive = Boolean(liveProvider) && !isFaultCodeAnswerable && decision.allowed;
 
   let stream: AsyncGenerator<string>;
   let providerMeta: { provider: string; model: string };
-  let live = Boolean(liveProvider);
+  let mode: "live" | "fallback" | "deterministic";
 
-  if (liveProvider) {
-    const req = buildChatRequest(optsWithFailure, retrieval.citations);
-    // Wrap the live stream: if it errors BEFORE producing output, record the
-    // error (surfaced in /api/health.lastProviderError) and fall back to the
-    // deterministic answer rather than failing the request silently.
+  if (useLive && liveProvider) {
+    // COST CONTROL #2/#3 — Sonnet for normal troubleshooting, Opus only for
+    // complex engineering / PLC / RCA / multi-document / image reasoning.
+    const contextChars = sources.reduce((n, c) => n + c.content.length, 0);
+    const { model } = selectLiveModel({
+      question: opts.question,
+      contextChars,
+      contextSources: sources.length,
+      hasImages: Boolean(opts.images?.length),
+      historyTurns: opts.history?.length ?? 0,
+    });
+    const req = { ...buildChatRequest(optsWithFailure, retrieval.citations), model };
     stream = liveWithFallback(liveProvider, req, precomputed);
-    providerMeta = { provider: liveProvider.meta.provider, model: liveProvider.meta.model };
+    providerMeta = { provider: liveProvider.meta.provider, model };
+    mode = "live";
   } else {
     const fb = getFallbackChatProvider(precomputed);
     stream = fb.stream(buildChatRequest(optsWithFailure, retrieval.citations));
     providerMeta = { provider: fb.meta.provider, model: fb.meta.model };
-    live = false;
+    mode = isFaultCodeAnswerable ? "deterministic" : "fallback";
   }
+
+  // COST CONTROL #5 — record usage (per org/user/route/model/mode) on completion.
+  const promptTokens = estimateTokens(
+    COPILOT_SYSTEM_PROMPT + buildContextBlock(optsWithFailure, retrieval.citations) + opts.question
+  );
+  stream = withUsageRecording(stream, {
+    orgId: opts.orgId,
+    userId: opts.userId ?? null,
+    route: "chat",
+    model: providerMeta.model,
+    mode,
+    promptTokens,
+  });
 
   return {
     stream,
@@ -133,10 +172,37 @@ export async function streamAnswer(opts: StreamOpts): Promise<StreamResult> {
     confidence: retrieval.confidence,
     confidenceLabel: retrieval.confidenceLabel,
     diagnostics: retrieval.diagnostics,
-    live,
+    live: mode === "live",
     provider: providerMeta.provider,
     model: providerMeta.model,
+    mode,
+    blockedReason: liveProvider && !decision.allowed && !isFaultCodeAnswerable ? decision.reason : null,
   };
+}
+
+// Record AI usage when the answer stream finishes (estimated completion tokens
+// from the streamed text). Fire-and-forget so it never blocks or breaks a reply.
+async function* withUsageRecording(
+  inner: AsyncGenerator<string>,
+  meta: { orgId: string; userId: string | null; route: string; model: string; mode: "live" | "fallback" | "deterministic"; promptTokens: number }
+): AsyncGenerator<string> {
+  let out = "";
+  try {
+    for await (const delta of inner) {
+      out += delta;
+      yield delta;
+    }
+  } finally {
+    recordAiUsage({
+      orgId: meta.orgId,
+      userId: meta.userId,
+      route: meta.route,
+      model: meta.model,
+      mode: meta.mode,
+      promptTokens: meta.promptTokens,
+      completionTokens: estimateTokens(out),
+    }).catch(() => {});
+  }
 }
 
 // Non-streaming variant for the public API and server-side tasks.

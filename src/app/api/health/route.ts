@@ -4,6 +4,7 @@ import { sql } from "drizzle-orm";
 import { demoModeEnabled } from "@/lib/util";
 import { authRequired as authRequiredFn } from "@/lib/auth/session";
 import { activeProviderName, activeProviderModel, hasLiveProvider, lastProviderError } from "@/lib/ai/providers";
+import { lastSuccessAt } from "@/lib/ai/usage";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -49,6 +50,7 @@ export async function GET() {
     aiModel: activeProviderModel(),
     mode: hasLiveProvider() ? "live" : "fallback",
     lastProviderError: lastProviderError(),
+    lastSuccessAt: lastSuccessAt(),
     aiConfigured: hasLiveProvider(),
     security: {
       authRequired,

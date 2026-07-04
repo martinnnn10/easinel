@@ -338,6 +338,19 @@ const DDL = [
     created_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000)
   )`,
   `CREATE INDEX IF NOT EXISTS idx_handover_org ON handover_notes(org_id, created_at)`,
+  `CREATE TABLE IF NOT EXISTS ai_usage (
+    id TEXT PRIMARY KEY,
+    org_id TEXT NOT NULL DEFAULT '__unset__',
+    user_id TEXT,
+    route TEXT NOT NULL DEFAULT 'chat',
+    model TEXT NOT NULL DEFAULT 'deterministic',
+    mode TEXT NOT NULL DEFAULT 'fallback',
+    prompt_tokens INTEGER NOT NULL DEFAULT 0,
+    completion_tokens INTEGER NOT NULL DEFAULT 0,
+    cost_usd REAL NOT NULL DEFAULT 0,
+    created_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000)
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_ai_usage_org ON ai_usage(org_id, created_at)`,
   `CREATE INDEX IF NOT EXISTS idx_wo_events_wo ON work_order_events(work_order_id)`,
   `CREATE INDEX IF NOT EXISTS idx_oem_signals_model ON oem_failure_signals(manufacturer, model, fault_code)`,
   `CREATE TABLE IF NOT EXISTS scenarios (
