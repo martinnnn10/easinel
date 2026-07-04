@@ -8,6 +8,7 @@
 // silently store an error string as if it were document content.
 
 import JSZip from "jszip";
+import { extractPdfNative } from "./pdfExtract";
 
 export type ExtractStatus =
   | "extracted" // real text content was recovered
@@ -23,6 +24,12 @@ export interface ExtractResult {
   detail?: string;
   /** The detected/normalized file kind label (mirrors classifyKind). */
   kind: string;
+  /**
+   * How PDF text was recovered: "text_layer" (embedded text, correct order) or
+   * "ocr" (rendered pages + OCR for scanned/image drawings). Undefined for
+   * non-PDF formats. Lets the ingest layer be honest about scanned files.
+   */
+  method?: "text_layer" | "ocr";
 }
 
 // Plain-text / code / structured-text formats we can read directly as UTF-8.
@@ -174,6 +181,38 @@ async function extractPptx(buffer: Buffer): Promise<ExtractResult> {
 }
 
 async function extractPdf(buffer: Buffer): Promise<ExtractResult> {
+  // Preferred path: native poppler (`pdftotext -layout`) with an OCR fallback
+  // (`pdftoppm` + `tesseract`). This reads engineering drawings in correct
+  // reading order AND recovers text from scanned/image-only PDFs — the two
+  // cases that pdf-parse (text-layer, object-order) handles poorly or not at all.
+  try {
+    const native = await extractPdfNative(buffer);
+    const nativeText = native.text.trim();
+    if (nativeText && !native.toolingMissing) {
+      return {
+        text: nativeText,
+        status: "extracted",
+        kind: "document",
+        method: native.method === "ocr" ? "ocr" : "text_layer",
+      };
+    }
+    // Native tooling present but produced nothing → genuinely a blank PDF that
+    // even OCR could not read.
+    if (!native.toolingMissing) {
+      return {
+        text: "",
+        status: "binary_unsupported",
+        detail: BINARY_UNSUPPORTED.pdf_image,
+        kind: "document",
+      };
+    }
+    // Tooling missing → fall through to pdf-parse below.
+  } catch (err) {
+    console.error("[extract] native PDF pipeline failed, falling back to pdf-parse:", (err as Error).message);
+  }
+
+  // Fallback: pdf-parse (embedded text layer only; may be out of order on CAD
+  // sheets, but better than nothing when native tools are unavailable).
   try {
     // pdf-parse is CommonJS; import the implementation directly to avoid its
     // index.js debug harness that reads a local test file.
@@ -190,7 +229,7 @@ async function extractPdf(buffer: Buffer): Promise<ExtractResult> {
         kind: "document",
       };
     }
-    return { text, status: "extracted", kind: "document" };
+    return { text, status: "extracted", kind: "document", method: "text_layer" };
   } catch (err) {
     return { text: "", status: "error", detail: `Could not extract PDF text: ${(err as Error).message}`, kind: "document" };
   }
@@ -213,7 +252,7 @@ export async function extractDocument(
 
   if (e === "pdf" || mime === "application/pdf") {
     const r = await extractPdf(buffer);
-    return { ...r, kind: r.kind === "document" ? classifyKind(filename, mime) : r.kind };
+    return { ...r, kind: r.kind === "document" ? classifyKind(filename, mime) : r.kind, method: r.method };
   }
   if (DOCX_EXTS.includes(e)) return { ...(await extractDocx(buffer)), kind: classifyKind(filename, mime) };
   if (XLSX_EXTS.includes(e)) return extractXlsx(buffer, filename);

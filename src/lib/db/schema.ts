@@ -713,3 +713,21 @@ export type ApiKey = typeof apiKeys.$inferSelect;
 export type Webhook = typeof webhooks.$inferSelect;
 export type Invitation = typeof invitations.$inferSelect;
 export type Org = typeof orgs.$inferSelect;
+
+// ───────────────────────── Billing / Subscriptions ─────────────────────────
+
+export const subscriptions = sqliteTable("subscriptions", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull(),
+  plan: text("plan").notNull().default("free_trial"), // free_trial|pro|enterprise
+  status: text("status").notNull().default("trialing"), // trialing|active|past_due|canceled|grandfathered
+  trialEndsAt: integer("trial_ends_at", { mode: "number" }),
+  currentPeriodEnd: integer("current_period_end", { mode: "number" }),
+  stripeCustomerId: text("stripe_customer_id"),
+  stripeSubscriptionId: text("stripe_subscription_id"),
+  createdAt: integer("created_at", { mode: "timestamp_ms" })
+    .notNull()
+    .default(sql`(unixepoch() * 1000)`),
+});
+
+export type SubscriptionRow = typeof subscriptions.$inferSelect;

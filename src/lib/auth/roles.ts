@@ -30,6 +30,7 @@ export type Permission =
   | "complete_pm"
   | "manage_parts"
   | "manage_scenarios"
+  | "manage_billing"
   | "ask_copilot"
   | "view";
 
@@ -55,6 +56,7 @@ const MATRIX: Record<Permission, Role[]> = {
   manage_parts: ["owner", "admin", "manager", "technician"],
   // Technicians live the plant reality, so they can author scenarios.
   manage_scenarios: ["owner", "admin", "manager", "technician"],
+  manage_billing: ["owner", "admin"],
   upload_documents: ["owner", "admin", "manager", "technician"],
   ask_copilot: ["owner", "admin", "manager", "technician", "viewer"],
   view: ["owner", "admin", "manager", "technician", "viewer"],

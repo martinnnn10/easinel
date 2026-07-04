@@ -10,6 +10,7 @@ import { useEffect, useState } from "react";
 // Future modules (Workforce, Integrations, Analytics) are built but hidden until
 // functional.
 const nav = [
+  { href: "/dashboard", label: "Dashboard", icon: ChartIcon },
   { href: "/assets", label: "Equipment", icon: CubeIcon },
   { href: "/", label: "Copilot", icon: SparkIcon },
   { href: "/sessions", label: "Sessions", icon: PulseIcon },
@@ -138,9 +139,14 @@ export function Sidebar() {
         </nav>
 
         {isAdmin && (
-          <div className="px-2.5">
+          <div className="px-2.5 flex flex-col gap-0.5">
             <NavLink
               item={{ href: "/team", label: "Team & Roles", icon: ShieldIcon }}
+              path={path}
+              collapsed={collapsed}
+            />
+            <NavLink
+              item={{ href: "/billing", label: "Billing", icon: CreditCardIcon }}
               path={path}
               collapsed={collapsed}
             />
@@ -330,6 +336,24 @@ function HelpIcon({ className }: { className?: string }) {
       <circle cx="12" cy="12" r="10" />
       <path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3" />
       <line x1="12" y1="17" x2="12" y2="17" />
+    </svg>
+  );
+}
+
+function ChartIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 3v18h18" />
+      <path d="M7 16l4-8 4 4 4-8" />
+    </svg>
+  );
+}
+
+function CreditCardIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="1" y="4" width="22" height="16" rx="2" ry="2" />
+      <line x1="1" y1="10" x2="23" y2="10" />
     </svg>
   );
 }
