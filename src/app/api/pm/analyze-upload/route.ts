@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requirePermission } from "@/lib/auth/guard";
 import { analyzePmUpload } from "@/lib/pm/analyzeUpload";
 import { safeHandler } from "@/lib/api/safeHandler";
+import { aiEntitlement } from "@/lib/billing/entitlements";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -13,6 +14,13 @@ export const maxDuration = 60;
 export const POST = safeHandler("pm.analyze-upload", async (req: NextRequest) => {
   const gate = await requirePermission("manage_pm");
   if (gate instanceof NextResponse) return gate;
+
+  // AI generation gate (central entitlement) — blocked during billing grace / AI
+  // quota. Manual PM authoring stays available.
+  const ai = await aiEntitlement(gate.user.orgId);
+  if (!ai.allowed) {
+    return NextResponse.json({ error: "ai_unavailable", message: ai.reason }, { status: 402 });
+  }
 
   let form: FormData;
   try {

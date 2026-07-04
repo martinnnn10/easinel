@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requirePermission } from "@/lib/auth/guard";
 import { generatePmProgram } from "@/lib/pm/generate";
 import { safeHandler } from "@/lib/api/safeHandler";
+import { aiEntitlement } from "@/lib/billing/entitlements";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -15,6 +16,16 @@ export const maxDuration = 120;
 export const POST = safeHandler("pm.generate", async (req: NextRequest) => {
   const gate = await requirePermission("manage_pm");
   if (gate instanceof NextResponse) return gate;
+
+  // AI generation is gated by the central entitlement layer: blocked when billing
+  // is inactive (past_due/canceled/expired trial) or the AI quota/kill switch
+  // applies. Manual PM edits remain available during grace — this only blocks the
+  // AI generation of new draft programs.
+  const ai = await aiEntitlement(gate.user.orgId);
+  if (!ai.allowed) {
+    return NextResponse.json({ error: "ai_unavailable", message: ai.reason }, { status: 402 });
+  }
+
   const body = await req.json().catch(() => ({}));
 
   const hasIdentity =

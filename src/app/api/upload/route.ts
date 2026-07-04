@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { ingestFile } from "@/lib/rag/ingest";
 import { requirePermission } from "@/lib/auth/guard";
 import { safeHandler } from "@/lib/api/safeHandler";
-import { canUpload } from "@/lib/billing/limits";
+import { uploadEntitlement } from "@/lib/billing/entitlements";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -30,20 +30,14 @@ export const POST = safeHandler("upload.post", async (req: NextRequest) => {
     return NextResponse.json({ error: "No files provided" }, { status: 400 });
   }
 
-  // Plan STORAGE limit — block the whole batch if it would exceed the org's cap.
-  // Existing files are never touched. (Warning at 80% is surfaced by the UI via
-  // /api/billing usage.) 413 Payload Too Large with a professional message.
+  // Central entitlement: blocked during billing grace (402) or when the batch
+  // would exceed the plan storage cap (413). Existing files are never touched.
   const incomingBytes = files.reduce((n, f) => n + (f.size || 0), 0);
-  const up = await canUpload(orgId, incomingBytes);
+  const up = await uploadEntitlement(orgId, incomingBytes);
   if (!up.allowed) {
     return NextResponse.json(
-      {
-        error: "storage_limit_reached",
-        message: up.reason,
-        usedBytes: up.status.usedBytes,
-        limitBytes: up.status.limitBytes,
-      },
-      { status: 413 }
+      { error: up.code === 402 ? "billing_inactive" : "storage_limit_reached", message: up.reason },
+      { status: up.code }
     );
   }
 

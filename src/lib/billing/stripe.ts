@@ -30,41 +30,26 @@ export async function createCheckoutSession(opts: {
   email: string;
   successUrl: string;
   cancelUrl: string;
+  planKey?: string; // which plan to subscribe to (defaults to professional)
 }): Promise<string> {
   const stripe = getStripe();
-  const priceId = process.env.STRIPE_PRICE_ID;
-
-  // If a specific price ID is configured, use it. Otherwise create an ad-hoc price.
-  const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = priceId
-    ? [{ price: priceId, quantity: 1 }]
-    : [
-        {
-          price_data: {
-            currency: "usd",
-            product_data: {
-              name: "EAS Intelligence Pro",
-              description: "Manufacturing Intelligence Platform — per organization",
-            },
-            unit_amount: 9900, // $99.00/mo
-            recurring: { interval: "month" },
-          },
-          quantity: 1,
-        },
-      ];
+  // Use a REAL configured Stripe price for the target plan. NEVER create an
+  // ad-hoc / fake price — if none is configured, the operator hasn't finished
+  // Stripe setup and we must not invent pricing.
+  const { stripePriceForPlan } = await import("./stripeMap");
+  const priceId = stripePriceForPlan(opts.planKey || "professional");
+  if (!priceId) {
+    throw new Error("billing_not_configured");
+  }
 
   const session = await stripe.checkout.sessions.create({
     mode: "subscription",
     customer_email: opts.email,
-    line_items: lineItems,
+    line_items: [{ price: priceId, quantity: 1 }],
     success_url: opts.successUrl,
     cancel_url: opts.cancelUrl,
-    metadata: {
-      orgId: opts.orgId,
-      orgName: opts.orgName,
-    },
-    subscription_data: {
-      metadata: { orgId: opts.orgId },
-    },
+    metadata: { orgId: opts.orgId, orgName: opts.orgName },
+    subscription_data: { metadata: { orgId: opts.orgId } },
   });
 
   return session.url!;

@@ -10,6 +10,7 @@ import {
 import { createCheckoutSession, createPortalSession, isStripeConfigured } from "@/lib/billing/stripe";
 import { getOrg } from "@/lib/auth/session";
 import { getPlan, aiQuestionCap } from "@/lib/billing/plans";
+import { hasAnyStripePrice } from "@/lib/billing/stripeMap";
 import { canAddUser, storageStatus } from "@/lib/billing/limits";
 import { questionsThisMonth } from "@/lib/ai/usage";
 
@@ -43,6 +44,9 @@ export const GET = safeHandler("billing.get", async () => {
       : null,
     active,
     stripeConfigured: stripeConfigured(),
+    // True only when Stripe secret AND at least one real plan price are set. The
+    // page shows a real checkout only when this is true — never fake pricing.
+    billingReady: stripeConfigured() && hasAnyStripePrice(),
     plan: { key: plan.key, name: plan.name, priceLabel: plan.priceLabel, sites: plan.sites, features: plan.features },
     usage: {
       aiQuestions: { used: aiUsed, included: aiQuestionCap(planKey) },
@@ -63,7 +67,7 @@ export const POST = safeHandler("billing.post", async (req: NextRequest) => {
   const gate = await requirePermission("manage_billing");
   if (gate instanceof NextResponse) return gate;
   const orgId = gate.user.orgId;
-  const { action } = await req.json().catch(() => ({ action: "" }));
+  const { action, planKey } = await req.json().catch(() => ({ action: "", planKey: "" }));
 
   if (!isStripeConfigured()) {
     return NextResponse.json(
@@ -76,14 +80,26 @@ export const POST = safeHandler("billing.post", async (req: NextRequest) => {
 
   if (action === "checkout") {
     const org = await getOrg(orgId);
-    const url = await createCheckoutSession({
-      orgId,
-      orgName: org?.name || "Organization",
-      email: gate.user.email,
-      successUrl: `${baseUrl}/billing?success=true`,
-      cancelUrl: `${baseUrl}/billing?canceled=true`,
-    });
-    return NextResponse.json({ url });
+    try {
+      const url = await createCheckoutSession({
+        orgId,
+        orgName: org?.name || "Organization",
+        email: gate.user.email,
+        planKey: typeof planKey === "string" ? planKey : "professional",
+        successUrl: `${baseUrl}/billing?success=true`,
+        cancelUrl: `${baseUrl}/billing?canceled=true`,
+      });
+      return NextResponse.json({ url });
+    } catch (err) {
+      // No real Stripe price configured yet — never invent pricing.
+      if ((err as Error).message === "billing_not_configured") {
+        return NextResponse.json(
+          { error: "billing_not_configured", message: "Billing is not fully configured. Contact support." },
+          { status: 503 }
+        );
+      }
+      throw err;
+    }
   }
 
   if (action === "portal") {

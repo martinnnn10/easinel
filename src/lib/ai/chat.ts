@@ -2,7 +2,8 @@ import { COPILOT_SYSTEM_PROMPT } from "./systemPrompt";
 import { buildDemoAnswer } from "./demo";
 import { buildFaultCodeAnswer } from "./expert";
 import { selectLiveModel, estimateTokens, looksComplex } from "./model";
-import { canUseLive, recordAiUsage, recordLiveSuccess } from "./usage";
+import { recordAiUsage, recordLiveSuccess } from "./usage";
+import { aiEntitlement } from "@/lib/billing/entitlements";
 import { hybridRetrieve, type Citation, type RetrievalDiagnostics } from "@/lib/rag/hybrid";
 import { buildFailureLookupContext } from "./failureLookup";
 import type { RetrievedChunk } from "@/lib/rag/retrieve";
@@ -121,8 +122,9 @@ export async function streamAnswer(opts: StreamOpts): Promise<StreamResult> {
   const isFaultCodeAnswerable =
     Boolean(buildFaultCodeAnswer(opts.question, sources)) && !looksComplex(opts.question);
 
-  // COST CONTROL #4/#10 — per-org monthly question quota + global kill switch.
-  const decision = liveProvider ? await canUseLive(opts.orgId) : { allowed: false, reason: null };
+  // Central entitlement — live AI requires active billing + AI quota + kill
+  // switch (past_due/canceled/expired-trial → deterministic fallback).
+  const decision = liveProvider ? await aiEntitlement(opts.orgId) : { allowed: false, reason: null };
 
   const useLive = Boolean(liveProvider) && !isFaultCodeAnswerable && decision.allowed;
 

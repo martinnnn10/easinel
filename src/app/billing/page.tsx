@@ -13,6 +13,7 @@ interface BillingData {
   } | null;
   active: boolean;
   stripeConfigured: boolean;
+  billingReady?: boolean;
   plan?: { key: string; name: string; priceLabel: string; sites: number | null; features: string[] };
   usage?: {
     aiQuestions: { used: number; included: number | null };
@@ -204,17 +205,18 @@ export default function BillingPage() {
 
           {/* Action buttons */}
           <div className="mt-6 space-y-3">
-            {data?.stripeConfigured && (isExpired || isTrialing || sub?.status === "canceled") && (
+            {/* Real checkout only when Stripe + a real plan price are configured. */}
+            {data?.billingReady && (isExpired || isTrialing || sub?.status === "canceled") && (
               <button
                 onClick={handleCheckout}
                 disabled={actionLoading}
                 className="w-full text-[13px] font-medium rounded-lg bg-[var(--color-accent)] text-white py-3 hover:brightness-110 disabled:opacity-40"
               >
-                {actionLoading ? "Redirecting…" : "Subscribe — $99/month"}
+                {actionLoading ? "Redirecting…" : `Subscribe${data.plan ? ` — ${data.plan.priceLabel}` : ""}`}
               </button>
             )}
 
-            {data?.stripeConfigured && sub?.hasStripe && isActive && (
+            {data?.billingReady && sub?.hasStripe && isActive && (
               <button
                 onClick={handlePortal}
                 disabled={actionLoading}
@@ -224,10 +226,11 @@ export default function BillingPage() {
               </button>
             )}
 
-            {!data?.stripeConfigured && isExpired && (
+            {/* Billing not fully configured — honest message, NO fake pricing. */}
+            {!data?.billingReady && (
               <div className="rounded-lg bg-[var(--color-surface-2)] border border-[var(--color-border)] p-4">
-                <p className="text-[13px] text-[var(--color-muted)] mb-2">
-                  Online payment is being set up. To activate your account, contact:
+                <p className="text-[13px] text-[var(--color-text)] font-medium mb-1">
+                  Billing is not fully configured. Contact support.
                 </p>
                 <a
                   href="mailto:eas@eautomatedstaffing.com"

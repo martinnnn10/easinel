@@ -22,6 +22,13 @@ export function stripePriceForPlan(planKey: string): string | null {
   return (env && process.env[env]) || null;
 }
 
+// True when at least one real Stripe price id is configured. The billing page
+// uses this to decide between a real checkout button and the honest
+// "Billing is not fully configured. Contact support." message.
+export function hasAnyStripePrice(): boolean {
+  return Object.values(PRICE_ENV).some((env) => Boolean(process.env[env]));
+}
+
 // Stripe price id → internal plan code. Unknown/unset → "professional".
 export function planFromStripePrice(priceId: string | null | undefined): string {
   if (!priceId) return "professional";

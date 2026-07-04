@@ -8,7 +8,7 @@ import {
 import { isValidRole, type Role } from "@/lib/auth/roles";
 import { audit } from "@/lib/events";
 import { safeHandler } from "@/lib/api/safeHandler";
-import { canAddUser } from "@/lib/billing/limits";
+import { inviteEntitlement } from "@/lib/billing/entitlements";
 
 export const runtime = "nodejs";
 
@@ -39,9 +39,9 @@ export const POST = safeHandler("org.invitations.post", async (req: NextRequest)
       { status: 409 }
     );
   }
-  // Plan seat limit — block inviting past the plan's user cap (counts active
-  // members + pending invites). 402 Payment Required with a professional message.
-  const seats = await canAddUser(gate.user.orgId);
+  // Central entitlement — blocked during billing grace OR past the plan's user
+  // cap (counts active members + pending invites). 402 with a clear message.
+  const seats = await inviteEntitlement(gate.user.orgId);
   if (!seats.allowed) {
     return NextResponse.json(
       { error: "user_limit_reached", message: seats.reason, limit: seats.limit, used: seats.used },
