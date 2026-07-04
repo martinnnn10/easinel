@@ -15,7 +15,7 @@
  */
 
 import { db, ensureDb } from "@/lib/db";
-import { subscriptions } from "@/lib/db/schema";
+import { subscriptions, stripeEvents } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { id } from "@/lib/util";
 
@@ -114,24 +114,62 @@ export async function hasActiveAccess(orgId: string): Promise<boolean> {
   return false;
 }
 
-/** Update subscription from Stripe webhook data. */
+/** Update subscription from Stripe webhook data. Server-side only (webhook). */
 export async function updateSubscriptionFromStripe(
   orgId: string,
   data: {
     status: SubStatus;
-    plan?: Plan;
+    plan?: string; // internal plan code (mapped from the Stripe price)
     currentPeriodEnd?: number;
     stripeCustomerId?: string;
     stripeSubscriptionId?: string;
   }
 ): Promise<void> {
   await ensureDb();
+  // Ensure a row exists (checkout may land before any trial row was created).
+  const existing = await getSubscription(orgId);
+  if (!existing) {
+    await db.insert(subscriptions).values({
+      id: id("sub"),
+      orgId,
+      plan: data.plan ?? "professional",
+      status: data.status,
+      trialEndsAt: null,
+      currentPeriodEnd: data.currentPeriodEnd ?? null,
+      stripeCustomerId: data.stripeCustomerId ?? null,
+      stripeSubscriptionId: data.stripeSubscriptionId ?? null,
+    });
+    return;
+  }
   const updates: Record<string, unknown> = { status: data.status };
   if (data.plan) updates.plan = data.plan;
   if (data.currentPeriodEnd) updates.currentPeriodEnd = data.currentPeriodEnd;
   if (data.stripeCustomerId) updates.stripeCustomerId = data.stripeCustomerId;
   if (data.stripeSubscriptionId) updates.stripeSubscriptionId = data.stripeSubscriptionId;
   await db.update(subscriptions).set(updates).where(eq(subscriptions.orgId, orgId));
+}
+
+// Idempotency: record a Stripe event id; returns TRUE if it is NEW (should be
+// processed), FALSE if already seen (redelivery → no-op).
+export async function recordStripeEvent(eventId: string, type: string): Promise<boolean> {
+  await ensureDb();
+  const res = await db
+    .insert(stripeEvents)
+    .values({ id: eventId, type })
+    .onConflictDoNothing()
+    .returning({ id: stripeEvents.id });
+  return res.length > 0;
+}
+
+// Find which org a Stripe subscription id belongs to (for events lacking
+// metadata, e.g. invoice.payment_failed).
+export async function findOrgByStripeSubscription(subId: string): Promise<string | null> {
+  await ensureDb();
+  const rows = await db
+    .select({ orgId: subscriptions.orgId })
+    .from(subscriptions)
+    .where(eq(subscriptions.stripeSubscriptionId, subId));
+  return rows[0]?.orgId ?? null;
 }
 
 /** Check if Stripe is configured. */

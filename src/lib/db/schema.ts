@@ -775,3 +775,15 @@ export const aiUsage = sqliteTable("ai_usage", {
 });
 
 export type AiUsageRow = typeof aiUsage.$inferSelect;
+
+// ───────────────────────── Stripe webhook idempotency ─────────────────────────
+// One row per processed Stripe event id, so a redelivered webhook is a no-op.
+export const stripeEvents = sqliteTable("stripe_events", {
+  id: text("id").primaryKey(), // the Stripe event id (evt_...)
+  type: text("type").notNull(),
+  processedAt: integer("processed_at", { mode: "number" })
+    .notNull()
+    .default(sql`(unixepoch() * 1000)`),
+});
+
+export type StripeEventRow = typeof stripeEvents.$inferSelect;

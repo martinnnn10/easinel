@@ -3,7 +3,7 @@ import { aiUsage } from "@/lib/db/schema";
 import { and, eq, gte, sql } from "drizzle-orm";
 import { id } from "@/lib/util";
 import { estimateCostUsd } from "./model";
-import { getSubscription } from "@/lib/billing/subscription";
+import { getSubscription, stripeConfigured } from "@/lib/billing/subscription";
 import { aiQuestionCap, getPlan } from "@/lib/billing/plans";
 
 // Start of the current calendar month (UTC) in epoch ms. NOTE: uses Date at
@@ -109,6 +109,12 @@ export async function canUseLive(orgId: string): Promise<LiveDecision> {
 
   if (process.env.AI_KILL_SWITCH === "1") {
     return { allowed: false, reason: "AI kill switch is enabled (AI_KILL_SWITCH=1).", cap, used, plan: plan.name };
+  }
+  // Payment-failure grace: when a REAL (Stripe) subscription is past_due/canceled,
+  // throttle LIVE AI to the deterministic engine — but never delete or block
+  // existing maintenance data (that stays fully readable).
+  if (stripeConfigured() && sub && (sub.status === "past_due" || sub.status === "canceled")) {
+    return { allowed: false, reason: `Subscription is ${sub.status} — live AI is paused until billing is updated. Your maintenance data stays fully accessible.`, cap, used, plan: plan.name };
   }
   if (cap != null && used >= cap) {
     return {

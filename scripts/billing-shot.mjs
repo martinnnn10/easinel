@@ -1,0 +1,11 @@
+import { chromium } from "playwright-core";
+import { execSync } from "child_process";
+const EXE = execSync("ls -d /opt/pw-browsers/chromium*/chrome-linux/chrome 2>/dev/null | head -1").toString().trim();
+const b = await chromium.launch({ executablePath: EXE, args: ["--no-sandbox"] });
+const p = await (await b.newContext({ viewport: { width: 1440, height: 1100 } })).newPage();
+await p.goto(process.env.BASE + "/billing", { waitUntil: "networkidle" });
+await p.waitForTimeout(1500);
+await p.screenshot({ path: `${process.env.SHOT_DIR}/billing.png`, fullPage: true });
+const t = (await p.textContent("body")) || "";
+console.log("plan shown:", /Free Trial/i.test(t), "| meters:", /AI Copilot questions/i.test(t) && /Users/i.test(t) && /storage/i.test(t));
+await b.close();

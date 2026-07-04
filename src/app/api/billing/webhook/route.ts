@@ -1,12 +1,28 @@
 import { NextRequest, NextResponse } from "next/server";
 import { constructWebhookEvent } from "@/lib/billing/stripe";
-import { updateSubscriptionFromStripe, getSubscription } from "@/lib/billing/subscription";
-import type { SubStatus } from "@/lib/billing/subscription";
+import {
+  updateSubscriptionFromStripe,
+  recordStripeEvent,
+  findOrgByStripeSubscription,
+  type SubStatus,
+} from "@/lib/billing/subscription";
+import { planFromStripePrice } from "@/lib/billing/stripeMap";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic"; // Stripe sends a raw body — no parsing.
 
-// Stripe sends raw body — disable Next.js body parsing.
-export const dynamic = "force-dynamic";
+function mapStatus(s: string): SubStatus {
+  if (s === "past_due") return "past_due";
+  if (s === "canceled" || s === "unpaid") return "canceled";
+  if (s === "trialing") return "trialing";
+  return "active";
+}
+
+// Pull the first line-item price id off a Stripe subscription object.
+function priceIdOf(sub: Record<string, unknown>): string | null {
+  const items = (sub.items as { data?: { price?: { id?: string } }[] } | undefined)?.data;
+  return items?.[0]?.price?.id ?? null;
+}
 
 export async function POST(req: NextRequest) {
   const signature = req.headers.get("stripe-signature");
@@ -17,11 +33,17 @@ export async function POST(req: NextRequest) {
   let event;
   try {
     const body = await req.text();
-    event = await constructWebhookEvent(body, signature);
+    event = await constructWebhookEvent(body, signature); // verifies the signing secret
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : "unknown";
-    console.error("[billing/webhook] Signature verification failed:", msg);
+    console.error("[billing/webhook] Signature verification failed:", err instanceof Error ? err.message : "unknown");
     return NextResponse.json({ error: "invalid_signature" }, { status: 400 });
+  }
+
+  // IDEMPOTENCY — store the event id; a redelivered event is acknowledged as a
+  // no-op so retries never double-apply a subscription change.
+  const fresh = await recordStripeEvent(event.id, event.type);
+  if (!fresh) {
+    return NextResponse.json({ received: true, duplicate: true });
   }
 
   try {
@@ -32,7 +54,9 @@ export async function POST(req: NextRequest) {
         if (orgId) {
           await updateSubscriptionFromStripe(orgId, {
             status: "active",
-            plan: "pro",
+            // Plan is finalized by the subscription.updated event (which carries
+            // the price); default to professional until then.
+            plan: "professional",
             stripeCustomerId: session.customer as string,
             stripeSubscriptionId: session.subscription as string,
           });
@@ -40,22 +64,20 @@ export async function POST(req: NextRequest) {
         break;
       }
 
+      case "customer.subscription.created":
       case "customer.subscription.updated":
       case "customer.subscription.deleted": {
         const sub = event.data.object as unknown as Record<string, unknown>;
-        const orgId = (sub.metadata as Record<string, string>)?.orgId;
+        // Prefer metadata.orgId (set at checkout); else resolve by subscription id.
+        let orgId: string | null = (sub.metadata as Record<string, string>)?.orgId ?? null;
+        if (!orgId && typeof sub.id === "string") orgId = await findOrgByStripeSubscription(sub.id);
         if (orgId) {
-          const stripeStatus = sub.status as string;
-          let status: SubStatus = "active";
-          if (stripeStatus === "past_due") status = "past_due";
-          else if (stripeStatus === "canceled" || stripeStatus === "unpaid") status = "canceled";
-          else if (stripeStatus === "trialing") status = "trialing";
-
+          const plan = planFromStripePrice(priceIdOf(sub)); // Stripe price → internal plan code
           await updateSubscriptionFromStripe(orgId, {
-            status,
-            currentPeriodEnd: sub.current_period_end
-              ? (sub.current_period_end as number) * 1000
-              : undefined,
+            status: event.type === "customer.subscription.deleted" ? "canceled" : mapStatus(sub.status as string),
+            plan,
+            currentPeriodEnd: sub.current_period_end ? (sub.current_period_end as number) * 1000 : undefined,
+            stripeSubscriptionId: typeof sub.id === "string" ? sub.id : undefined,
           });
         }
         break;
@@ -64,15 +86,14 @@ export async function POST(req: NextRequest) {
       case "invoice.payment_failed": {
         const invoice = event.data.object as unknown as Record<string, unknown>;
         const subId = invoice.subscription as string;
-        // Look up which org this subscription belongs to
-        // For now just log — the subscription.updated event will handle status
-        console.warn("[billing/webhook] Payment failed for subscription:", subId);
+        // Mark past_due immediately (grace) — data stays readable; live AI throttles.
+        const orgId = subId ? await findOrgByStripeSubscription(subId) : null;
+        if (orgId) await updateSubscriptionFromStripe(orgId, { status: "past_due" });
         break;
       }
 
       default:
-        // Unhandled event type — acknowledge receipt.
-        break;
+        break; // acknowledge unhandled types
     }
   } catch (err) {
     console.error("[billing/webhook] Error processing event:", err);

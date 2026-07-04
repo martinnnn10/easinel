@@ -127,3 +127,27 @@ export function aiQuestionCap(planKey: string | null | undefined): number | null
   }
   return planCap;
 }
+
+// Per-plan configurable overrides for the "configurable" tiers (Multi-Site,
+// Enterprise) via env, e.g. PLAN_USERS_MULTI_SITE=250, PLAN_STORAGE_GB_ENTERPRISE=2000.
+function envNum(name: string): number | null {
+  const v = Number(process.env[name] || "");
+  return Number.isFinite(v) && v > 0 ? v : null;
+}
+
+// Max users for a plan. null = unlimited (Enterprise). Env can raise/lower the
+// configurable tiers.
+export function planUserLimit(planKey: string | null | undefined): number | null {
+  const plan = getPlan(planKey);
+  const override = envNum(`PLAN_USERS_${plan.key.toUpperCase()}`);
+  if (override != null) return override;
+  return plan.users; // null for enterprise = unlimited
+}
+
+// Max storage in BYTES for a plan. null = unlimited. Env override in GB.
+export function planStorageBytes(planKey: string | null | undefined): number | null {
+  const plan = getPlan(planKey);
+  const overrideGb = envNum(`PLAN_STORAGE_GB_${plan.key.toUpperCase()}`);
+  const gb = overrideGb ?? plan.storageGb;
+  return gb == null ? null : Math.round(gb * 1_000_000_000); // GB (decimal) → bytes
+}

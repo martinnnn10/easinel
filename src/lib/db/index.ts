@@ -351,6 +351,11 @@ const DDL = [
     created_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000)
   )`,
   `CREATE INDEX IF NOT EXISTS idx_ai_usage_org ON ai_usage(org_id, created_at)`,
+  `CREATE TABLE IF NOT EXISTS stripe_events (
+    id TEXT PRIMARY KEY,
+    type TEXT NOT NULL,
+    processed_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000)
+  )`,
   `CREATE INDEX IF NOT EXISTS idx_wo_events_wo ON work_order_events(work_order_id)`,
   `CREATE INDEX IF NOT EXISTS idx_oem_signals_model ON oem_failure_signals(manufacturer, model, fault_code)`,
   `CREATE TABLE IF NOT EXISTS scenarios (

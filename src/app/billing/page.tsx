@@ -13,6 +13,39 @@ interface BillingData {
   } | null;
   active: boolean;
   stripeConfigured: boolean;
+  plan?: { key: string; name: string; priceLabel: string; sites: number | null; features: string[] };
+  usage?: {
+    aiQuestions: { used: number; included: number | null };
+    users: { used: number; pending: number; included: number | null };
+    storage: { usedBytes: number; includedBytes: number | null; pct: number; warn: boolean; over: boolean };
+  };
+}
+
+function fmtGb(bytes: number): string {
+  if (bytes >= 1e9) return `${(bytes / 1e9).toFixed(1)} GB`;
+  if (bytes >= 1e6) return `${(bytes / 1e6).toFixed(0)} MB`;
+  return `${(bytes / 1e3).toFixed(0)} KB`;
+}
+
+function Meter({ label, used, included, unit, usedLabel, includedLabel, warn }: { label: string; used: number; included: number | null; unit?: string; usedLabel?: string; includedLabel?: string; warn?: boolean }) {
+  const pct = included ? Math.min(100, Math.round((used / included) * 100)) : 0;
+  const over = included != null && used >= included;
+  const color = over ? "var(--color-red)" : warn || pct > 80 ? "var(--color-amber)" : "var(--color-green)";
+  return (
+    <div>
+      <div className="flex items-center justify-between text-[12px] mb-1">
+        <span className="text-[var(--color-muted)]">{label}</span>
+        <span className={over ? "text-[var(--color-red)] font-medium" : "text-[var(--color-text)]"}>
+          {usedLabel ?? used}{included != null ? ` / ${includedLabel ?? included}${unit ? " " + unit : ""}` : " (unlimited)"}
+        </span>
+      </div>
+      {included != null && (
+        <div className="h-1.5 rounded-full bg-[var(--color-surface-2)] overflow-hidden">
+          <div className="h-full" style={{ width: `${pct}%`, background: color }} />
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default function BillingPage() {
@@ -208,10 +241,56 @@ export default function BillingPage() {
 
           {error && <p className="text-[12px] text-[var(--color-red)] mt-3">{error}</p>}
 
+          {/* Plan + usage this month */}
+          {data?.plan && data?.usage && (
+            <div className="mt-8 pt-6 border-t border-[var(--color-border)]">
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-[14px] font-semibold">{data.plan.name}</h2>
+                <span className="text-[11px] text-[var(--color-muted)]">{data.plan.priceLabel}</span>
+              </div>
+              <div className="space-y-3">
+                <Meter label="AI Copilot questions (this month)" used={data.usage.aiQuestions.used} included={data.usage.aiQuestions.included} />
+                <Meter
+                  label="Users"
+                  used={data.usage.users.used}
+                  included={data.usage.users.included}
+                  usedLabel={`${data.usage.users.used}${data.usage.users.pending ? ` (+${data.usage.users.pending} pending)` : ""}`}
+                />
+                <Meter
+                  label="Document storage"
+                  used={data.usage.storage.usedBytes}
+                  included={data.usage.storage.includedBytes}
+                  usedLabel={fmtGb(data.usage.storage.usedBytes)}
+                  includedLabel={data.usage.storage.includedBytes != null ? fmtGb(data.usage.storage.includedBytes) : undefined}
+                  warn={data.usage.storage.warn}
+                />
+                {data.usage.storage.warn && !data.usage.storage.over && (
+                  <p className="text-[11px] text-[var(--color-amber)]">Storage is over 80% — consider upgrading before you hit the limit.</p>
+                )}
+                {data.usage.storage.over && (
+                  <p className="text-[11px] text-[var(--color-red)]">Storage limit reached — new uploads are paused. Existing files are safe.</p>
+                )}
+                <div className="flex items-center justify-between text-[12px] pt-1">
+                  <span className="text-[var(--color-muted)]">Active sites</span>
+                  <span className="text-[var(--color-text)]">{data.plan.sites ?? "Multiple"}</span>
+                </div>
+                <div className="flex items-center justify-between text-[12px]">
+                  <span className="text-[var(--color-muted)]">Subscription status</span>
+                  <span className="text-[var(--color-text)] capitalize">{sub?.status ?? "—"}</span>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Plan details */}
           <div className="mt-8 pt-6 border-t border-[var(--color-border)]">
-            <h2 className="text-[14px] font-semibold mb-3">EAS Intelligence Pro</h2>
+            <h2 className="text-[14px] font-semibold mb-3">{data?.plan?.name ?? "EAS Intelligence"} — included</h2>
             <ul className="space-y-2 text-[12px] text-[var(--color-muted)]">
+              {data?.plan?.features?.length ? data.plan.features.map((f, i) => (
+                <li key={i} className="flex items-start gap-2"><span className="text-[var(--color-green)] mt-0.5">✓</span><span>{f}</span></li>
+              )) : null}
+            </ul>
+            <ul className="space-y-2 text-[12px] text-[var(--color-muted)] hidden">
               <li className="flex items-start gap-2">
                 <span className="text-green-500 mt-0.5">✓</span>
                 <span>Unlimited AI-powered maintenance copilot conversations</span>

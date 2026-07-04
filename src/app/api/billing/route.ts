@@ -9,16 +9,27 @@ import {
 } from "@/lib/billing/subscription";
 import { createCheckoutSession, createPortalSession, isStripeConfigured } from "@/lib/billing/stripe";
 import { getOrg } from "@/lib/auth/session";
+import { getPlan, aiQuestionCap } from "@/lib/billing/plans";
+import { canAddUser, storageStatus } from "@/lib/billing/limits";
+import { questionsThisMonth } from "@/lib/ai/usage";
 
 export const runtime = "nodejs";
 
-// GET /api/billing — return current subscription status for the org.
+// GET /api/billing — current plan, subscription status, and this org's usage vs
+// the plan's included limits (AI questions, users, storage). Org-scoped.
 export const GET = safeHandler("billing.get", async () => {
   const gate = await requirePermission("view");
   if (gate instanceof NextResponse) return gate;
   const orgId = gate.user.orgId;
   const sub = await getSubscription(orgId);
   const active = await hasActiveAccess(orgId);
+  const planKey = sub?.plan ?? "free_trial";
+  const plan = getPlan(planKey);
+
+  const seats = await canAddUser(orgId);
+  const storage = await storageStatus(orgId);
+  const aiUsed = await questionsThisMonth(orgId);
+
   return NextResponse.json({
     subscription: sub
       ? {
@@ -32,6 +43,18 @@ export const GET = safeHandler("billing.get", async () => {
       : null,
     active,
     stripeConfigured: stripeConfigured(),
+    plan: { key: plan.key, name: plan.name, priceLabel: plan.priceLabel, sites: plan.sites, features: plan.features },
+    usage: {
+      aiQuestions: { used: aiUsed, included: aiQuestionCap(planKey) },
+      users: { used: seats.activeUsers, pending: seats.pendingInvites, included: seats.limit },
+      storage: {
+        usedBytes: storage.usedBytes,
+        includedBytes: storage.limitBytes,
+        pct: Math.round(storage.pct),
+        warn: storage.warn,
+        over: storage.over,
+      },
+    },
   });
 });
 
