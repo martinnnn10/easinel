@@ -27,16 +27,19 @@ interface KpiData {
   downtimeTrend: { period: string; hours: number }[];
 }
 
+// Calm graphite-palette chart colors — desaturated to match the theme tokens
+// (see globals.css). Concrete hexes rather than CSS vars so Recharts SVG fills
+// resolve reliably across renderers.
 const COLORS = {
-  accent: "#2f7a12",
-  accentLight: "#4caf50",
-  urgent: "#ef4444",
-  high: "#f97316",
-  medium: "#eab308",
-  low: "#6b7280",
-  operational: "#22c55e",
-  degraded: "#eab308",
-  down: "#ef4444",
+  accent: "#5f9748",
+  accentLight: "#6ea457",
+  urgent: "#e05252",
+  high: "#d6a23a",
+  medium: "#5f9748",
+  low: "#7f8b7b",
+  operational: "#57b06a",
+  degraded: "#d6a23a",
+  down: "#e05252",
 };
 
 function KpiCard({

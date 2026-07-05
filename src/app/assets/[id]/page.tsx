@@ -36,13 +36,13 @@ interface Twin {
 }
 
 const statusStyle: Record<string, { label: string; dot: string; color: string }> = {
-  operational: { label: "Operational", dot: "#34d399", color: "#34d399" },
-  degraded: { label: "Degraded", dot: "#f59e0b", color: "#f59e0b" },
-  down: { label: "Down", dot: "#ef4444", color: "#ef4444" },
+  operational: { label: "Operational", dot: "var(--color-green)", color: "var(--color-green)" },
+  degraded: { label: "Degraded", dot: "var(--color-amber)", color: "var(--color-amber)" },
+  down: { label: "Down", dot: "var(--color-red)", color: "var(--color-red)" },
   maintenance: { label: "Maintenance", dot: "var(--color-muted)", color: "var(--color-muted)" },
-  retired: { label: "Retired", dot: "#6b7280", color: "#6b7280" },
+  retired: { label: "Retired", dot: "var(--color-faint)", color: "var(--color-faint)" },
 };
-const sevColor: Record<string, string> = { info: "var(--color-muted)", warning: "#f59e0b", fault: "#ef4444", critical: "#dc2626" };
+const sevColor: Record<string, string> = { info: "var(--color-muted)", warning: "var(--color-amber)", fault: "var(--color-red)", critical: "var(--color-red)" };
 const kindIcon: Record<string, string> = { manual: "📘", drawing: "📐", plc: "🧩", photo: "📷", alarm: "🚨", vibration: "📊", sop: "📋", lesson: "🧠", document: "📄" };
 
 type Tab = "overview" | "pms" | "parts" | "workorders" | "failures" | "documents" | "lessons" | "plc" | "alarms" | "sessions" | "ai";

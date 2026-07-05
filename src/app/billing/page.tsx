@@ -166,8 +166,8 @@ export default function BillingPage() {
           {sub && isActive && (
             <div className="mt-4">
               <div className="flex items-center gap-2 mb-3">
-                <span className="inline-block w-2 h-2 rounded-full bg-green-500" />
-                <span className="text-[13px] font-medium text-green-600">
+                <span className="inline-block w-2 h-2 rounded-full bg-[var(--color-green)]" />
+                <span className="text-[13px] font-medium text-[var(--color-green)]">
                   {sub.status === "grandfathered" ? "Lifetime Access" : "Active"}
                 </span>
               </div>
@@ -295,35 +295,35 @@ export default function BillingPage() {
             </ul>
             <ul className="space-y-2 text-[12px] text-[var(--color-muted)] hidden">
               <li className="flex items-start gap-2">
-                <span className="text-green-500 mt-0.5">✓</span>
+                <span className="text-[var(--color-green)] mt-0.5">✓</span>
                 <span>Unlimited AI-powered maintenance copilot conversations</span>
               </li>
               <li className="flex items-start gap-2">
-                <span className="text-green-500 mt-0.5">✓</span>
+                <span className="text-[var(--color-green)] mt-0.5">✓</span>
                 <span>Knowledge base with OCR extraction & inline viewer</span>
               </li>
               <li className="flex items-start gap-2">
-                <span className="text-green-500 mt-0.5">✓</span>
+                <span className="text-[var(--color-green)] mt-0.5">✓</span>
                 <span>Work order lifecycle with Root Cause Analysis</span>
               </li>
               <li className="flex items-start gap-2">
-                <span className="text-green-500 mt-0.5">✓</span>
+                <span className="text-[var(--color-green)] mt-0.5">✓</span>
                 <span>AI-generated PM programs with structured procedures</span>
               </li>
               <li className="flex items-start gap-2">
-                <span className="text-green-500 mt-0.5">✓</span>
+                <span className="text-[var(--color-green)] mt-0.5">✓</span>
                 <span>KPI dashboard with MTTR, MTBF, and compliance metrics</span>
               </li>
               <li className="flex items-start gap-2">
-                <span className="text-green-500 mt-0.5">✓</span>
+                <span className="text-[var(--color-green)] mt-0.5">✓</span>
                 <span>PLC program explorer & shift handover reports</span>
               </li>
               <li className="flex items-start gap-2">
-                <span className="text-green-500 mt-0.5">✓</span>
+                <span className="text-[var(--color-green)] mt-0.5">✓</span>
                 <span>Team management with role-based access control</span>
               </li>
               <li className="flex items-start gap-2">
-                <span className="text-green-500 mt-0.5">✓</span>
+                <span className="text-[var(--color-green)] mt-0.5">✓</span>
                 <span>Enterprise SSO (OIDC) support</span>
               </li>
             </ul>
