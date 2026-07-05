@@ -787,3 +787,35 @@ export const stripeEvents = sqliteTable("stripe_events", {
 });
 
 export type StripeEventRow = typeof stripeEvents.$inferSelect;
+
+// ───────────────────────── Work Packages (corrective maintenance) ─────────────────────────
+// A work package is a planning artifact attached to a corrective work order.
+// It captures the problem statement, suspected failure mode, required parts,
+// AI-suggested parts, safety notes, tools, linked docs, and planner approval.
+export const workPackages = sqliteTable("work_packages", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull(),
+  workOrderId: text("work_order_id").notNull(),
+  assetId: text("asset_id"),
+  problemStatement: text("problem_statement"),
+  suspectedFailureMode: text("suspected_failure_mode"),
+  safetyNotes: text("safety_notes"), // JSON array
+  requiredParts: text("required_parts"), // JSON array [{partId, qty, description, status}]
+  suggestedParts: text("suggested_parts"), // JSON array (AI-suggested, pending planner)
+  toolsNeeded: text("tools_needed"), // JSON array
+  linkedDocuments: text("linked_documents"), // JSON array of document IDs
+  troubleshootingSteps: text("troubleshooting_steps"), // JSON array
+  plannerApproval: text("planner_approval").notNull().default("pending"), // pending|approved|rejected
+  partsAvailability: text("parts_availability").notNull().default("unknown"), // unknown|partial|ready
+  readyToWork: integer("ready_to_work").notNull().default(0),
+  approvedBy: text("approved_by"),
+  approvedAt: integer("approved_at", { mode: "number" }),
+  createdAt: integer("created_at", { mode: "number" })
+    .notNull()
+    .default(sql`(unixepoch() * 1000)`),
+  updatedAt: integer("updated_at", { mode: "number" })
+    .notNull()
+    .default(sql`(unixepoch() * 1000)`),
+});
+
+export type WorkPackageRow = typeof workPackages.$inferSelect;

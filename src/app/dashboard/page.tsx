@@ -27,19 +27,16 @@ interface KpiData {
   downtimeTrend: { period: string; hours: number }[];
 }
 
-// Calm graphite-palette chart colors — desaturated to match the theme tokens
-// (see globals.css). Concrete hexes rather than CSS vars so Recharts SVG fills
-// resolve reliably across renderers.
 const COLORS = {
-  accent: "#5f9748",
-  accentLight: "#6ea457",
-  urgent: "#e05252",
-  high: "#d6a23a",
-  medium: "#5f9748",
-  low: "#7f8b7b",
-  operational: "#57b06a",
-  degraded: "#d6a23a",
-  down: "#e05252",
+  accent: "#2f7a12",
+  accentLight: "#4caf50",
+  urgent: "#ef4444",
+  high: "#f97316",
+  medium: "#eab308",
+  low: "#6b7280",
+  operational: "#22c55e",
+  degraded: "#eab308",
+  down: "#ef4444",
 };
 
 function KpiCard({
@@ -93,7 +90,7 @@ export default function DashboardPage() {
     return (
       <div className="flex-1 overflow-y-auto p-6">
         <div className="max-w-7xl mx-auto">
-          <h1 className="text-[20px] font-semibold mb-6">Metrics</h1>
+          <h1 className="text-[20px] font-semibold mb-6">Dashboard</h1>
           <p className="text-[13px] text-[var(--color-muted)]">Loading KPIs…</p>
         </div>
       </div>
@@ -104,7 +101,7 @@ export default function DashboardPage() {
     return (
       <div className="flex-1 overflow-y-auto p-6">
         <div className="max-w-7xl mx-auto">
-          <h1 className="text-[20px] font-semibold mb-6">Metrics</h1>
+          <h1 className="text-[20px] font-semibold mb-6">Dashboard</h1>
           <p className="text-[13px] text-[var(--color-muted)]">Failed to load dashboard data.</p>
         </div>
       </div>
@@ -129,7 +126,7 @@ export default function DashboardPage() {
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
-          <h1 className="text-[20px] font-semibold">Metrics</h1>
+          <h1 className="text-[20px] font-semibold">Dashboard</h1>
           <select
             value={period}
             onChange={(e) => setPeriod(Number(e.target.value))}

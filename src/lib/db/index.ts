@@ -549,6 +549,30 @@ const DDL = [
     created_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000)
   )`,
   `CREATE INDEX IF NOT EXISTS idx_subscriptions_org ON subscriptions(org_id)`,
+  // ── Work Packages (corrective maintenance planning) ──
+  `CREATE TABLE IF NOT EXISTS work_packages (
+    id TEXT PRIMARY KEY,
+    org_id TEXT NOT NULL,
+    work_order_id TEXT NOT NULL,
+    asset_id TEXT,
+    problem_statement TEXT,
+    suspected_failure_mode TEXT,
+    safety_notes TEXT,
+    required_parts TEXT,
+    suggested_parts TEXT,
+    tools_needed TEXT,
+    linked_documents TEXT,
+    troubleshooting_steps TEXT,
+    planner_approval TEXT NOT NULL DEFAULT 'pending',
+    parts_availability TEXT NOT NULL DEFAULT 'unknown',
+    ready_to_work INTEGER NOT NULL DEFAULT 0,
+    approved_by TEXT,
+    approved_at INTEGER,
+    created_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000),
+    updated_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000)
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_work_packages_wo ON work_packages(work_order_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_work_packages_org ON work_packages(org_id)`,
 ];
 
 // Idempotent additive column migrations for databases created before the rich
@@ -598,6 +622,13 @@ const COLUMN_MIGRATIONS: { table: string; column: string; ddl: string }[] = [
   { table: "parts", column: "status", ddl: "ALTER TABLE parts ADD COLUMN status TEXT NOT NULL DEFAULT 'active'" },
   // PM procedure quality standard: rich structured per-task detail (JSON).
   { table: "pm_tasks", column: "detail", ddl: "ALTER TABLE pm_tasks ADD COLUMN detail TEXT" },
+  // PM completion enrichment: parts used, issues found, follow-up.
+  { table: "pm_completions", column: "parts_used", ddl: "ALTER TABLE pm_completions ADD COLUMN parts_used TEXT" },
+  { table: "pm_completions", column: "issues_found", ddl: "ALTER TABLE pm_completions ADD COLUMN issues_found TEXT" },
+  { table: "pm_completions", column: "follow_up", ddl: "ALTER TABLE pm_completions ADD COLUMN follow_up TEXT" },
+  { table: "pm_completions", column: "duration_mins", ddl: "ALTER TABLE pm_completions ADD COLUMN duration_mins INTEGER" },
+  // PM program enrichment: estimated downtime.
+  { table: "pm_programs", column: "est_downtime_mins", ddl: "ALTER TABLE pm_programs ADD COLUMN est_downtime_mins INTEGER" },
 ];
 
 async function runColumnMigrations(): Promise<void> {

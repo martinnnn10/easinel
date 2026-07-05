@@ -9,6 +9,7 @@ interface PmItem {
   id: string;
   title: string;
   assetName: string | null;
+  assetId?: string | null;
   failureMode: string | null;
   frequencyLabel: string | null;
   status: string;
@@ -16,6 +17,13 @@ interface PmItem {
   source: string;
   nextDueAt: number | null;
   reasoning?: string | null;
+}
+
+interface AssetOption {
+  id: string;
+  name: string;
+  manufacturer?: string | null;
+  model?: string | null;
 }
 
 interface GeneratedCadence {
@@ -79,9 +87,19 @@ const confColor: Record<string, string> = {
   low: "var(--color-faint)",
 };
 
+const FREQUENCY_OPTIONS = [
+  { value: "30-day", label: "30-day" },
+  { value: "60-day", label: "60-day" },
+  { value: "90-day", label: "90-day" },
+  { value: "quarterly", label: "Quarterly (90 days)" },
+  { value: "semi-annual", label: "Semi-annual (182 days)" },
+  { value: "annual", label: "Annual (365 days)" },
+];
+
 export default function PmPage() {
   const [programs, setPrograms] = useState<PmItem[]>([]);
-  const [filter, setFilter] = useState<"all" | "draft" | "active">("all");
+  const [duePrograms, setDuePrograms] = useState<PmItem[]>([]);
+  const [filter, setFilter] = useState<"all" | "draft" | "active" | "due">("all");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState<string>("");
@@ -106,6 +124,32 @@ export default function PmPage() {
   const [confirmTag, setConfirmTag] = useState("");
   const [confirmChoice, setConfirmChoice] = useState<"match" | "new">("new");
 
+  // ── Manual PM creation modal state ──
+  const [showManual, setShowManual] = useState(false);
+  const [assets, setAssets] = useState<AssetOption[]>([]);
+  const [manualAssetId, setManualAssetId] = useState("");
+  const [manualTitle, setManualTitle] = useState("");
+  const [manualFrequency, setManualFrequency] = useState("90-day");
+  const [manualTasks, setManualTasks] = useState("");
+  const [manualTools, setManualTools] = useState("");
+  const [manualParts, setManualParts] = useState("");
+  const [manualSafety, setManualSafety] = useState("");
+  const [manualBusy, setManualBusy] = useState(false);
+  const [manualError, setManualError] = useState("");
+
+  // ── Completion modal state ──
+  const [completePm, setCompletePm] = useState<PmItem | null>(null);
+  const [completeNotes, setCompleteNotes] = useState("");
+  const [completeParts, setCompleteParts] = useState("");
+  const [completeIssues, setCompleteIssues] = useState("");
+  const [completeFollowUp, setCompleteFollowUp] = useState("");
+  const [completeDuration, setCompleteDuration] = useState("");
+  const [completeBusy, setCompleteBusy] = useState(false);
+  const [completeError, setCompleteError] = useState("");
+
+  // ── Generate WO state ──
+  const [genWoMsg, setGenWoMsg] = useState<Record<string, string>>({});
+
   const load = useCallback(async () => {
     setLoading(true);
     setError("");
@@ -120,9 +164,32 @@ export default function PmPage() {
     }
   }, []);
 
+  const loadDue = useCallback(async () => {
+    try {
+      const res = await fetch("/api/pm?due=1");
+      if (!res.ok) return;
+      const data = await res.json();
+      setDuePrograms(data.programs ?? []);
+    } catch {
+      // silent
+    }
+  }, []);
+
+  const loadAssets = useCallback(async () => {
+    try {
+      const res = await fetch("/api/assets");
+      if (!res.ok) return;
+      const data = await res.json();
+      setAssets(data.assets ?? []);
+    } catch {
+      // silent
+    }
+  }, []);
+
   useEffect(() => {
     load();
-  }, [load]);
+    loadDue();
+  }, [load, loadDue]);
 
   const act = async (id: string, action: "approve" | "archive") => {
     setBusy(id + action);
@@ -133,11 +200,118 @@ export default function PmPage() {
     });
     setBusy("");
     load();
+    loadDue();
   };
 
-  // Resolve the manual identity to a probable asset BEFORE generating, so the
-  // PM links to a machine instead of landing "Unassigned". Reuses the same
-  // confirm-before-save panel as the upload flow.
+  // ── Manual PM creation ──
+  const openManualModal = () => {
+    setShowManual(true);
+    setManualError("");
+    loadAssets();
+  };
+
+  const submitManualPm = async () => {
+    if (!manualAssetId || !manualTitle.trim() || !manualFrequency) {
+      setManualError("Asset, title, and frequency are required.");
+      return;
+    }
+    setManualBusy(true);
+    setManualError("");
+    try {
+      const body: Record<string, unknown> = {
+        assetId: manualAssetId,
+        title: manualTitle.trim(),
+        frequency: manualFrequency,
+      };
+      if (manualTasks.trim()) body.tasks = manualTasks.split("\n").filter((l) => l.trim());
+      if (manualTools.trim()) body.tools = manualTools.split(",").map((s) => s.trim()).filter(Boolean);
+      if (manualParts.trim()) body.parts = manualParts.split(",").map((s) => s.trim()).filter(Boolean);
+      if (manualSafety.trim()) body.safety = manualSafety.split("\n").filter((l) => l.trim());
+
+      const res = await fetch("/api/pm/manual", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || data.error || "Failed to create PM");
+      setShowManual(false);
+      setManualTitle("");
+      setManualTasks("");
+      setManualTools("");
+      setManualParts("");
+      setManualSafety("");
+      load();
+    } catch (e) {
+      setManualError((e as Error).message);
+    } finally {
+      setManualBusy(false);
+    }
+  };
+
+  // ── PM Completion ──
+  const openCompletion = (pm: PmItem) => {
+    setCompletePm(pm);
+    setCompleteNotes("");
+    setCompleteParts("");
+    setCompleteIssues("");
+    setCompleteFollowUp("");
+    setCompleteDuration("");
+    setCompleteError("");
+  };
+
+  const submitCompletion = async () => {
+    if (!completePm) return;
+    setCompleteBusy(true);
+    setCompleteError("");
+    try {
+      const body: Record<string, unknown> = { status: "done" };
+      if (completeNotes.trim()) body.notes = completeNotes.trim();
+      if (completeParts.trim()) body.partsUsed = completeParts.trim();
+      if (completeIssues.trim()) body.issuesFound = completeIssues.trim();
+      if (completeFollowUp.trim()) body.followUp = completeFollowUp.trim();
+      if (completeDuration.trim()) body.durationMins = parseInt(completeDuration) || undefined;
+
+      const res = await fetch(`/api/pm/${completePm.id}/complete`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        const d = await res.json();
+        throw new Error(d.message || d.error || "Failed");
+      }
+      setCompletePm(null);
+      load();
+      loadDue();
+    } catch (e) {
+      setCompleteError((e as Error).message);
+    } finally {
+      setCompleteBusy(false);
+    }
+  };
+
+  // ── Generate WO from due PM ──
+  const generateWo = async (pmId: string) => {
+    setBusy(pmId + "genwo");
+    setGenWoMsg({});
+    try {
+      const res = await fetch(`/api/pm/${pmId}/generate-wo`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || data.error || "Failed");
+      setGenWoMsg((prev) => ({ ...prev, [pmId]: `WO created: ${data.title}` }));
+      loadDue();
+    } catch (e) {
+      setGenWoMsg((prev) => ({ ...prev, [pmId]: (e as Error).message }));
+    } finally {
+      setBusy("");
+    }
+  };
+
+  // Resolve the manual identity to a probable asset BEFORE generating
   const resolveThenGenerate = async () => {
     setGenError("");
     setGenResult(null);
@@ -158,7 +332,6 @@ export default function PmPage() {
           text: [manufacturer, model].filter(Boolean).join(" ") || null,
         }),
       }).then((x) => x.json())) as AnalyzeResolution;
-      // Present the confirm panel (existing match or create-new) before saving.
       setConfirmTag(rr.suggestedNumber || "");
       setConfirmChoice(rr.bestMatch ? "match" : "new");
       setAnalysis({
@@ -179,15 +352,12 @@ export default function PmPage() {
           : `No existing machine matched. A new asset will be created (number ${rr.suggestedNumber}) and the PMs linked to it.`,
       });
     } catch {
-      // If resolve fails for any reason, fall back to generating without an asset.
       await generate();
     } finally {
       setGenerating(false);
     }
   };
 
-  // Run generation. Optional overrides let the confirm-before-save flow pass a
-  // confirmed assetId (existing) or a new-asset spec (with editable number).
   const generate = async (overrides?: {
     assetId?: string;
     createAsset?: {
@@ -239,7 +409,6 @@ export default function PmPage() {
     }
   };
 
-  // Confirm the detected/edited asset, then generate the PM program.
   const confirmAndGenerate = () => {
     if (!analysis || !analysis.resolution) return;
     const r = analysis.resolution;
@@ -259,8 +428,6 @@ export default function PmPage() {
     }
   };
 
-  // Upload a PM document → DETECT the machine first (saves nothing), then show a
-  // confirmation panel. Only after the user confirms the asset do we generate.
   const uploadPmDocs = async (files: FileList | null) => {
     if (!files || !files.length) return;
     setUploading(true);
@@ -275,7 +442,6 @@ export default function PmPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Analysis failed");
       const result = data as AnalyzeResult;
-      // Prefill the manual form from the detection so the user can edit.
       setManufacturer(result.identity.manufacturer ?? "");
       setModel(result.identity.model ?? "");
       setSerial(result.identity.serialNumber ?? "");
@@ -298,8 +464,11 @@ export default function PmPage() {
     }
   };
 
-  const shown = programs.filter((p) => (filter === "all" ? true : p.status === filter));
+  const shown = filter === "due"
+    ? duePrograms
+    : programs.filter((p) => (filter === "all" ? true : p.status === filter));
   const drafts = programs.filter((p) => p.status === "draft").length;
+  const dueCount = duePrograms.length;
 
   return (
     <>
@@ -310,7 +479,17 @@ export default function PmPage() {
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-4xl mx-auto px-5 py-6">
           {/* ── Primary: guided, machine-first PM builder ── */}
-          <GuidedPmBuilder onGenerated={load} />
+          <GuidedPmBuilder onGenerated={() => { load(); loadDue(); }} />
+
+          {/* ── Manual PM creation button ── */}
+          <div className="flex items-center gap-3 mb-5">
+            <button
+              onClick={openManualModal}
+              className="text-[13px] font-medium rounded-lg border border-[var(--color-accent)] text-[var(--color-accent)] px-4 py-2 hover:bg-[var(--color-accent)]/10 transition"
+            >
+              + Create Manual PM
+            </button>
+          </div>
 
           {/* ── Advanced: free-text generate / upload a PM document ── */}
           <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] mb-5 overflow-hidden">
@@ -361,7 +540,7 @@ export default function PmPage() {
                   )}
                 </div>
 
-                {/* Confirm-before-save panel (PM upload intelligence) */}
+                {/* Confirm-before-save panel */}
                 {analysis && analysis.resolution && (
                   <div className="rounded-xl border border-[var(--color-accent)]/30 bg-[var(--color-accent)]/5 p-3 mb-4">
                     <div className="text-[12px] font-semibold text-[var(--color-text)]">Confirm the machine before saving</div>
@@ -428,10 +607,10 @@ export default function PmPage() {
                 )}
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <Field label="Manufacturer" value={manufacturer} onChange={setManufacturer} placeholder="e.g. SEW-Eurodrive" />
-                  <Field label="Model number" value={model} onChange={setModel} placeholder="e.g. R97 DRN100LS4" />
-                  <Field label="Serial number" value={serial} onChange={setSerial} placeholder="e.g. 01.1234567890.0001.18" />
-                  <Field label="Machine type (optional)" value={assetType} onChange={setAssetType} placeholder="conveyor, pump, gearbox, drive…" />
+                  <InputField label="Manufacturer" value={manufacturer} onChange={setManufacturer} placeholder="e.g. SEW-Eurodrive" />
+                  <InputField label="Model number" value={model} onChange={setModel} placeholder="e.g. R97 DRN100LS4" />
+                  <InputField label="Serial number" value={serial} onChange={setSerial} placeholder="e.g. 01.1234567890.0001.18" />
+                  <InputField label="Machine type (optional)" value={assetType} onChange={setAssetType} placeholder="conveyor, pump, gearbox, drive…" />
                 </div>
 
                 {genError && (
@@ -472,8 +651,9 @@ export default function PmPage() {
             )}
           </div>
 
+          {/* ── Filter tabs ── */}
           <div className="flex items-center gap-1.5 mb-5">
-            {(["all", "draft", "active"] as const).map((f) => (
+            {(["all", "draft", "active", "due"] as const).map((f) => (
               <button
                 key={f}
                 onClick={() => setFilter(f)}
@@ -483,12 +663,13 @@ export default function PmPage() {
                     : "border-[var(--color-border)] text-[var(--color-muted)] hover:text-[var(--color-text)]"
                 }`}
               >
-                {f}
+                {f === "due" ? `Due / Overdue${dueCount > 0 ? ` (${dueCount})` : ""}` : f}
                 {f === "draft" && drafts > 0 ? ` (${drafts})` : ""}
               </button>
             ))}
           </div>
 
+          {/* ── PM List ── */}
           {loading ? (
             <div className="space-y-2">
               {[0, 1, 2].map((i) => (
@@ -503,23 +684,25 @@ export default function PmPage() {
           ) : shown.length === 0 ? (
             <div className="text-center py-16 border border-dashed border-[var(--color-border)] rounded-2xl">
               <div className="w-12 h-12 mx-auto rounded-xl bg-[var(--color-surface-2)] grid place-items-center mb-4 text-xl">📅</div>
-              <p className="text-[15px] font-medium">No PM programs yet</p>
+              <p className="text-[15px] font-medium">
+                {filter === "due" ? "No PMs are due right now" : "No PM programs yet"}
+              </p>
               <p className="text-[var(--color-muted)] text-sm mt-1 max-w-md mx-auto">
-                Use <span className="text-[var(--color-text)]">Generate a PM program</span> above to build a full
-                30/60/90-day, semi-annual, and annual schedule from a machine's model or serial number — or close a
-                corrective work order and ask the Copilot <span className="text-[var(--color-text)]">“Should this become a PM?”</span>
+                {filter === "due"
+                  ? "All active PMs are up to date. When a PM becomes overdue, it will appear here with an option to generate a work order."
+                  : <>Use <span className="text-[var(--color-text)]">Generate a PM program</span> above to build a full 30/60/90-day, semi-annual, and annual schedule from a machine&apos;s model or serial number — or close a corrective work order and ask the Copilot <span className="text-[var(--color-text)]">&quot;Should this become a PM?&quot;</span></>
+                }
               </p>
             </div>
           ) : (
             <div className="space-y-2.5">
               {shown.map((p) => (
-                <Link
+                <div
                   key={p.id}
-                  href={`/pm/${p.id}`}
                   className="block rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 hover:border-[var(--color-accent)]/50 hover:bg-[var(--color-surface-2)]/40 transition"
                 >
                   <div className="flex items-start gap-3">
-                    <div className="min-w-0 flex-1">
+                    <Link href={`/pm/${p.id}`} className="min-w-0 flex-1">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span
                           className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded-full"
@@ -529,12 +712,17 @@ export default function PmPage() {
                         </span>
                         {p.source === "ai_suggested" && (
                           <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded-full text-[var(--color-accent)] bg-[var(--color-accent)]/10">
-                            🤖 AI proposed
+                            AI proposed
                           </span>
                         )}
                         {p.confidence && (
                           <span className="text-[10px]" style={{ color: confColor[p.confidence] }}>
                             ● {p.confidence} confidence
+                          </span>
+                        )}
+                        {filter === "due" && p.nextDueAt && (
+                          <span className="text-[10px] text-[var(--color-red)]">
+                            Overdue since {new Date(p.nextDueAt).toLocaleDateString()}
                           </span>
                         )}
                       </div>
@@ -547,9 +735,9 @@ export default function PmPage() {
                       {p.reasoning && (
                         <p className="text-[12px] text-[var(--color-faint)] mt-2 leading-snug line-clamp-2">{p.reasoning}</p>
                       )}
-                    </div>
+                    </Link>
                     <div className="flex flex-col gap-1.5 shrink-0">
-                        {p.status === "draft" && (
+                      {p.status === "draft" && (
                         <>
                           <button
                             disabled={busy === p.id + "approve"}
@@ -566,31 +754,282 @@ export default function PmPage() {
                           </button>
                         </>
                       )}
-                      {p.status === "active" && (
+                      {p.status === "active" && filter !== "due" && (
                         <button
-                          onClick={async (e) => {
-                            e.preventDefault(); e.stopPropagation();
-                            await fetch(`/api/pm/${p.id}/complete`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ status: "done" }) });
-                            load();
-                          }}
+                          onClick={(e) => { e.preventDefault(); e.stopPropagation(); openCompletion(p); }}
                           className="text-[12px] font-medium rounded-lg bg-[var(--color-surface-2)] border border-[var(--color-border)] px-3 py-1.5 hover:border-[var(--color-accent)]/50"
                         >
                           Mark done
                         </button>
                       )}
+                      {filter === "due" && (
+                        <div className="flex flex-col gap-1.5">
+                          <button
+                            disabled={busy === p.id + "genwo"}
+                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); generateWo(p.id); }}
+                            className="text-[12px] font-medium rounded-lg bg-[var(--color-accent)] text-white px-3 py-1.5 hover:brightness-110 disabled:opacity-50"
+                          >
+                            {busy === p.id + "genwo" ? "…" : "Generate WO"}
+                          </button>
+                          <button
+                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); openCompletion(p); }}
+                            className="text-[11px] text-[var(--color-faint)] hover:text-[var(--color-text)]"
+                          >
+                            Mark done
+                          </button>
+                          {genWoMsg[p.id] && (
+                            <p className={`text-[11px] mt-1 ${genWoMsg[p.id].startsWith("WO created") ? "text-[var(--color-green)]" : "text-[var(--color-red)]"}`}>
+                              {genWoMsg[p.id]}
+                            </p>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
-                </Link>
+                </div>
               ))}
             </div>
           )}
         </div>
       </div>
+
+      {/* ── Manual PM Creation Modal ── */}
+      {showManual && (
+        <div
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm grid place-items-end sm:place-items-center p-0 sm:p-4"
+          onClick={() => { if (!manualBusy) setShowManual(false); }}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Create manual PM"
+        >
+          <div
+            className="w-full sm:max-w-lg rounded-t-2xl sm:rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5 fadeup max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 className="font-semibold text-[15px] mb-1">Create Manual PM</h2>
+            <p className="text-[12px] text-[var(--color-muted)] mb-4">
+              Define a preventive maintenance schedule for a machine. It will be saved as a draft for approval.
+            </p>
+
+            {manualError && (
+              <div className="mb-3 rounded-lg border border-[var(--color-red)]/40 bg-[var(--color-red)]/10 px-3 py-2 text-[12px] text-[var(--color-red)]" role="alert">
+                {manualError}
+              </div>
+            )}
+
+            <div className="space-y-3">
+              {/* Asset dropdown */}
+              <label className="block">
+                <span className="text-[11px] text-[var(--color-muted)] uppercase tracking-wide">Asset / Machine *</span>
+                <select
+                  value={manualAssetId}
+                  onChange={(e) => setManualAssetId(e.target.value)}
+                  className="mt-1 w-full text-[13px] rounded-lg bg-[var(--color-surface-2)] border border-[var(--color-border)] px-3 py-2 outline-none focus:border-[var(--color-accent)]"
+                >
+                  <option value="">Select an asset…</option>
+                  {assets.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.name}{a.manufacturer ? ` (${a.manufacturer}${a.model ? ` ${a.model}` : ""})` : ""}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              {/* Title */}
+              <label className="block">
+                <span className="text-[11px] text-[var(--color-muted)] uppercase tracking-wide">PM Title *</span>
+                <input
+                  value={manualTitle}
+                  onChange={(e) => setManualTitle(e.target.value)}
+                  placeholder="e.g. Quarterly gearbox oil change"
+                  className="mt-1 w-full text-[13px] rounded-lg bg-[var(--color-surface-2)] border border-[var(--color-border)] px-3 py-2 outline-none focus:border-[var(--color-accent)]"
+                />
+              </label>
+
+              {/* Frequency */}
+              <label className="block">
+                <span className="text-[11px] text-[var(--color-muted)] uppercase tracking-wide">Frequency *</span>
+                <select
+                  value={manualFrequency}
+                  onChange={(e) => setManualFrequency(e.target.value)}
+                  className="mt-1 w-full text-[13px] rounded-lg bg-[var(--color-surface-2)] border border-[var(--color-border)] px-3 py-2 outline-none focus:border-[var(--color-accent)]"
+                >
+                  {FREQUENCY_OPTIONS.map((f) => (
+                    <option key={f.value} value={f.value}>{f.label}</option>
+                  ))}
+                </select>
+              </label>
+
+              {/* Tasks */}
+              <label className="block">
+                <span className="text-[11px] text-[var(--color-muted)] uppercase tracking-wide">Tasks (one per line)</span>
+                <textarea
+                  value={manualTasks}
+                  onChange={(e) => setManualTasks(e.target.value)}
+                  placeholder={"Drain old oil\nReplace filter element\nRefill with ISO VG 220\nCheck for leaks"}
+                  rows={4}
+                  className="mt-1 w-full text-[13px] rounded-lg bg-[var(--color-surface-2)] border border-[var(--color-border)] px-3 py-2 outline-none focus:border-[var(--color-accent)] resize-none"
+                />
+              </label>
+
+              {/* Tools */}
+              <label className="block">
+                <span className="text-[11px] text-[var(--color-muted)] uppercase tracking-wide">Tools (comma-separated)</span>
+                <input
+                  value={manualTools}
+                  onChange={(e) => setManualTools(e.target.value)}
+                  placeholder="e.g. Oil drain pan, torque wrench, filter wrench"
+                  className="mt-1 w-full text-[13px] rounded-lg bg-[var(--color-surface-2)] border border-[var(--color-border)] px-3 py-2 outline-none focus:border-[var(--color-accent)]"
+                />
+              </label>
+
+              {/* Parts */}
+              <label className="block">
+                <span className="text-[11px] text-[var(--color-muted)] uppercase tracking-wide">Parts (comma-separated)</span>
+                <input
+                  value={manualParts}
+                  onChange={(e) => setManualParts(e.target.value)}
+                  placeholder="e.g. Oil filter, 5L ISO VG 220 oil, gasket"
+                  className="mt-1 w-full text-[13px] rounded-lg bg-[var(--color-surface-2)] border border-[var(--color-border)] px-3 py-2 outline-none focus:border-[var(--color-accent)]"
+                />
+              </label>
+
+              {/* Safety */}
+              <label className="block">
+                <span className="text-[11px] text-[var(--color-muted)] uppercase tracking-wide">Safety notes (one per line)</span>
+                <textarea
+                  value={manualSafety}
+                  onChange={(e) => setManualSafety(e.target.value)}
+                  placeholder={"LOTO required\nWear nitrile gloves\nAllow oil to cool before draining"}
+                  rows={3}
+                  className="mt-1 w-full text-[13px] rounded-lg bg-[var(--color-surface-2)] border border-[var(--color-border)] px-3 py-2 outline-none focus:border-[var(--color-accent)] resize-none"
+                />
+              </label>
+            </div>
+
+            <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 mt-4">
+              <button
+                onClick={() => setShowManual(false)}
+                className="text-[13px] px-3 py-2.5 sm:py-1.5 rounded-lg text-[var(--color-muted)] hover:text-[var(--color-text)]"
+              >
+                Cancel
+              </button>
+              <button
+                disabled={manualBusy || !manualAssetId || !manualTitle.trim()}
+                onClick={submitManualPm}
+                className="text-[13px] font-medium px-4 py-2.5 sm:py-1.5 rounded-lg bg-[var(--color-accent)] text-white disabled:opacity-40 hover:brightness-110"
+              >
+                {manualBusy ? "Creating…" : "Create PM (draft)"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Completion Modal ── */}
+      {completePm && (
+        <div
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm grid place-items-end sm:place-items-center p-0 sm:p-4"
+          onClick={() => { if (!completeBusy) setCompletePm(null); }}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Complete PM"
+        >
+          <div
+            className="w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5 fadeup max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 className="font-semibold text-[15px] mb-1">Complete PM</h2>
+            <p className="text-[12px] text-[var(--color-muted)] mb-4">
+              {completePm.title} · {completePm.assetName || "Unknown asset"}
+            </p>
+
+            {completeError && (
+              <div className="mb-3 rounded-lg border border-[var(--color-red)]/40 bg-[var(--color-red)]/10 px-3 py-2 text-[12px] text-[var(--color-red)]" role="alert">
+                {completeError}
+              </div>
+            )}
+
+            <div className="space-y-3">
+              <label className="block">
+                <span className="text-[11px] text-[var(--color-muted)] uppercase tracking-wide">Notes</span>
+                <textarea
+                  autoFocus
+                  value={completeNotes}
+                  onChange={(e) => setCompleteNotes(e.target.value)}
+                  placeholder="Any observations during the PM…"
+                  rows={3}
+                  className="mt-1 w-full text-[13px] rounded-lg bg-[var(--color-surface-2)] border border-[var(--color-border)] px-3 py-2 outline-none focus:border-[var(--color-accent)] resize-none"
+                />
+              </label>
+
+              <label className="block">
+                <span className="text-[11px] text-[var(--color-muted)] uppercase tracking-wide">Parts used</span>
+                <input
+                  value={completeParts}
+                  onChange={(e) => setCompleteParts(e.target.value)}
+                  placeholder="e.g. Oil filter, 5L VG220"
+                  className="mt-1 w-full text-[13px] rounded-lg bg-[var(--color-surface-2)] border border-[var(--color-border)] px-3 py-2 outline-none focus:border-[var(--color-accent)]"
+                />
+              </label>
+
+              <label className="block">
+                <span className="text-[11px] text-[var(--color-muted)] uppercase tracking-wide">Issues found</span>
+                <textarea
+                  value={completeIssues}
+                  onChange={(e) => setCompleteIssues(e.target.value)}
+                  placeholder="Any defects, wear, or concerns discovered…"
+                  rows={2}
+                  className="mt-1 w-full text-[13px] rounded-lg bg-[var(--color-surface-2)] border border-[var(--color-border)] px-3 py-2 outline-none focus:border-[var(--color-accent)] resize-none"
+                />
+              </label>
+
+              <label className="block">
+                <span className="text-[11px] text-[var(--color-muted)] uppercase tracking-wide">Follow-up needed</span>
+                <textarea
+                  value={completeFollowUp}
+                  onChange={(e) => setCompleteFollowUp(e.target.value)}
+                  placeholder="Any corrective work or further inspection needed…"
+                  rows={2}
+                  className="mt-1 w-full text-[13px] rounded-lg bg-[var(--color-surface-2)] border border-[var(--color-border)] px-3 py-2 outline-none focus:border-[var(--color-accent)] resize-none"
+                />
+              </label>
+
+              <label className="block">
+                <span className="text-[11px] text-[var(--color-muted)] uppercase tracking-wide">Duration (minutes)</span>
+                <input
+                  type="number"
+                  value={completeDuration}
+                  onChange={(e) => setCompleteDuration(e.target.value)}
+                  placeholder="e.g. 45"
+                  className="mt-1 w-full text-[13px] rounded-lg bg-[var(--color-surface-2)] border border-[var(--color-border)] px-3 py-2 outline-none focus:border-[var(--color-accent)]"
+                />
+              </label>
+            </div>
+
+            <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 mt-4">
+              <button
+                onClick={() => setCompletePm(null)}
+                className="text-[13px] px-3 py-2.5 sm:py-1.5 rounded-lg text-[var(--color-muted)] hover:text-[var(--color-text)]"
+              >
+                Cancel
+              </button>
+              <button
+                disabled={completeBusy}
+                onClick={submitCompletion}
+                className="text-[13px] font-medium px-4 py-2.5 sm:py-1.5 rounded-lg bg-[var(--color-green)] text-white disabled:opacity-40 hover:brightness-110"
+              >
+                {completeBusy ? "Completing…" : "Mark done"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
 
-function Field({
+function InputField({
   label,
   value,
   onChange,

@@ -410,6 +410,9 @@ export default function WorkOrderDetailPage() {
 
                   <PartsIntegration wo={wo} />
 
+                  {/* Work Package — corrective maintenance planning */}
+                  <WorkPackagePanel woId={wo.id} />
+
                   {/* History timeline */}
                   <Section title="History">
                     {history.length === 0 ? (
@@ -738,6 +741,410 @@ function PartsIntegration({ wo }: { wo: WorkOrder }) {
           {state === "error" && <p className="text-[12px] text-[var(--color-red)] mt-1.5">{msg}</p>}
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── Work Package Panel ─────────────────────────────────────────────────────
+interface WorkPackage {
+  id: string;
+  problemStatement: string | null;
+  suspectedFailureMode: string | null;
+  safetyNotes: string[];
+  requiredParts: { partId?: string; qty?: number; description: string; status?: string }[];
+  suggestedParts: { description: string; qty?: number; partNumber?: string | null; confidence?: string; reasoning?: string }[];
+  toolsNeeded: string[];
+  linkedDocuments: string[];
+  troubleshootingSteps: string[];
+  plannerApproval: string;
+  partsAvailability: string;
+  readyToWork: number;
+  approvedBy?: string | null;
+  approvedAt?: number | null;
+}
+
+function WorkPackagePanel({ woId }: { woId: string }) {
+  const [pkg, setPkg] = useState<WorkPackage | null | undefined>(undefined); // undefined = loading
+  const [editing, setEditing] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [suggestBusy, setSuggestBusy] = useState(false);
+  const [approveBusy, setApproveBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [successMsg, setSuccessMsg] = useState("");
+
+  // Editable fields
+  const [problemStatement, setProblemStatement] = useState("");
+  const [failureMode, setFailureMode] = useState("");
+  const [safetyNotes, setSafetyNotes] = useState("");
+  const [toolsNeeded, setToolsNeeded] = useState("");
+  const [requiredParts, setRequiredParts] = useState("");
+  const [troubleshootingSteps, setTroubleshootingSteps] = useState("");
+
+  const loadPkg = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/work-orders/${woId}/package`);
+      if (!res.ok) { setPkg(null); return; }
+      const data = await res.json();
+      setPkg(data.package ?? null);
+    } catch {
+      setPkg(null);
+    }
+  }, [woId]);
+
+  useEffect(() => { loadPkg(); }, [loadPkg]);
+
+  const startEdit = () => {
+    setProblemStatement(pkg?.problemStatement ?? "");
+    setFailureMode(pkg?.suspectedFailureMode ?? "");
+    setSafetyNotes((pkg?.safetyNotes ?? []).join("\n"));
+    setToolsNeeded((pkg?.toolsNeeded ?? []).join(", "));
+    setRequiredParts((pkg?.requiredParts ?? []).map((p) => `${p.description}${p.qty && p.qty > 1 ? ` x${p.qty}` : ""}`).join(", "));
+    setTroubleshootingSteps((pkg?.troubleshootingSteps ?? []).join("\n"));
+    setEditing(true);
+    setError("");
+    setSuccessMsg("");
+  };
+
+  const savePkg = async () => {
+    setBusy(true);
+    setError("");
+    try {
+      const body: Record<string, unknown> = {
+        problemStatement: problemStatement.trim() || null,
+        suspectedFailureMode: failureMode.trim() || null,
+        safetyNotes: safetyNotes.split("\n").filter((l) => l.trim()),
+        toolsNeeded: toolsNeeded.split(",").map((s) => s.trim()).filter(Boolean),
+        requiredParts: requiredParts.split(",").map((s) => s.trim()).filter(Boolean).map((d) => ({ description: d, qty: 1 })),
+        troubleshootingSteps: troubleshootingSteps.split("\n").filter((l) => l.trim()),
+      };
+      const res = await fetch(`/api/work-orders/${woId}/package`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        const d = await res.json();
+        throw new Error(d.message || d.error || "Failed to save");
+      }
+      setEditing(false);
+      setSuccessMsg("Work package saved.");
+      await loadPkg();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const suggestParts = async () => {
+    setSuggestBusy(true);
+    setError("");
+    try {
+      const res = await fetch(`/api/work-orders/${woId}/package/suggest-parts`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || data.error || "Failed");
+      // Merge suggested parts into the package
+      if (data.suggestedParts && data.suggestedParts.length > 0) {
+        // Save the suggested parts to the package
+        await fetch(`/api/work-orders/${woId}/package`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ suggestedParts: data.suggestedParts }),
+        });
+        setSuccessMsg(`AI suggested ${data.suggestedParts.length} part(s).`);
+        await loadPkg();
+      } else {
+        setSuccessMsg(data.note || "No parts suggested.");
+      }
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setSuggestBusy(false);
+    }
+  };
+
+  const approvePackage = async () => {
+    setApproveBusy(true);
+    setError("");
+    try {
+      const res = await fetch(`/api/work-orders/${woId}/package/approve`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ decision: "approved", partsAvailability: "ready" }),
+      });
+      if (!res.ok) {
+        const d = await res.json();
+        throw new Error(d.message || d.error || "Failed");
+      }
+      setSuccessMsg("Package approved — ready to work.");
+      await loadPkg();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setApproveBusy(false);
+    }
+  };
+
+  // Loading state
+  if (pkg === undefined) return null;
+
+  // No package yet — show create button
+  if (pkg === null && !editing) {
+    return (
+      <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
+        <h3 className="text-[11px] uppercase tracking-wider text-[var(--color-muted)] mb-2">Work Package</h3>
+        <p className="text-[12px] text-[var(--color-muted)] mb-3">
+          No work package yet. Create one to plan parts, tools, safety notes, and troubleshooting steps for this repair.
+        </p>
+        <button
+          onClick={startEdit}
+          className="text-[12px] font-medium rounded-lg border border-[var(--color-accent)] text-[var(--color-accent)] px-3 py-1.5 hover:bg-[var(--color-accent)]/10"
+        >
+          + Create Work Package
+        </button>
+      </div>
+    );
+  }
+
+  // Edit mode
+  if (editing) {
+    return (
+      <div className="rounded-xl border border-[var(--color-accent)]/30 bg-[var(--color-surface)] p-4">
+        <h3 className="text-[11px] uppercase tracking-wider text-[var(--color-muted)] mb-3">
+          {pkg ? "Edit Work Package" : "Create Work Package"}
+        </h3>
+        {error && (
+          <div className="mb-3 rounded-lg border border-[var(--color-red)]/40 bg-[var(--color-red)]/10 px-3 py-2 text-[12px] text-[var(--color-red)]">
+            {error}
+          </div>
+        )}
+        <div className="space-y-3">
+          <label className="block">
+            <span className="text-[11px] text-[var(--color-muted)] uppercase tracking-wide">Problem Statement</span>
+            <textarea
+              value={problemStatement}
+              onChange={(e) => setProblemStatement(e.target.value)}
+              placeholder="Describe the problem this work package addresses…"
+              rows={2}
+              className="mt-1 w-full text-[13px] rounded-lg bg-[var(--color-surface-2)] border border-[var(--color-border)] px-3 py-2 outline-none focus:border-[var(--color-accent)] resize-none"
+            />
+          </label>
+          <label className="block">
+            <span className="text-[11px] text-[var(--color-muted)] uppercase tracking-wide">Suspected Failure Mode</span>
+            <input
+              value={failureMode}
+              onChange={(e) => setFailureMode(e.target.value)}
+              placeholder="e.g. Bearing seizure due to inadequate lubrication"
+              className="mt-1 w-full text-[13px] rounded-lg bg-[var(--color-surface-2)] border border-[var(--color-border)] px-3 py-2 outline-none focus:border-[var(--color-accent)]"
+            />
+          </label>
+          <label className="block">
+            <span className="text-[11px] text-[var(--color-muted)] uppercase tracking-wide">Safety Notes (one per line)</span>
+            <textarea
+              value={safetyNotes}
+              onChange={(e) => setSafetyNotes(e.target.value)}
+              placeholder={"LOTO required\nWear cut-resistant gloves\nConfirm zero energy state"}
+              rows={3}
+              className="mt-1 w-full text-[13px] rounded-lg bg-[var(--color-surface-2)] border border-[var(--color-border)] px-3 py-2 outline-none focus:border-[var(--color-accent)] resize-none"
+            />
+          </label>
+          <label className="block">
+            <span className="text-[11px] text-[var(--color-muted)] uppercase tracking-wide">Tools Needed (comma-separated)</span>
+            <input
+              value={toolsNeeded}
+              onChange={(e) => setToolsNeeded(e.target.value)}
+              placeholder="e.g. Bearing puller, torque wrench, dial indicator"
+              className="mt-1 w-full text-[13px] rounded-lg bg-[var(--color-surface-2)] border border-[var(--color-border)] px-3 py-2 outline-none focus:border-[var(--color-accent)]"
+            />
+          </label>
+          <label className="block">
+            <span className="text-[11px] text-[var(--color-muted)] uppercase tracking-wide">Required Parts (comma-separated)</span>
+            <input
+              value={requiredParts}
+              onChange={(e) => setRequiredParts(e.target.value)}
+              placeholder="e.g. 6206-2RS bearing, shaft seal, grease cartridge"
+              className="mt-1 w-full text-[13px] rounded-lg bg-[var(--color-surface-2)] border border-[var(--color-border)] px-3 py-2 outline-none focus:border-[var(--color-accent)]"
+            />
+          </label>
+          <label className="block">
+            <span className="text-[11px] text-[var(--color-muted)] uppercase tracking-wide">Troubleshooting Steps (one per line)</span>
+            <textarea
+              value={troubleshootingSteps}
+              onChange={(e) => setTroubleshootingSteps(e.target.value)}
+              placeholder={"Check vibration readings\nInspect bearing for play\nMeasure shaft runout"}
+              rows={3}
+              className="mt-1 w-full text-[13px] rounded-lg bg-[var(--color-surface-2)] border border-[var(--color-border)] px-3 py-2 outline-none focus:border-[var(--color-accent)] resize-none"
+            />
+          </label>
+        </div>
+        <div className="flex items-center gap-2 mt-4">
+          <button
+            disabled={busy}
+            onClick={savePkg}
+            className="text-[12px] font-medium rounded-lg bg-[var(--color-accent)] text-white px-4 py-2 hover:brightness-110 disabled:opacity-50"
+          >
+            {busy ? "Saving…" : "Save Package"}
+          </button>
+          <button
+            onClick={() => setEditing(false)}
+            className="text-[12px] text-[var(--color-muted)] hover:text-[var(--color-text)] px-3 py-2"
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // View mode (package exists)
+  if (!pkg) return null;
+  return (
+    <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-[11px] uppercase tracking-wider text-[var(--color-muted)]">Work Package</h3>
+        <div className="flex items-center gap-2">
+          {pkg.readyToWork ? (
+            <span className="text-[10px] uppercase tracking-wide px-2 py-0.5 rounded-full bg-[var(--color-green)]/10 text-[var(--color-green)] font-medium">
+              Ready to work
+            </span>
+          ) : (
+            <span className="text-[10px] uppercase tracking-wide px-2 py-0.5 rounded-full bg-[var(--color-amber)]/10 text-[var(--color-amber)] font-medium">
+              {pkg.plannerApproval === "approved" ? "Approved" : pkg.plannerApproval}
+            </span>
+          )}
+          <button
+            onClick={startEdit}
+            className="text-[11px] text-[var(--color-accent)] hover:underline"
+          >
+            Edit
+          </button>
+        </div>
+      </div>
+
+      {error && (
+        <div className="mb-3 rounded-lg border border-[var(--color-red)]/40 bg-[var(--color-red)]/10 px-3 py-2 text-[12px] text-[var(--color-red)]">
+          {error}
+        </div>
+      )}
+      {successMsg && (
+        <div className="mb-3 rounded-lg border border-[var(--color-green)]/40 bg-[var(--color-green)]/10 px-3 py-2 text-[12px] text-[var(--color-green)]">
+          {successMsg}
+        </div>
+      )}
+
+      <div className="space-y-3">
+        {pkg.problemStatement && (
+          <div>
+            <p className="text-[10px] uppercase tracking-wide text-[var(--color-faint)]">Problem</p>
+            <p className="text-[13px] mt-0.5">{pkg.problemStatement}</p>
+          </div>
+        )}
+        {pkg.suspectedFailureMode && (
+          <div>
+            <p className="text-[10px] uppercase tracking-wide text-[var(--color-faint)]">Failure Mode</p>
+            <p className="text-[13px] mt-0.5">{pkg.suspectedFailureMode}</p>
+          </div>
+        )}
+        {pkg.safetyNotes.length > 0 && (
+          <div>
+            <p className="text-[10px] uppercase tracking-wide text-[var(--color-faint)]">Safety</p>
+            <ul className="mt-1 space-y-0.5">
+              {pkg.safetyNotes.map((n, i) => (
+                <li key={i} className="text-[12px] text-[var(--color-text)] flex items-start gap-1.5">
+                  <span className="text-[var(--color-red)] mt-0.5">⚠</span> {n}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+        {pkg.toolsNeeded.length > 0 && (
+          <div>
+            <p className="text-[10px] uppercase tracking-wide text-[var(--color-faint)]">Tools</p>
+            <div className="flex flex-wrap gap-1.5 mt-1">
+              {pkg.toolsNeeded.map((t, i) => (
+                <span key={i} className="text-[11px] px-2 py-0.5 rounded-full bg-[var(--color-surface-2)] border border-[var(--color-border)]">
+                  {t}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+        {pkg.requiredParts.length > 0 && (
+          <div>
+            <p className="text-[10px] uppercase tracking-wide text-[var(--color-faint)]">Required Parts</p>
+            <ul className="mt-1 space-y-0.5">
+              {pkg.requiredParts.map((p, i) => (
+                <li key={i} className="text-[12px]">
+                  {p.description}{p.qty && p.qty > 1 ? ` ×${p.qty}` : ""}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+        {pkg.suggestedParts.length > 0 && (
+          <div>
+            <p className="text-[10px] uppercase tracking-wide text-[var(--color-faint)]">AI-Suggested Parts</p>
+            <ul className="mt-1 space-y-1">
+              {pkg.suggestedParts.map((sp, i) => (
+                <li key={i} className="text-[12px] flex items-start gap-2">
+                  <span className="flex-1">
+                    {sp.description}{sp.qty && sp.qty > 1 ? ` ×${sp.qty}` : ""}
+                    {sp.partNumber && <span className="text-[var(--color-faint)]"> ({sp.partNumber})</span>}
+                    {sp.confidence && (
+                      <span className={`ml-1 text-[10px] ${sp.confidence === "high" ? "text-[var(--color-green)]" : sp.confidence === "medium" ? "text-[var(--color-amber)]" : "text-[var(--color-faint)]"}`}>
+                        {sp.confidence}
+                      </span>
+                    )}
+                  </span>
+                  {sp.reasoning && (
+                    <span className="text-[11px] text-[var(--color-faint)] max-w-[200px] truncate" title={sp.reasoning}>
+                      {sp.reasoning}
+                    </span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+        {pkg.troubleshootingSteps.length > 0 && (
+          <div>
+            <p className="text-[10px] uppercase tracking-wide text-[var(--color-faint)]">Troubleshooting Steps</p>
+            <ol className="mt-1 space-y-0.5 list-decimal list-inside">
+              {pkg.troubleshootingSteps.map((s, i) => (
+                <li key={i} className="text-[12px]">{s}</li>
+              ))}
+            </ol>
+          </div>
+        )}
+      </div>
+
+      {/* Action buttons */}
+      <div className="flex flex-wrap items-center gap-2 mt-4 pt-3 border-t border-[var(--color-border)]">
+        <button
+          disabled={suggestBusy}
+          onClick={suggestParts}
+          className="text-[12px] font-medium rounded-lg border border-[var(--color-accent)] text-[var(--color-accent)] px-3 py-1.5 hover:bg-[var(--color-accent)]/10 disabled:opacity-50"
+        >
+          {suggestBusy ? "Thinking…" : "Suggest Parts (AI)"}
+        </button>
+        {pkg.plannerApproval !== "approved" && (
+          <button
+            disabled={approveBusy}
+            onClick={approvePackage}
+            className="text-[12px] font-medium rounded-lg bg-[var(--color-green)] text-white px-3 py-1.5 hover:brightness-110 disabled:opacity-50"
+          >
+            {approveBusy ? "…" : "Approve Package"}
+          </button>
+        )}
+        {pkg.approvedBy && (
+          <span className="text-[11px] text-[var(--color-faint)]">
+            Approved by {pkg.approvedBy}
+          </span>
+        )}
+      </div>
     </div>
   );
 }

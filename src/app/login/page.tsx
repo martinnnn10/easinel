@@ -16,7 +16,7 @@ export default function LoginPage() {
       .then((r) => r.json())
       .then((d) => {
         if (d.user) {
-          window.location.href = new URLSearchParams(window.location.search).get("next") || "/today";
+          window.location.href = "/";
           return;
         }
         setOidc(Boolean(d.oidc));
@@ -41,7 +41,7 @@ export default function LoginPage() {
       setBusy(false);
       return;
     }
-    window.location.href = new URLSearchParams(window.location.search).get("next") || "/today";
+    window.location.href = "/";
   };
 
   const canSubmit =

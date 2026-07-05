@@ -311,7 +311,15 @@ export async function archiveProgram(orgId: string, pmId: string, actor: string)
 export async function recordCompletion(
   orgId: string,
   pmId: string,
-  input: { status?: "done" | "skipped"; notes?: string | null; completedBy?: string | null },
+  input: {
+    status?: "done" | "skipped";
+    notes?: string | null;
+    completedBy?: string | null;
+    partsUsed?: unknown[] | null;
+    issuesFound?: string | null;
+    followUp?: string | null;
+    durationMins?: number | null;
+  },
   actor = "system"
 ): Promise<void> {
   if (!orgId) throw new Error("recordCompletion() requires orgId");
@@ -322,8 +330,9 @@ export async function recordCompletion(
       .from(pmSchedules)
       .where(and(eq(pmSchedules.orgId, orgId), eq(pmSchedules.pmProgramId, pmId)))
   )[0];
+  const completionId = id("pmc");
   await db.insert(pmCompletions).values({
-    id: id("pmc"),
+    id: completionId,
     orgId,
     pmProgramId: pmId,
     scheduleId: sched?.id ?? null,
@@ -331,6 +340,20 @@ export async function recordCompletion(
     notes: input.notes ?? null,
     completedBy: input.completedBy ?? actor,
   });
+  // Enrich with optional fields (columns added via migration)
+  const enrichUpdates: string[] = [];
+  if (input.partsUsed) enrichUpdates.push(`parts_used = '${JSON.stringify(input.partsUsed).replace(/'/g, "''")}' `);
+  if (input.issuesFound) enrichUpdates.push(`issues_found = '${input.issuesFound.replace(/'/g, "''")}' `);
+  if (input.followUp) enrichUpdates.push(`follow_up = '${input.followUp.replace(/'/g, "''")}' `);
+  if (input.durationMins) enrichUpdates.push(`duration_mins = ${input.durationMins}`);
+  if (enrichUpdates.length > 0) {
+    try {
+      const raw = `UPDATE pm_completions SET ${enrichUpdates.join(", ")} WHERE id = '${completionId}'`;
+      await (db as unknown as { run(q: unknown): Promise<unknown> }).run(
+        (await import("drizzle-orm")).sql.raw(raw)
+      );
+    } catch { /* columns may not exist on older DBs — non-fatal */ }
+  }
   if (sched) {
     const interval = sched.intervalDays ?? 30;
     await db

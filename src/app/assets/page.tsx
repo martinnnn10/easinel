@@ -29,11 +29,11 @@ const critColor: Record<string, string> = {
 };
 
 const statusStyle: Record<string, { label: string; color: string; dot: string }> = {
-  operational: { label: "Operational", color: "var(--color-green)", dot: "var(--color-green)" },
-  degraded: { label: "Degraded", color: "var(--color-amber)", dot: "var(--color-amber)" },
-  down: { label: "Down", color: "var(--color-red)", dot: "var(--color-red)" },
+  operational: { label: "Operational", color: "var(--color-green, #34d399)", dot: "#34d399" },
+  degraded: { label: "Degraded", color: "var(--color-amber)", dot: "#f59e0b" },
+  down: { label: "Down", color: "var(--color-red)", dot: "#ef4444" },
   maintenance: { label: "Maintenance", color: "var(--color-muted)", dot: "var(--color-muted)" },
-  retired: { label: "Retired", color: "var(--color-faint)", dot: "var(--color-faint)" },
+  retired: { label: "Retired", color: "var(--color-faint)", dot: "#6b7280" },
 };
 
 export default function AssetsPage() {
@@ -83,8 +83,8 @@ export default function AssetsPage() {
   return (
     <>
       <TopBar
-        title="Assets"
-        subtitle="Machine memory — each asset's history, failures, PMs, drawings, and per-asset AI"
+        title="Equipment"
+        subtitle="Digital twins — nameplate, history, reliability, drawings, PLC & per-machine AI"
         right={
           <button
             onClick={() => setShowForm(true)}

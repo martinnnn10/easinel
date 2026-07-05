@@ -65,9 +65,9 @@ interface Program {
 }
 
 const statusStyle: Record<string, { label: string; color: string; bg: string }> = {
-  draft: { label: "Draft — awaiting approval", color: "var(--color-amber)", bg: "color-mix(in srgb, var(--color-amber) 12%, transparent)" },
-  active: { label: "Active", color: "var(--color-green)", bg: "color-mix(in srgb, var(--color-green) 12%, transparent)" },
-  archived: { label: "Dismissed", color: "var(--color-faint)", bg: "color-mix(in srgb, var(--color-faint) 12%, transparent)" },
+  draft: { label: "Draft — awaiting approval", color: "#f59e0b", bg: "rgba(245,158,11,0.12)" },
+  active: { label: "Active", color: "#34d399", bg: "rgba(52,211,153,0.12)" },
+  archived: { label: "Dismissed", color: "#6b7280", bg: "rgba(107,114,128,0.12)" },
 };
 
 const evidenceLabel: Record<string, string> = {
@@ -208,7 +208,7 @@ export default function PmDetailPage({ params }: { params: Promise<{ id: string 
 
         {/* Approval gate hint for non-managers */}
         {!canManage && pm.status === "draft" && (
-          <div className="mt-3 rounded-lg p-3 text-[12px]" style={{ background: "color-mix(in srgb, var(--color-amber) 10%, transparent)", color: "var(--color-amber)" }}>
+          <div className="mt-3 rounded-lg p-3 text-[12px]" style={{ background: "rgba(245,158,11,0.10)", color: "#f59e0b" }}>
             This PM is a draft. Only a maintenance manager/supervisor can approve it before it schedules work.
           </div>
         )}
@@ -221,8 +221,8 @@ export default function PmDetailPage({ params }: { params: Promise<{ id: string 
             </Link>
           ) : (
             <div className="flex items-center gap-3 flex-wrap">
-              <span className="inline-flex items-center gap-1.5 text-[13px] px-2.5 py-1 rounded-full" style={{ background: "color-mix(in srgb, var(--color-amber) 12%, transparent)", color: "var(--color-amber)" }}>
-                <span className="w-1.5 h-1.5 rounded-full" style={{ background: "var(--color-amber)" }} /> Unassigned
+              <span className="inline-flex items-center gap-1.5 text-[13px] px-2.5 py-1 rounded-full" style={{ background: "rgba(245,158,11,0.12)", color: "#f59e0b" }}>
+                <span className="w-1.5 h-1.5 rounded-full" style={{ background: "#f59e0b" }} /> Unassigned
               </span>
               <span className="text-[12px] text-[var(--color-muted)]">This PM is not linked to a machine yet.</span>
               {role && (can(role, "manage_assets") || can(role, "manage_pm")) && (
@@ -364,10 +364,10 @@ function Empty({ children }: { children: React.ReactNode }) {
 // stopped = amber. This makes the safety sequencing visible at a glance.
 function stateStyle(state?: string): { color: string; bg: string } {
   const s = (state || "").toLowerCase();
-  if (s.includes("loto")) return { color: "var(--color-red)", bg: "color-mix(in srgb, var(--color-red) 12%, transparent)" };
-  if (s.includes("running")) return { color: "var(--color-green)", bg: "color-mix(in srgb, var(--color-green) 12%, transparent)" };
-  if (s.includes("stopped")) return { color: "var(--color-amber)", bg: "color-mix(in srgb, var(--color-amber) 12%, transparent)" };
-  return { color: "var(--color-faint)", bg: "color-mix(in srgb, var(--color-faint) 12%, transparent)" };
+  if (s.includes("loto")) return { color: "#ef4444", bg: "rgba(239,68,68,0.12)" };
+  if (s.includes("running")) return { color: "#34d399", bg: "rgba(52,211,153,0.12)" };
+  if (s.includes("stopped")) return { color: "#f59e0b", bg: "rgba(245,158,11,0.12)" };
+  return { color: "#9ca3af", bg: "rgba(156,163,175,0.12)" };
 }
 
 function StepList({ label, items, accent }: { label: string; items?: string[]; accent?: string }) {

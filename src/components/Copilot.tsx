@@ -136,8 +136,7 @@ export function Copilot({
             }
           />
           <p className="text-center text-[11px] text-[var(--color-faint)] mt-2">
-            The AI technician every maintenance department wishes they had. Verify
-            critical steps against OEM specs and your site's safety procedures.
+            Verify critical steps against OEM specs and your site&apos;s safety procedures.
           </p>
         </div>
       </div>
@@ -222,9 +221,9 @@ function CommandCenter({
     <div className="fadeup pt-6 md:pt-12">
       {/* Greeting + the single most important question */}
       <div className="text-center max-w-2xl mx-auto">
-        <div className="inline-flex items-center gap-2 text-[var(--color-muted)] text-[11px] font-medium mb-4 px-3 py-1 rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] uppercase tracking-wider">
+        <div className="inline-flex items-center gap-1.5 text-[var(--color-faint)] text-[10px] font-medium mb-3 uppercase tracking-wider">
           <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-green)]" />
-          Maintenance Intelligence · grounded in your plant&apos;s documents
+          Grounded in your plant&apos;s documents
         </div>
         <h1 className="text-2xl md:text-[32px] font-semibold tracking-tight leading-tight">
           {greeting()}{name ? `, ${name}` : ""}.
@@ -241,16 +240,16 @@ function CommandCenter({
         ))}
       </div>
 
-      {/* Upload tiles — drop the exact artifacts a tech has on hand */}
-      <div className="mt-9 max-w-3xl mx-auto">
-        <p className="text-[11px] uppercase tracking-wider text-[var(--color-faint)] mb-2.5 text-center">
-          Or ground the Copilot in your documents
+      {/* Upload tiles */}
+      <div className="mt-8 max-w-2xl mx-auto">
+        <p className="text-[11px] uppercase tracking-wider text-[var(--color-faint)] mb-2 text-center">
+          Or upload documents to ground the Copilot
         </p>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
-          <UploadTile icon="📘" label="Upload Manual" />
-          <UploadTile icon="🧩" label="Upload PLC Program" />
-          <UploadTile icon="📐" label="Upload Electrical Drawing" />
-          <UploadTile icon="🚨" label="Upload Alarm History" />
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
+          <UploadTile icon="" label="Manual" />
+          <UploadTile icon="" label="PLC Program" />
+          <UploadTile icon="" label="Drawing" />
+          <UploadTile icon="" label="Alarm History" />
         </div>
       </div>
 
@@ -259,7 +258,7 @@ function CommandCenter({
         <RecentPanel title="Recent assets" href="/assets" empty="No equipment yet — uploads and questions build each machine's memory." loaded={loaded}>
           {data?.assets.map((a) => (
             <Link key={a.id} href={`/assets/${a.id}`} className="flex items-center gap-2.5 px-2 py-2 rounded-lg hover:bg-[var(--color-surface-2)] transition">
-              <span className="w-7 h-7 grid place-items-center rounded-md bg-[var(--color-surface-2)]">🏭</span>
+              <span className="w-6 h-6 grid place-items-center rounded bg-[var(--color-surface-2)] text-[11px] text-[var(--color-faint)]">A</span>
               <span className="min-w-0 flex-1">
                 <span className="block text-[13px] truncate">{a.name}</span>
                 <span className="block text-[10px] text-[var(--color-faint)] truncate">
@@ -278,7 +277,7 @@ function CommandCenter({
               onClick={() => onResume(s.id)}
               className="w-full text-left flex items-center gap-2.5 px-2 py-2 rounded-lg hover:bg-[var(--color-surface-2)] transition"
             >
-              <span className="w-7 h-7 grid place-items-center rounded-md bg-[var(--color-surface-2)] text-[var(--color-accent)]">💬</span>
+              <span className="w-6 h-6 grid place-items-center rounded bg-[var(--color-surface-2)] text-[11px] text-[var(--color-faint)]">S</span>
               <span className="min-w-0 flex-1">
                 <span className="block text-[13px] truncate">{s.title}</span>
                 <span className="block text-[10px] text-[var(--color-faint)] truncate">
@@ -298,7 +297,7 @@ function SuggestionButton({ text, onPick }: { text: string; onPick: (t: string) 
   return (
     <button
       onClick={() => onPick(text)}
-      className="group text-left text-[13px] rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3 text-[var(--color-muted)] hover:text-[var(--color-text)] hover:border-[var(--color-accent)]/50 hover:bg-[var(--color-surface-2)] transition-all flex items-center gap-2"
+      className="group text-left text-[13px] rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3.5 py-2.5 text-[var(--color-muted)] hover:text-[var(--color-text)] hover:border-[var(--color-accent)]/40 hover:bg-[var(--color-surface-2)] transition-all flex items-center gap-2"
     >
       <span className="text-[var(--color-faint)] group-hover:text-[var(--color-accent)]">→</span>
       {text}
@@ -308,19 +307,18 @@ function SuggestionButton({ text, onPick }: { text: string; onPick: (t: string) 
 
 // An upload tile that posts straight into the ingest pipeline. The chosen label
 // hints the document kind; the backend still classifies by filename/extension.
-function UploadTile({ icon, label }: { icon: string; label: string }) {
+function UploadTile({ icon: _icon, label }: { icon: string; label: string }) {
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
   const router = useRouter();
   return (
     <label
-      className={`relative flex flex-col items-center justify-center gap-1.5 text-center rounded-xl border border-dashed border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-5 cursor-pointer hover:border-[var(--color-accent)]/60 hover:bg-[var(--color-surface-2)] transition ${
+      className={`relative flex items-center justify-center text-center rounded-lg border border-dashed border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-3 cursor-pointer hover:border-[var(--color-accent)]/40 hover:bg-[var(--color-surface-2)] transition ${
         busy ? "opacity-60 pointer-events-none" : ""
       }`}
     >
-      <span className="text-xl">{icon}</span>
       <span className="text-[12px] font-medium text-[var(--color-muted)]">
-        {busy ? "Indexing…" : done ? "✓ Added to Knowledge" : label}
+        {busy ? "Indexing…" : done ? "✓ Added" : label}
       </span>
       <input
         type="file"
@@ -361,7 +359,7 @@ function RecentPanel({
 }) {
   const hasChildren = Array.isArray(children) ? children.length > 0 : Boolean(children);
   return (
-    <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-3">
+    <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-3">
       <div className="flex items-center justify-between mb-2 px-1">
         <h3 className="text-[11px] uppercase tracking-wider text-[var(--color-muted)]">{title}</h3>
         <Link href={href} className="text-[11px] text-[var(--color-accent)] hover:underline">View all</Link>
@@ -393,7 +391,7 @@ function MessageBubble({
   if (m.role === "user") {
     return (
       <div className="flex justify-end fadeup">
-        <div className="max-w-[85%] rounded-2xl rounded-br-md bg-[var(--color-accent)] text-white px-4 py-2.5 text-[14px] leading-relaxed whitespace-pre-wrap">
+        <div className="max-w-[85%] rounded-xl rounded-br-sm bg-[var(--color-surface-2)] border border-[var(--color-border)] px-4 py-2.5 text-[14px] leading-relaxed whitespace-pre-wrap">
           {m.content}
         </div>
       </div>
@@ -402,7 +400,7 @@ function MessageBubble({
 
   return (
     <div className="flex gap-3 fadeup">
-      <div className="shrink-0 w-7 h-7 rounded-md bg-gradient-to-br from-[var(--color-accent)] to-[#2f7a12] grid place-items-center text-[var(--color-on-accent)] text-[12px] font-bold mt-0.5">
+      <div className="shrink-0 w-7 h-7 rounded-md bg-[var(--color-accent-soft)] border border-[var(--color-border)] grid place-items-center text-[var(--color-accent)] text-[12px] font-bold mt-0.5">
         E
       </div>
       <div className="min-w-0 flex-1">

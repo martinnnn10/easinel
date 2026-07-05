@@ -306,21 +306,14 @@ function BoardView({
 }) {
   return (
     <>
-      {/* Machine-down hero — the wedge: "A machine is down." */}
+      {/* Quick report */}
       <button
         onClick={onCreate}
-        className="w-full text-left rounded-2xl border border-[var(--color-red)]/40 bg-[var(--color-red)]/[0.06] px-4 sm:px-5 py-4 mb-5 hover:bg-[var(--color-red)]/[0.1] transition active:scale-[0.99]"
+        className="w-full text-left rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3 mb-4 hover:border-[var(--color-accent)]/40 hover:bg-[var(--color-surface-2)] transition"
       >
         <div className="flex items-center gap-3">
-          <span className="grid place-items-center w-11 h-11 rounded-xl bg-[var(--color-red)]/15 text-[var(--color-red)] text-xl shrink-0">
-            ⚠
-          </span>
-          <div className="min-w-0">
-            <p className="text-[15px] font-semibold">A machine is down</p>
-            <p className="text-[12px] text-[var(--color-muted)] mt-0.5">
-              Report the symptom and get a grounded troubleshooting answer in seconds.
-            </p>
-          </div>
+          <span className="text-[var(--color-red)] text-sm">+</span>
+          <p className="text-[13px] text-[var(--color-muted)]">Report a machine down or log a new issue</p>
         </div>
       </button>
 

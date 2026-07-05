@@ -5,7 +5,7 @@ import { safeHandler } from "@/lib/api/safeHandler";
 
 export const runtime = "nodejs";
 
-// POST /api/pm/:id/complete  { status?: "done"|"skipped", notes? }
+// POST /api/pm/:id/complete  { status?, notes?, partsUsed?, issuesFound?, followUp?, durationMins? }
 export const POST = safeHandler("pm.complete", async (
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -17,7 +17,15 @@ export const POST = safeHandler("pm.complete", async (
   await recordCompletion(
     gate.user.orgId,
     id,
-    { status: body.status === "skipped" ? "skipped" : "done", notes: body.notes ?? null, completedBy: gate.user.email },
+    {
+      status: body.status === "skipped" ? "skipped" : "done",
+      notes: body.notes ?? null,
+      completedBy: gate.user.email,
+      partsUsed: body.partsUsed ?? null,
+      issuesFound: body.issuesFound ?? null,
+      followUp: body.followUp ?? null,
+      durationMins: body.durationMins ?? null,
+    },
     gate.user.email
   );
   return NextResponse.json({ ok: true });
