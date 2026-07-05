@@ -80,6 +80,12 @@ export default function AssetsPage() {
 
   const hasFilters = !!(search || status || criticality || assetType);
 
+  // Archived machines stay out of the working view: retired assets are hidden
+  // from the default list (they remain fully intact and reachable — pick the
+  // "Retired" status filter to see them again).
+  const visible = status ? assets : assets.filter((a) => a.status !== "retired");
+  const retiredHidden = assets.length - visible.length;
+
   return (
     <>
       <TopBar
@@ -130,17 +136,19 @@ export default function AssetsPage() {
             <SkeletonGrid />
           ) : error ? (
             <ErrorState message={error} onRetry={load} />
-          ) : assets.length === 0 ? (
-            hasFilters ? (
+          ) : visible.length === 0 ? (
+            hasFilters || retiredHidden > 0 ? (
               <p className="text-center text-[var(--color-muted)] text-sm py-16">
-                No equipment matches these filters.
+                {retiredHidden > 0 && !hasFilters
+                  ? "All equipment here is retired."
+                  : "No equipment matches these filters."}
               </p>
             ) : (
               <EmptyState onCreate={() => setShowForm(true)} />
             )
           ) : (
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              {assets.map((a) => {
+              {visible.map((a) => {
                 const st = statusStyle[a.status ?? "operational"] ?? statusStyle.operational;
                 const loc = [a.site, a.area, a.line].filter(Boolean).join(" · ");
                 return (
@@ -186,6 +194,15 @@ export default function AssetsPage() {
                 );
               })}
             </div>
+          )}
+
+          {!loading && !error && !status && retiredHidden > 0 && (
+            <p className="text-[12px] text-[var(--color-faint)] text-center mt-4">
+              {retiredHidden} retired asset{retiredHidden === 1 ? "" : "s"} hidden ·{" "}
+              <button onClick={() => setStatus("retired")} className="underline underline-offset-2 hover:text-[var(--color-muted)]">
+                show
+              </button>
+            </p>
           )}
         </div>
       </div>
