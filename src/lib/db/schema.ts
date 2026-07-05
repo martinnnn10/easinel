@@ -300,9 +300,9 @@ export const technicianSkills = sqliteTable("technician_skills", {
 export const integrations = sqliteTable("integrations", {
   id: text("id").primaryKey(),
   orgId: text("org_id").notNull().default("__unset__"),
-  connectorKey: text("connector_key").notNull(), // maintainx|salesforce|greenhouse…
+  connectorKey: text("connector_key").notNull(), // maintainx|fiix|sap_pm|tractian…
   name: text("name").notNull(),
-  category: text("category").notNull(), // cmms|crm|ats|sensors|erp
+  category: text("category").notNull(), // cmms|erp|sensors
   status: text("status").notNull().default("disconnected"), // connected|disconnected|error
   // Non-secret config only (base URLs, modes). Secrets belong in env / a vault.
   config: text("config"),

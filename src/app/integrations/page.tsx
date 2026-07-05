@@ -22,10 +22,9 @@ interface Connected {
 const CAT_LABEL: Record<string, string> = {
   cmms: "CMMS / EAM",
   erp: "ERP",
-  crm: "CRM",
   sensors: "Sensors & Condition Monitoring",
 };
-const CAT_ORDER = ["cmms", "erp", "crm", "sensors"];
+const CAT_ORDER = ["cmms", "erp", "sensors"];
 
 export default function IntegrationsPage() {
   const [tab, setTab] = useState<"connectors" | "developers">("connectors");

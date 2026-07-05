@@ -129,7 +129,6 @@ stack — not a rip-and-replace. The platform layer makes that real:
 - **Connector framework** (`src/lib/integrations/`) — a 15-connector catalog with
   a single `ConnectorAdapter` interface and per-connector sandbox mode:
   - **CMMS/EAM:** MaintainX, Fiix, Limble, UpKeep · **ERP:** SAP PM, IBM Maximo
-  - **CRM:** Salesforce, HubSpot
   - **Sensors:** Tractian, SKF, MachineMetrics, Fluke
   - Connect → Sync pulls assets + work orders in; work orders push back out. Live
     credentials swap the sandbox adapter for a real one without touching callers.

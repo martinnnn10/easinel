@@ -11,13 +11,12 @@
 // runs in sandbox mode against a deterministic mock so the whole flow is
 // demoable end-to-end.
 
-export type ConnectorCategory = "cmms" | "crm" | "erp" | "sensors";
+export type ConnectorCategory = "cmms" | "erp" | "sensors";
 
 export type Capability =
   | "pull_assets"
   | "push_work_order"
   | "pull_work_orders"
-  | "pull_people"
   | "pull_sensor_alerts"
   | "pull_failures";
 
@@ -86,25 +85,6 @@ export const CONNECTORS: ConnectorDef[] = [
     capabilities: ["push_work_order", "pull_work_orders", "pull_assets"],
   },
 
-  // ── CRM ─────────────────────────────────────────────────────
-  {
-    key: "salesforce",
-    name: "Salesforce",
-    category: "crm",
-    blurb: "Field Service / Service Cloud: cases, assets, accounts.",
-    auth: "oauth2",
-    capabilities: ["pull_assets", "push_work_order"],
-    popular: true,
-  },
-  {
-    key: "hubspot",
-    name: "HubSpot",
-    category: "crm",
-    blurb: "Sync accounts & service tickets; surface maintenance insights to CS.",
-    auth: "oauth2",
-    capabilities: ["pull_people"],
-  },
-
   // ── Sensors / condition monitoring ──────────────────────────
   {
     key: "tractian",
@@ -144,7 +124,6 @@ export const CONNECTORS: ConnectorDef[] = [
 export const CATEGORY_LABEL: Record<ConnectorCategory, string> = {
   cmms: "CMMS / EAM",
   erp: "ERP",
-  crm: "CRM",
   sensors: "Sensors & Condition Monitoring",
 };
 
