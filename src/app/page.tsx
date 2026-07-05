@@ -78,6 +78,13 @@ export default function MarketingHome() {
               See how it works
             </a>
           </div>
+          <p className="mt-4 text-[12.5px] text-[var(--color-faint)]">
+            Or{" "}
+            <Link href="/login?signup=1" className="text-[var(--color-muted)] underline underline-offset-2 hover:text-[var(--color-text)]">
+              start a free 14-day trial
+            </Link>{" "}
+            — create your organization in two minutes.
+          </p>
 
           {/* Hero product visual — the loop in one glance: machine down →
               Copilot diagnosis → work order → root cause → PM suggested. */}
@@ -384,10 +391,10 @@ export default function MarketingHome() {
               Book a pilot
             </a>
             <Link
-              href="/login"
+              href="/login?signup=1"
               className="text-[14px] font-medium rounded-xl border border-[var(--color-border)] px-6 py-3 text-[var(--color-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface)]"
             >
-              Sign in
+              Start a free trial
             </Link>
           </div>
         </div>
@@ -399,6 +406,8 @@ export default function MarketingHome() {
           <span className="mr-auto">© {new Date().getFullYear()} EAS Maintenance Intelligence</span>
           <a href="#loop" className="hover:text-[var(--color-muted)]">How it works</a>
           <a href="#trust" className="hover:text-[var(--color-muted)]">Trust</a>
+          <Link href="/privacy" className="hover:text-[var(--color-muted)]">Privacy</Link>
+          <Link href="/terms" className="hover:text-[var(--color-muted)]">Terms</Link>
           <Link href="/login" className="hover:text-[var(--color-muted)]">Sign in</Link>
         </div>
       </footer>

@@ -21,8 +21,10 @@ export default function LoginPage() {
           return;
         }
         setOidc(Boolean(d.oidc));
-        // No accounts yet → default to creating an organization.
-        setMode(d.hasUsers ? "signin" : "signup");
+        // No accounts yet → default to creating an organization. A ?signup=1
+        // deep link (marketing "Start free trial" CTA) also lands on sign-up.
+        const wantsSignup = new URLSearchParams(window.location.search).get("signup") === "1";
+        setMode(!d.hasUsers || wantsSignup ? "signup" : "signin");
       })
       .catch(() => setMode("signin"));
   }, []);

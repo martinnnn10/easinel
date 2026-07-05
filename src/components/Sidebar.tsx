@@ -83,7 +83,7 @@ export function Sidebar() {
 
   // No sidebar on the public marketing site (/) or the login screen — the app
   // chrome belongs to the logged-in experience only.
-  if (path === "/" || path.startsWith("/login")) return null;
+  if (path === "/" || path === "/privacy" || path === "/terms" || path.startsWith("/login")) return null;
 
   const toggleCollapse = () => {
     setCollapsed((c) => {

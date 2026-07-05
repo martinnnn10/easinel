@@ -45,6 +45,27 @@ export default function TodayPage() {
             <p className="text-[var(--color-muted)] text-sm">Couldn&apos;t load today&apos;s board.</p>
           ) : (
             <>
+              {/* First-run nudge: a brand-new org sees a calm setup card instead of
+                  a wall of zeros. Disappears as soon as any real activity exists. */}
+              {d.machinesDown.length === 0 &&
+                d.openCritical.length === 0 &&
+                d.pmsDue.length === 0 &&
+                d.recentClosed.length === 0 &&
+                d.handoverNotes.length === 0 &&
+                d.recentSessions.length === 0 && (
+                  <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5 mb-7">
+                    <h2 className="text-[15px] font-semibold">Set up your plant</h2>
+                    <p className="text-[13px] text-[var(--color-muted)] mt-1">
+                      Three steps and the machine memory starts building.
+                    </p>
+                    <div className="mt-4 grid sm:grid-cols-3 gap-3">
+                      <SetupStep n={1} href="/assets" title="Add your first machine" body="Name, make, and model — the memory attaches to the asset." />
+                      <SetupStep n={2} href="/knowledge" title="Upload a manual or drawing" body="The Copilot cites what you upload when that machine acts up." />
+                      <SetupStep n={3} href="/copilot" title="Ask the Copilot" body="Try a real fault code or symptom from your plant." />
+                    </div>
+                  </div>
+                )}
+
               {/* One restrained status line — not a wall of KPI cards */}
               <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-[13px] mb-7 text-[var(--color-muted)]">
                 <span><strong className="text-[var(--color-text)]">{d.machinesDown.length}</strong> down</span>
@@ -115,6 +136,16 @@ function Section({ title, href, empty, children }: { title: string; href: string
         <div className="space-y-0.5">{items}</div>
       )}
     </section>
+  );
+}
+
+function SetupStep({ n, href, title, body }: { n: number; href: string; title: string; body: string }) {
+  return (
+    <Link href={href} className="block rounded-xl border border-[var(--color-border-soft)] bg-[var(--color-surface-2)]/40 p-3.5 hover:border-[var(--color-accent)]/50 hover:bg-[var(--color-surface-2)] transition">
+      <span className="text-[11px] font-mono text-[var(--color-accent)]">{String(n).padStart(2, "0")}</span>
+      <p className="text-[13px] font-medium mt-1">{title}</p>
+      <p className="text-[11.5px] text-[var(--color-muted)] mt-0.5 leading-snug">{body}</p>
+    </Link>
   );
 }
 

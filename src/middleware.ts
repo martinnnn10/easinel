@@ -56,6 +56,8 @@ export function middleware(req: NextRequest) {
     // and the protected routes (/today, /copilot, …). Exact match only, so
     // every real app path stays gated.
     pathname === "/" ||
+    pathname === "/privacy" ||
+    pathname === "/terms" ||
     pathname.startsWith("/login") ||
     // A newly invited user must reach the invite-acceptance page (to set their
     // password) BEFORE they have a session — gating it would trap them at /login.
