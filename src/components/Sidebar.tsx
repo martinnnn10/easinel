@@ -4,28 +4,42 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 
-// Navigation follows the daily maintenance LOOP, not a pile of modules:
-// Today → the machine (Assets) → ask the Copilot → work order → repair →
-// capture (PMs / Knowledge / Parts) → handover. Secondary tools (Scenarios,
-// PLC, metrics, how-to) are one tap away but don't crowd the daily workflow.
-const nav = [
-  { href: "/today", label: "Today", icon: BoardIcon },
-  { href: "/assets", label: "Assets", icon: CubeIcon },
-  { href: "/", label: "Copilot", icon: SparkIcon },
-  { href: "/work-orders", label: "Work Orders", icon: WrenchIcon },
-  { href: "/pm", label: "PMs", icon: CalendarIcon },
-  { href: "/knowledge", label: "Knowledge", icon: BookIcon },
-  { href: "/parts", label: "Parts", icon: BoltIcon },
-  { href: "/handover", label: "Handover", icon: PulseIcon },
-];
+type NavItem = { href: string; label: string; icon: (p: { className?: string }) => React.ReactNode };
 
-// Secondary / occasional tools — visible but visually quieter.
-const secondaryNav = [
-  { href: "/sessions", label: "Copilot history", icon: PulseIcon },
-  { href: "/scenarios", label: "Troubleshooting cases", icon: BookIcon },
-  { href: "/plc", label: "PLC Explorer", icon: ChipIcon },
-  { href: "/dashboard", label: "Metrics", icon: ChartIcon },
-  { href: "/help", label: "How-To", icon: HelpIcon },
+// Navigation grouped for a calm maintenance OS, not a pile of top-level modules:
+// Daily (the shift's working loop) → Maintenance (planning) → Advanced (occasional
+// tools) → Admin. Grouping only reduces visual clutter — every working route stays
+// reachable; nothing is removed. Advanced/Admin render visually quieter.
+const navGroups: { title: string; muted?: boolean; items: NavItem[] }[] = [
+  {
+    title: "Daily",
+    items: [
+      { href: "/today", label: "Today", icon: BoardIcon },
+      { href: "/", label: "Copilot", icon: SparkIcon },
+      { href: "/work-orders", label: "Work Orders", icon: WrenchIcon },
+      { href: "/handover", label: "Shift Handover", icon: PulseIcon },
+    ],
+  },
+  {
+    title: "Maintenance",
+    items: [
+      { href: "/assets", label: "Assets", icon: CubeIcon },
+      { href: "/pm", label: "PM Program", icon: CalendarIcon },
+      { href: "/parts", label: "Parts", icon: BoltIcon },
+      { href: "/knowledge", label: "Knowledge", icon: BookIcon },
+    ],
+  },
+  {
+    title: "Advanced",
+    muted: true,
+    items: [
+      { href: "/plc", label: "PLC Explorer", icon: ChipIcon },
+      { href: "/scenarios", label: "Scenarios", icon: BookIcon },
+      { href: "/sessions", label: "Sessions", icon: PulseIcon },
+      { href: "/dashboard", label: "Metrics", icon: ChartIcon },
+      { href: "/help", label: "How-To", icon: HelpIcon },
+    ],
+  },
 ];
 
 const STORAGE_KEY = "eas_sidebar_collapsed";
@@ -136,25 +150,31 @@ export function Sidebar() {
           </button>
         </div>
 
-        <nav aria-label="Primary" className="p-2.5 flex flex-col gap-0.5">
-          {nav.map((item) => (
-            <NavLink key={item.href} item={item} path={path} collapsed={collapsed} />
+        <nav aria-label="Primary" className="p-2.5 flex flex-col overflow-y-auto">
+          {navGroups.map((group, gi) => (
+            <div
+              key={group.title}
+              className={gi > 0 ? "mt-2 pt-2 border-t border-[var(--color-border-soft)]" : ""}
+            >
+              {!collapsed && <GroupHeader>{group.title}</GroupHeader>}
+              <div className="flex flex-col gap-0.5">
+                {group.items.map((item) => (
+                  <NavLink key={item.href} item={item} path={path} collapsed={collapsed} muted={group.muted} />
+                ))}
+              </div>
+            </div>
           ))}
+
+          {isAdmin && (
+            <div className="mt-2 pt-2 border-t border-[var(--color-border-soft)]">
+              {!collapsed && <GroupHeader>Admin</GroupHeader>}
+              <div className="flex flex-col gap-0.5">
+                <NavLink item={{ href: "/team", label: "Team & Roles", icon: ShieldIcon }} path={path} collapsed={collapsed} muted />
+                <NavLink item={{ href: "/billing", label: "Billing", icon: CreditCardIcon }} path={path} collapsed={collapsed} muted />
+              </div>
+            </div>
+          )}
         </nav>
-
-        {/* Secondary tools — quieter, separated from the daily workflow */}
-        <div className="mt-1 pt-2 px-2.5 flex flex-col gap-0.5 border-t border-[var(--color-border-soft)]">
-          {secondaryNav.map((item) => (
-            <NavLink key={item.href} item={item} path={path} collapsed={collapsed} muted />
-          ))}
-        </div>
-
-        {isAdmin && (
-          <div className="mt-1 pt-2 px-2.5 flex flex-col gap-0.5 border-t border-[var(--color-border-soft)]">
-            <NavLink item={{ href: "/team", label: "Team & Roles", icon: ShieldIcon }} path={path} collapsed={collapsed} muted />
-            <NavLink item={{ href: "/billing", label: "Billing", icon: CreditCardIcon }} path={path} collapsed={collapsed} muted />
-          </div>
-        )}
 
         <div className="mt-auto p-3 border-t border-[var(--color-border)]">
           {me?.user ? (
@@ -204,6 +224,16 @@ export function Sidebar() {
         </div>
       </aside>
     </>
+  );
+}
+
+// Quiet section label — small, muted, uppercase. Groups the nav so a long list
+// of routes reads as a few calm sections instead of one crowded pile.
+function GroupHeader({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="px-3 pt-0.5 pb-1 text-[10px] font-semibold uppercase tracking-wider text-[var(--color-faint)] select-none">
+      {children}
+    </div>
   );
 }
 
