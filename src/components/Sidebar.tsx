@@ -4,25 +4,43 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 
-// Asset-first navigation: maintenance departments organize work around the
-// MACHINE, not around record types. Equipment leads; everything else (work
-// orders, PMs, parts, knowledge, PLC) hangs off the machine you're working on.
-// Future modules (Workforce, Integrations, Analytics) are built but hidden until
-// functional.
-const nav = [
-  { href: "/today", label: "Today", icon: BoardIcon },
-  { href: "/dashboard", label: "Dashboard", icon: ChartIcon },
-  { href: "/assets", label: "Equipment", icon: CubeIcon },
-  { href: "/", label: "Copilot", icon: SparkIcon },
-  { href: "/sessions", label: "Sessions", icon: PulseIcon },
-  { href: "/work-orders", label: "Work Orders", icon: WrenchIcon },
-  { href: "/handover", label: "Shift Handover", icon: PulseIcon },
-  { href: "/pm", label: "PM Program", icon: CalendarIcon },
-  { href: "/scenarios", label: "Scenarios", icon: BookIcon },
-  { href: "/parts", label: "Parts", icon: BoltIcon },
-  { href: "/knowledge", label: "Knowledge", icon: BookIcon },
-  { href: "/plc", label: "PLC Explorer", icon: ChipIcon },
-  { href: "/help", label: "How-To", icon: HelpIcon },
+type NavItem = { href: string; label: string; icon: (p: { className?: string }) => React.ReactNode };
+
+// Navigation grouped for a calm maintenance OS, not a flat pile of modules:
+// Daily (the shift's working loop) → Maintenance (planning) → Advanced (occasional
+// tools) → Admin. Grouping only reduces visual clutter — every route stays
+// reachable; nothing is removed. Advanced/Admin render visually quieter so the
+// daily workflow leads.
+const navGroups: { title: string; muted?: boolean; items: NavItem[] }[] = [
+  {
+    title: "Daily",
+    items: [
+      { href: "/today", label: "Today", icon: BoardIcon },
+      { href: "/", label: "Copilot", icon: SparkIcon },
+      { href: "/work-orders", label: "Work Orders", icon: WrenchIcon },
+      { href: "/handover", label: "Shift Handover", icon: PulseIcon },
+    ],
+  },
+  {
+    title: "Maintenance",
+    items: [
+      { href: "/assets", label: "Equipment", icon: CubeIcon },
+      { href: "/pm", label: "PM Program", icon: CalendarIcon },
+      { href: "/parts", label: "Parts", icon: BoltIcon },
+      { href: "/knowledge", label: "Knowledge", icon: BookIcon },
+    ],
+  },
+  {
+    title: "Advanced",
+    muted: true,
+    items: [
+      { href: "/plc", label: "PLC Explorer", icon: ChipIcon },
+      { href: "/scenarios", label: "Scenarios", icon: BookIcon },
+      { href: "/sessions", label: "Sessions", icon: PulseIcon },
+      { href: "/dashboard", label: "Dashboard", icon: ChartIcon },
+      { href: "/help", label: "How-To", icon: HelpIcon },
+    ],
+  },
 ];
 
 const STORAGE_KEY = "eas_sidebar_collapsed";
@@ -133,26 +151,31 @@ export function Sidebar() {
           </button>
         </div>
 
-        <nav aria-label="Primary" className="p-2.5 flex flex-col gap-0.5">
-          {nav.map((item) => (
-            <NavLink key={item.href} item={item} path={path} collapsed={collapsed} />
+        <nav aria-label="Primary" className="p-2.5 flex flex-col overflow-y-auto">
+          {navGroups.map((group, gi) => (
+            <div
+              key={group.title}
+              className={gi > 0 ? "mt-2 pt-2 border-t border-[var(--color-border-soft)]" : ""}
+            >
+              {!collapsed && <GroupHeader>{group.title}</GroupHeader>}
+              <div className="flex flex-col gap-0.5">
+                {group.items.map((item) => (
+                  <NavLink key={item.href} item={item} path={path} collapsed={collapsed} muted={group.muted} />
+                ))}
+              </div>
+            </div>
           ))}
-        </nav>
 
-        {isAdmin && (
-          <div className="px-2.5 flex flex-col gap-0.5">
-            <NavLink
-              item={{ href: "/team", label: "Team & Roles", icon: ShieldIcon }}
-              path={path}
-              collapsed={collapsed}
-            />
-            <NavLink
-              item={{ href: "/billing", label: "Billing", icon: CreditCardIcon }}
-              path={path}
-              collapsed={collapsed}
-            />
-          </div>
-        )}
+          {isAdmin && (
+            <div className="mt-2 pt-2 border-t border-[var(--color-border-soft)]">
+              {!collapsed && <GroupHeader>Admin</GroupHeader>}
+              <div className="flex flex-col gap-0.5">
+                <NavLink item={{ href: "/team", label: "Team & Roles", icon: ShieldIcon }} path={path} collapsed={collapsed} muted />
+                <NavLink item={{ href: "/billing", label: "Billing", icon: CreditCardIcon }} path={path} collapsed={collapsed} muted />
+              </div>
+            </div>
+          )}
+        </nav>
 
         <div className="mt-auto p-3 border-t border-[var(--color-border)]">
           {me?.user ? (
@@ -205,14 +228,26 @@ export function Sidebar() {
   );
 }
 
+// Quiet section label — small, muted, uppercase. Groups the nav so a long route
+// list reads as a few calm sections instead of one crowded pile.
+function GroupHeader({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="px-3 pt-0.5 pb-1 text-[10px] font-semibold uppercase tracking-wider text-[var(--color-faint)] select-none">
+      {children}
+    </div>
+  );
+}
+
 function NavLink({
   item,
   path,
   collapsed,
+  muted = false,
 }: {
   item: { href: string; label: string; icon: (p: { className?: string }) => React.ReactNode };
   path: string;
   collapsed: boolean;
+  muted?: boolean;
 }) {
   const active = item.href === "/" ? path === "/" : path.startsWith(item.href);
   const Icon = item.icon;
@@ -222,12 +257,12 @@ function NavLink({
       title={collapsed ? item.label : undefined}
       aria-current={active ? "page" : undefined}
       aria-label={collapsed ? item.label : undefined}
-      className={`group flex items-center gap-3 rounded-lg px-3 py-2 text-[13px] transition-colors ${
+      className={`group flex items-center gap-3 rounded-lg px-3 ${muted ? "py-1.5" : "py-2"} text-[13px] transition-colors ${
         collapsed ? "md:justify-center md:px-0" : ""
       } ${
         active
           ? "bg-[var(--color-surface-2)] text-[var(--color-text)]"
-          : "text-[var(--color-muted)] hover:bg-[var(--color-surface-2)]/60 hover:text-[var(--color-text)]"
+          : `${muted ? "text-[var(--color-faint)]" : "text-[var(--color-muted)]"} hover:bg-[var(--color-surface-2)]/60 hover:text-[var(--color-text)]`
       }`}
     >
       <Icon
@@ -237,7 +272,7 @@ function NavLink({
             : "text-[var(--color-faint)] group-hover:text-[var(--color-muted)]"
         }`}
       />
-      {!collapsed && <span className="font-medium truncate">{item.label}</span>}
+      {!collapsed && <span className={`${muted ? "" : "font-medium"} truncate`}>{item.label}</span>}
     </Link>
   );
 }

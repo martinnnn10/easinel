@@ -99,7 +99,7 @@ const FREQUENCY_OPTIONS = [
 export default function PmPage() {
   const [programs, setPrograms] = useState<PmItem[]>([]);
   const [duePrograms, setDuePrograms] = useState<PmItem[]>([]);
-  const [filter, setFilter] = useState<"all" | "draft" | "active" | "due">("all");
+  const [filter, setFilter] = useState<"all" | "draft" | "active" | "due" | "archived">("all");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState<string>("");
@@ -464,17 +464,22 @@ export default function PmPage() {
     }
   };
 
+  // "All" is the working view: active + draft only. Archived/dismissed PMs are
+  // hidden here and live behind their own tab so they don't clutter the board.
   const shown = filter === "due"
     ? duePrograms
-    : programs.filter((p) => (filter === "all" ? true : p.status === filter));
+    : filter === "all"
+    ? programs.filter((p) => p.status !== "archived")
+    : programs.filter((p) => p.status === filter);
   const drafts = programs.filter((p) => p.status === "draft").length;
+  const archivedCount = programs.filter((p) => p.status === "archived").length;
   const dueCount = duePrograms.length;
 
   return (
     <>
       <TopBar
         title="PM Program"
-        subtitle="Generate a full PM schedule from a machine's model/serial, or approve AI proposals from real repairs"
+        subtitle="Plan, approve, and complete preventive maintenance for each machine"
       />
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-4xl mx-auto px-5 py-6">
@@ -651,8 +656,9 @@ export default function PmPage() {
             )}
           </div>
 
-          {/* ── Filter tabs ── */}
-          <div className="flex items-center gap-1.5 mb-5">
+          {/* ── Filter tabs ── Working views on the left; Archived pushed to the
+              right and visually quieter so dismissed PMs never crowd the board. */}
+          <div className="flex items-center gap-1.5 mb-4">
             {(["all", "draft", "active", "due"] as const).map((f) => (
               <button
                 key={f}
@@ -667,6 +673,18 @@ export default function PmPage() {
                 {f === "draft" && drafts > 0 ? ` (${drafts})` : ""}
               </button>
             ))}
+            {archivedCount > 0 && (
+              <button
+                onClick={() => setFilter("archived")}
+                className={`ml-auto text-[12px] px-3 py-1 rounded-full border transition ${
+                  filter === "archived"
+                    ? "border-[var(--color-border)] text-[var(--color-muted)] bg-[var(--color-surface-2)]"
+                    : "border-transparent text-[var(--color-faint)] hover:text-[var(--color-muted)]"
+                }`}
+              >
+                Archived ({archivedCount})
+              </button>
+            )}
           </div>
 
           {/* ── PM List ── */}
@@ -695,99 +713,114 @@ export default function PmPage() {
               </p>
             </div>
           ) : (
-            <div className="space-y-2.5">
-              {shown.map((p) => (
-                <div
-                  key={p.id}
-                  className="block rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 hover:border-[var(--color-accent)]/50 hover:bg-[var(--color-surface-2)]/40 transition"
-                >
-                  <div className="flex items-start gap-3">
-                    <Link href={`/pm/${p.id}`} className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2 flex-wrap">
+            <div className="rounded-xl border border-[var(--color-border)] overflow-hidden divide-y divide-[var(--color-border-soft)]">
+              {shown.map((p) => {
+                const archived = p.status === "archived";
+                return (
+                  <div
+                    key={p.id}
+                    className={`px-3.5 py-2.5 hover:bg-[var(--color-surface-2)]/40 transition ${archived ? "opacity-60" : ""}`}
+                  >
+                    <div className="flex items-center gap-3">
+                      {/* status dot — carries the state so we don't need a badge for it */}
+                      <span
+                        className="w-1.5 h-1.5 rounded-full shrink-0"
+                        style={{ background: statusColor[p.status] ?? "var(--color-faint)" }}
+                        title={p.status}
+                      />
+                      <Link href={`/pm/${p.id}`} className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[13px] font-medium text-[var(--color-text)] truncate">{p.title}</span>
+                          {p.source === "ai_suggested" && p.status === "draft" && (
+                            <span className="shrink-0 text-[9.5px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded-full text-[var(--color-accent)] bg-[var(--color-accent)]/10">
+                              AI
+                            </span>
+                          )}
+                        </div>
+                        {/* One clear secondary line: machine · cadence · (due / confidence) */}
+                        <div className="flex items-center gap-1.5 text-[12px] text-[var(--color-muted)] mt-0.5 truncate">
+                          <span className="truncate">{p.assetName || "Unassigned"}</span>
+                          <span className="text-[var(--color-faint)]">·</span>
+                          <span className="shrink-0">{p.frequencyLabel ?? "—"}</span>
+                          {filter === "due" && p.nextDueAt && (
+                            <>
+                              <span className="text-[var(--color-faint)]">·</span>
+                              <span className="shrink-0 text-[var(--color-red)]">overdue {new Date(p.nextDueAt).toLocaleDateString()}</span>
+                            </>
+                          )}
+                          {p.confidence && p.status === "draft" && (
+                            <>
+                              <span className="text-[var(--color-faint)]">·</span>
+                              <span className="shrink-0" style={{ color: confColor[p.confidence] }}>{p.confidence} confidence</span>
+                            </>
+                          )}
+                        </div>
+                      </Link>
+
+                      {/* Status word only where it isn't implied by the current tab */}
+                      {filter === "all" && (p.status === "draft" || p.status === "active") && (
                         <span
-                          className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded-full"
-                          style={{ color: statusColor[p.status], background: "var(--color-surface-2)" }}
+                          className="hidden sm:inline text-[10px] uppercase tracking-wide shrink-0"
+                          style={{ color: statusColor[p.status] }}
                         >
                           {p.status}
                         </span>
-                        {p.source === "ai_suggested" && (
-                          <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded-full text-[var(--color-accent)] bg-[var(--color-accent)]/10">
-                            AI proposed
-                          </span>
-                        )}
-                        {p.confidence && (
-                          <span className="text-[10px]" style={{ color: confColor[p.confidence] }}>
-                            ● {p.confidence} confidence
-                          </span>
-                        )}
-                        {filter === "due" && p.nextDueAt && (
-                          <span className="text-[10px] text-[var(--color-red)]">
-                            Overdue since {new Date(p.nextDueAt).toLocaleDateString()}
-                          </span>
-                        )}
-                      </div>
-                      <h3 className="text-[14px] font-semibold mt-1.5 truncate">{p.title}</h3>
-                      <p className="text-[12px] text-[var(--color-muted)] mt-0.5">
-                        {p.assetName ? `${p.assetName} · ` : ""}
-                        {p.frequencyLabel ?? "—"}
-                        {p.failureMode ? ` · prevents: ${p.failureMode}` : ""}
-                      </p>
-                      {p.reasoning && (
-                        <p className="text-[12px] text-[var(--color-faint)] mt-2 leading-snug line-clamp-2">{p.reasoning}</p>
                       )}
-                    </Link>
-                    <div className="flex flex-col gap-1.5 shrink-0">
-                      {p.status === "draft" && (
-                        <>
-                          <button
-                            disabled={busy === p.id + "approve"}
-                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); act(p.id, "approve"); }}
-                            className="text-[12px] font-medium rounded-lg bg-[var(--color-accent)] text-white px-3 py-1.5 hover:brightness-110 disabled:opacity-50"
-                          >
-                            {busy === p.id + "approve" ? "…" : "Approve"}
-                          </button>
-                          <button
-                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); act(p.id, "archive"); }}
-                            className="text-[11px] text-[var(--color-faint)] hover:text-[var(--color-red)]"
-                          >
-                            Dismiss
-                          </button>
-                        </>
-                      )}
-                      {p.status === "active" && filter !== "due" && (
-                        <button
-                          onClick={(e) => { e.preventDefault(); e.stopPropagation(); openCompletion(p); }}
-                          className="text-[12px] font-medium rounded-lg bg-[var(--color-surface-2)] border border-[var(--color-border)] px-3 py-1.5 hover:border-[var(--color-accent)]/50"
-                        >
-                          Mark done
-                        </button>
-                      )}
-                      {filter === "due" && (
-                        <div className="flex flex-col gap-1.5">
-                          <button
-                            disabled={busy === p.id + "genwo"}
-                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); generateWo(p.id); }}
-                            className="text-[12px] font-medium rounded-lg bg-[var(--color-accent)] text-white px-3 py-1.5 hover:brightness-110 disabled:opacity-50"
-                          >
-                            {busy === p.id + "genwo" ? "…" : "Generate WO"}
-                          </button>
+
+                      {/* Actions — compact, inline */}
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {p.status === "draft" && (
+                          <>
+                            <button
+                              disabled={busy === p.id + "approve"}
+                              onClick={(e) => { e.preventDefault(); e.stopPropagation(); act(p.id, "approve"); }}
+                              className="text-[12px] font-medium rounded-lg bg-[var(--color-accent)] text-white px-3 py-1 hover:brightness-110 disabled:opacity-50"
+                            >
+                              {busy === p.id + "approve" ? "…" : "Approve"}
+                            </button>
+                            <button
+                              onClick={(e) => { e.preventDefault(); e.stopPropagation(); act(p.id, "archive"); }}
+                              className="text-[11px] text-[var(--color-faint)] hover:text-[var(--color-red)] px-1"
+                            >
+                              Dismiss
+                            </button>
+                          </>
+                        )}
+                        {p.status === "active" && filter !== "due" && (
                           <button
                             onClick={(e) => { e.preventDefault(); e.stopPropagation(); openCompletion(p); }}
-                            className="text-[11px] text-[var(--color-faint)] hover:text-[var(--color-text)]"
+                            className="text-[12px] font-medium rounded-lg border border-[var(--color-border)] px-3 py-1 hover:border-[var(--color-accent)]/50 hover:bg-[var(--color-surface-2)]"
                           >
                             Mark done
                           </button>
-                          {genWoMsg[p.id] && (
-                            <p className={`text-[11px] mt-1 ${genWoMsg[p.id].startsWith("WO created") ? "text-[var(--color-green)]" : "text-[var(--color-red)]"}`}>
-                              {genWoMsg[p.id]}
-                            </p>
-                          )}
-                        </div>
-                      )}
+                        )}
+                        {filter === "due" && (
+                          <>
+                            <button
+                              disabled={busy === p.id + "genwo"}
+                              onClick={(e) => { e.preventDefault(); e.stopPropagation(); generateWo(p.id); }}
+                              className="text-[12px] font-medium rounded-lg bg-[var(--color-accent)] text-white px-3 py-1 hover:brightness-110 disabled:opacity-50"
+                            >
+                              {busy === p.id + "genwo" ? "…" : "Generate WO"}
+                            </button>
+                            <button
+                              onClick={(e) => { e.preventDefault(); e.stopPropagation(); openCompletion(p); }}
+                              className="text-[11px] text-[var(--color-faint)] hover:text-[var(--color-text)] px-1"
+                            >
+                              Done
+                            </button>
+                          </>
+                        )}
+                      </div>
                     </div>
+                    {filter === "due" && genWoMsg[p.id] && (
+                      <p className={`text-[11px] mt-1.5 pl-[18px] ${genWoMsg[p.id].startsWith("WO created") ? "text-[var(--color-green)]" : "text-[var(--color-red)]"}`}>
+                        {genWoMsg[p.id]}
+                      </p>
+                    )}
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
