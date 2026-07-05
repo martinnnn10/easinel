@@ -17,11 +17,12 @@
   --color-text: #f1f5ee;       /* soft off-white */
   --color-muted: #b8c2b4;      /* secondary text */
   --color-faint: #7f8b7b;      /* muted — still AA on panels for non-critical text */
-  /* Controlled industrial green (not neon). Reserved for primary buttons, active
-     nav, and healthy status. Filled buttons get dark on-accent text (below). */
-  --color-accent: #74b843;
-  --color-accent-soft: #22331d;
-  --color-on-accent: #0b1406;
+  /* Muted industrial green — desaturated and calm, NOT neon. Reserved for primary
+     buttons, the active nav item, and healthy status only. Filled buttons get
+     dark on-accent text (below). Green is a quiet accent, not the UI's mood. */
+  --color-accent: #5f9748;
+  --color-accent-soft: #1e2a17;
+  --color-on-accent: #0b1206;
   --color-amber: #d6a23a;      /* warning */
   --color-green: #57b06a;      /* healthy/success — muted, distinct from accent */
   --color-red: #e05252;        /* down / critical */

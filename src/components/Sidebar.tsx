@@ -4,23 +4,27 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 
-// Asset-first navigation: maintenance departments organize work around the
-// MACHINE, not around record types. Equipment leads; everything else (work
-// orders, PMs, parts, knowledge, PLC) hangs off the machine you're working on.
-// Future modules (Workforce, Integrations, Analytics) are built but hidden until
-// functional.
+// Navigation follows the daily maintenance LOOP, not a pile of modules:
+// Today → the machine (Assets) → ask the Copilot → work order → repair →
+// capture (PMs / Knowledge / Parts) → handover. Secondary tools (Scenarios,
+// PLC, metrics, how-to) are one tap away but don't crowd the daily workflow.
 const nav = [
-  { href: "/dashboard", label: "Dashboard", icon: ChartIcon },
-  { href: "/assets", label: "Equipment", icon: CubeIcon },
+  { href: "/today", label: "Today", icon: BoardIcon },
+  { href: "/assets", label: "Assets", icon: CubeIcon },
   { href: "/", label: "Copilot", icon: SparkIcon },
-  { href: "/sessions", label: "Sessions", icon: PulseIcon },
   { href: "/work-orders", label: "Work Orders", icon: WrenchIcon },
-  { href: "/handover", label: "Shift Handover", icon: PulseIcon },
-  { href: "/pm", label: "PM Program", icon: CalendarIcon },
-  { href: "/scenarios", label: "Scenarios", icon: BookIcon },
-  { href: "/parts", label: "Parts", icon: BoltIcon },
+  { href: "/pm", label: "PMs", icon: CalendarIcon },
   { href: "/knowledge", label: "Knowledge", icon: BookIcon },
+  { href: "/parts", label: "Parts", icon: BoltIcon },
+  { href: "/handover", label: "Handover", icon: PulseIcon },
+];
+
+// Secondary / occasional tools — visible but visually quieter.
+const secondaryNav = [
+  { href: "/sessions", label: "Copilot history", icon: PulseIcon },
+  { href: "/scenarios", label: "Troubleshooting cases", icon: BookIcon },
   { href: "/plc", label: "PLC Explorer", icon: ChipIcon },
+  { href: "/dashboard", label: "Metrics", icon: ChartIcon },
   { href: "/help", label: "How-To", icon: HelpIcon },
 ];
 
@@ -138,18 +142,17 @@ export function Sidebar() {
           ))}
         </nav>
 
+        {/* Secondary tools — quieter, separated from the daily workflow */}
+        <div className="mt-1 pt-2 px-2.5 flex flex-col gap-0.5 border-t border-[var(--color-border-soft)]">
+          {secondaryNav.map((item) => (
+            <NavLink key={item.href} item={item} path={path} collapsed={collapsed} muted />
+          ))}
+        </div>
+
         {isAdmin && (
-          <div className="px-2.5 flex flex-col gap-0.5">
-            <NavLink
-              item={{ href: "/team", label: "Team & Roles", icon: ShieldIcon }}
-              path={path}
-              collapsed={collapsed}
-            />
-            <NavLink
-              item={{ href: "/billing", label: "Billing", icon: CreditCardIcon }}
-              path={path}
-              collapsed={collapsed}
-            />
+          <div className="mt-1 pt-2 px-2.5 flex flex-col gap-0.5 border-t border-[var(--color-border-soft)]">
+            <NavLink item={{ href: "/team", label: "Team & Roles", icon: ShieldIcon }} path={path} collapsed={collapsed} muted />
+            <NavLink item={{ href: "/billing", label: "Billing", icon: CreditCardIcon }} path={path} collapsed={collapsed} muted />
           </div>
         )}
 
@@ -208,10 +211,12 @@ function NavLink({
   item,
   path,
   collapsed,
+  muted = false,
 }: {
   item: { href: string; label: string; icon: (p: { className?: string }) => React.ReactNode };
   path: string;
   collapsed: boolean;
+  muted?: boolean;
 }) {
   const active = item.href === "/" ? path === "/" : path.startsWith(item.href);
   const Icon = item.icon;
@@ -221,23 +226,30 @@ function NavLink({
       title={collapsed ? item.label : undefined}
       aria-current={active ? "page" : undefined}
       aria-label={collapsed ? item.label : undefined}
-      className={`group flex items-center gap-3 rounded-lg px-3 py-2 text-[13px] transition-colors ${
+      className={`group flex items-center gap-3 rounded-lg px-3 ${muted ? "py-1.5" : "py-2"} text-[13px] transition-colors ${
         collapsed ? "md:justify-center md:px-0" : ""
       } ${
         active
           ? "bg-[var(--color-surface-2)] text-[var(--color-text)]"
-          : "text-[var(--color-muted)] hover:bg-[var(--color-surface-2)]/60 hover:text-[var(--color-text)]"
+          : `${muted ? "text-[var(--color-faint)]" : "text-[var(--color-muted)]"} hover:bg-[var(--color-surface-2)]/60 hover:text-[var(--color-text)]`
       }`}
     >
       <Icon
         className={`w-4 h-4 shrink-0 ${
-          active
-            ? "text-[var(--color-accent)]"
-            : "text-[var(--color-faint)] group-hover:text-[var(--color-muted)]"
+          active ? "text-[var(--color-accent)]" : "text-[var(--color-faint)] group-hover:text-[var(--color-muted)]"
         }`}
       />
-      {!collapsed && <span className="font-medium truncate">{item.label}</span>}
+      {!collapsed && <span className={`${muted ? "" : "font-medium"} truncate`}>{item.label}</span>}
     </Link>
+  );
+}
+
+function BoardIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="3" width="7" height="9" rx="1" /><rect x="14" y="3" width="7" height="5" rx="1" />
+      <rect x="14" y="12" width="7" height="9" rx="1" /><rect x="3" y="16" width="7" height="5" rx="1" />
+    </svg>
   );
 }
 

@@ -83,8 +83,8 @@ export default function AssetsPage() {
   return (
     <>
       <TopBar
-        title="Equipment"
-        subtitle="Digital twins — nameplate, history, reliability, drawings, PLC & per-machine AI"
+        title="Assets"
+        subtitle="Machine memory — each asset's history, failures, PMs, drawings, and per-asset AI"
         right={
           <button
             onClick={() => setShowForm(true)}

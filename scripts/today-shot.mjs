@@ -1,0 +1,12 @@
+import { chromium } from "playwright-core";
+import { execSync } from "child_process";
+const EXE = execSync("ls -d /opt/pw-browsers/chromium*/chrome-linux/chrome 2>/dev/null | head -1").toString().trim();
+const b = await chromium.launch({ executablePath: EXE, args: ["--no-sandbox"] });
+const p = await (await b.newContext({ viewport: { width: 1440, height: 950 } })).newPage();
+await p.goto("http://localhost:3950/today", { waitUntil: "networkidle" });
+await p.waitForTimeout(1500);
+await p.screenshot({ path: `${process.env.SHOT_DIR}/today.png` });
+const t = (await p.textContent("body")) || "";
+console.log("Today title:", /Today/.test(t), "| sections:", /Machines down/.test(t) && /Open critical work/.test(t) && /Shift handover/.test(t));
+console.log("nav simplified:", /Assets/.test(t) && /Handover/.test(t) && !/PM Program/.test(t));
+await b.close();

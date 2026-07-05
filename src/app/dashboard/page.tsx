@@ -90,7 +90,7 @@ export default function DashboardPage() {
     return (
       <div className="flex-1 overflow-y-auto p-6">
         <div className="max-w-7xl mx-auto">
-          <h1 className="text-[20px] font-semibold mb-6">Dashboard</h1>
+          <h1 className="text-[20px] font-semibold mb-6">Metrics</h1>
           <p className="text-[13px] text-[var(--color-muted)]">Loading KPIs…</p>
         </div>
       </div>
@@ -101,7 +101,7 @@ export default function DashboardPage() {
     return (
       <div className="flex-1 overflow-y-auto p-6">
         <div className="max-w-7xl mx-auto">
-          <h1 className="text-[20px] font-semibold mb-6">Dashboard</h1>
+          <h1 className="text-[20px] font-semibold mb-6">Metrics</h1>
           <p className="text-[13px] text-[var(--color-muted)]">Failed to load dashboard data.</p>
         </div>
       </div>
@@ -126,7 +126,7 @@ export default function DashboardPage() {
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
-          <h1 className="text-[20px] font-semibold">Dashboard</h1>
+          <h1 className="text-[20px] font-semibold">Metrics</h1>
           <select
             value={period}
             onChange={(e) => setPeriod(Number(e.target.value))}

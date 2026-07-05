@@ -57,8 +57,8 @@ export default function ScenariosPage() {
   return (
     <>
       <TopBar
-        title="Scenarios"
-        subtitle="Your plant's real troubleshooting & training cases"
+        title="Troubleshooting cases"
+        subtitle="Real repair knowledge from your closed work orders, Copilot sessions, and technician notes"
         right={
           <button
             onClick={() => setEditing("new")}

@@ -74,7 +74,7 @@ export default function AssetPage({ params }: { params: Promise<{ id: string }> 
 
   useEffect(() => { setLoading(true); load(); }, [load]);
 
-  if (loading) return <CenterNote>Loading digital twin…</CenterNote>;
+  if (loading) return <CenterNote>Loading asset…</CenterNote>;
   if (error === "not_found")
     return (
       <CenterNote>
