@@ -1,20 +1,23 @@
 // The catalog of systems EAS integrates with. This is what makes EAS a
-// platform, not an app: it sits ON TOP of the customer's existing CMMS, CRM,
-// ATS, ERP, and sensor stack and becomes the layer of intelligence across them.
+// platform, not an app: it sits ON TOP of the customer's existing CMMS/EAM,
+// ERP, and sensor stack and becomes the maintenance-intelligence layer across
+// them. Scope is deliberately maintenance-only: CMMS/EAM, ERP plant
+// maintenance, sensors/condition monitoring (and later parts suppliers, PLC/
+// historian/SCADA, document storage). ATS/HRIS/recruiting systems are NOT part
+// of this product.
 //
 // Each connector declares its category, auth model, and capabilities. Live
 // credentials are supplied per-deployment (env / vault); until then a connector
 // runs in sandbox mode against a deterministic mock so the whole flow is
 // demoable end-to-end.
 
-export type ConnectorCategory = "cmms" | "crm" | "ats" | "erp" | "sensors";
+export type ConnectorCategory = "cmms" | "crm" | "erp" | "sensors";
 
 export type Capability =
   | "pull_assets"
   | "push_work_order"
   | "pull_work_orders"
   | "pull_people"
-  | "push_candidate_match"
   | "pull_sensor_alerts"
   | "pull_failures";
 
@@ -102,33 +105,6 @@ export const CONNECTORS: ConnectorDef[] = [
     capabilities: ["pull_people"],
   },
 
-  // ── ATS / HRIS (workforce intelligence) ─────────────────────
-  {
-    key: "greenhouse",
-    name: "Greenhouse",
-    category: "ats",
-    blurb: "Push skill-gap-driven candidate matches into your hiring pipeline.",
-    auth: "api_key",
-    capabilities: ["pull_people", "push_candidate_match"],
-    popular: true,
-  },
-  {
-    key: "lever",
-    name: "Lever",
-    category: "ats",
-    blurb: "Match technicians to reqs based on the skills your plant actually needs.",
-    auth: "oauth2",
-    capabilities: ["pull_people", "push_candidate_match"],
-  },
-  {
-    key: "workday",
-    name: "Workday",
-    category: "ats",
-    blurb: "HRIS sync of technicians, roles, certifications & competencies.",
-    auth: "oauth2",
-    capabilities: ["pull_people"],
-  },
-
   // ── Sensors / condition monitoring ──────────────────────────
   {
     key: "tractian",
@@ -169,7 +145,6 @@ export const CATEGORY_LABEL: Record<ConnectorCategory, string> = {
   cmms: "CMMS / EAM",
   erp: "ERP",
   crm: "CRM",
-  ats: "ATS / HRIS",
   sensors: "Sensors & Condition Monitoring",
 };
 

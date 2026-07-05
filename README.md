@@ -2,7 +2,7 @@
 
 **The AI Operating System for Manufacturing Maintenance.**
 
-Not a CMMS. Not an LMS. Not an ATS. This is the application a maintenance
+Not a CMMS clone. This is the application a maintenance
 technician, controls engineer, planner, reliability engineer, or maintenance
 manager opens dozens of times a day to **solve real problems in seconds** —
 troubleshooting, RCA, PMs, work orders, and document-grounded answers.
@@ -123,13 +123,13 @@ EAS is built to be the **system of intelligence on top of** a plant's existing
 stack — not a rip-and-replace. The platform layer makes that real:
 
 - **Public API (`/api/v1`)** secured by API keys (`Authorization: Bearer eas_live_…`).
-  Any CRM/ATS/CMMS/portal can embed EAS:
+  Any CMMS/EAM/ERP/portal can embed EAS:
   - `POST /api/v1/ask` — the Copilot as an API (structured answer + sources)
   - `GET|POST /api/v1/work-orders`, `GET|POST /api/v1/assets`
 - **Connector framework** (`src/lib/integrations/`) — a 15-connector catalog with
   a single `ConnectorAdapter` interface and per-connector sandbox mode:
   - **CMMS/EAM:** MaintainX, Fiix, Limble, UpKeep · **ERP:** SAP PM, IBM Maximo
-  - **CRM:** Salesforce, HubSpot · **ATS/HRIS:** Greenhouse, Lever, Workday
+  - **CRM:** Salesforce, HubSpot
   - **Sensors:** Tractian, SKF, MachineMetrics, Fluke
   - Connect → Sync pulls assets + work orders in; work orders push back out. Live
     credentials swap the sandbox adapter for a real one without touching callers.
@@ -137,10 +137,9 @@ stack — not a rip-and-replace. The platform layer makes that real:
   `integration.synced`, `copilot.answered`, `asset.created`, and more.
 - **Work Orders** — first-class records. The Copilot's diagnosis converts to a
   work order in one click, which then syncs to any connected CMMS.
-- **Workforce Intelligence** — the ATS/hiring bridge. A live skills matrix
-  computes coverage, flags single-points-of-failure, auto-drafts the *exact
-  hire* that closes the gap, and **scores candidates** against your real gaps
-  (critical gaps weighted 3×) → pushed to your ATS as a requisition.
+- **Team Skills** — the technician skills matrix. Computes per-skill coverage
+  and flags single-points-of-failure so managers can plan cross-training and
+  safe work assignment. (Recruiting/ATS features are not part of this product.)
 - **Live connectors** — the sandbox swaps to a real vendor adapter the moment a
   credential is present. **MaintainX is implemented live** today
   (`MAINTAINX_API_KEY`): real work-order push, asset/WO pull. Other connectors
@@ -158,4 +157,4 @@ stack — not a rip-and-replace. The platform layer makes that real:
 Live connector credentials & OAuth flows · per-connector field mapping ·
 vector/embedding retrieval · background job queue with retries/dead-letter ·
 RBAC + SSO · sensor-alert → auto-triage → work order automation ·
-candidate-match scoring against the skills matrix.
+parts-supplier and PLC/historian integrations.

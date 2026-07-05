@@ -1,23 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
-import {
-  buildMatrix,
-  buildHiringBrief,
-  createTechnician,
-  setSkill,
-  scoreCandidate,
-} from "@/lib/workforce";
-import { emitEvent } from "@/lib/events";
+import { buildMatrix, createTechnician, setSkill } from "@/lib/workforce";
 import { requirePermission } from "@/lib/auth/guard";
 import { safeHandler } from "@/lib/api/safeHandler";
 
 export const runtime = "nodejs";
 
+// Team Skills API — the technician skills matrix (coverage + key-person risk)
+// used for cross-training and safe work assignment. Recruiting features
+// (candidate scoring, hiring briefs, ATS push) are NOT part of the product.
 export const GET = safeHandler("workforce.get", async () => {
   const gate = await requirePermission("view");
   if (gate instanceof NextResponse) return gate;
   const matrix = await buildMatrix(gate.user.orgId);
-  const brief = buildHiringBrief(matrix);
-  return NextResponse.json({ matrix, brief });
+  return NextResponse.json({ matrix });
 });
 
 export const POST = safeHandler("workforce.post", async (req: NextRequest) => {
@@ -37,22 +32,6 @@ export const POST = safeHandler("workforce.post", async (req: NextRequest) => {
   }
   if (body.action === "set_skill") {
     await setSkill(orgId, body.technicianId, body.skillId, Number(body.proficiency) || 0);
-    return NextResponse.json({ ok: true });
-  }
-  if (body.action === "score_candidate") {
-    const matrix = await buildMatrix(orgId);
-    const match = scoreCandidate(matrix, {
-      name: body.name || "Candidate",
-      skills: Array.isArray(body.skills) ? body.skills : [],
-    });
-    return NextResponse.json({ match });
-  }
-  if (body.action === "push_candidate_match") {
-    await emitEvent(orgId, "candidate.matched", {
-      name: body.name,
-      fitScore: body.fitScore,
-      target: body.connectorKey ?? null,
-    });
     return NextResponse.json({ ok: true });
   }
   return NextResponse.json({ error: "unknown action" }, { status: 400 });

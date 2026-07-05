@@ -19,7 +19,6 @@ export type EventType =
   | "integration.connected"
   | "integration.synced"
   | "copilot.answered"
-  | "candidate.matched"
   | "workorder.closed"
   | "pm.suggested"
   | "pm.approved"

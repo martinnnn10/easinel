@@ -1,3 +1,5 @@
+> **HISTORICAL STRATEGY DOCUMENT — NOT CURRENT PRODUCT SCOPE.** Any ATS/HRIS/recruiting/workforce-intelligence concepts below were explored and rejected. EAS Maintenance Intelligence is an AI maintenance platform (assets, work orders, PMs, Copilot, machine memory). Recruiting features are not part of the product.
+
 # Research grounding — EAS Intelligence strategy package
 
 ## Market pain (the "why now")

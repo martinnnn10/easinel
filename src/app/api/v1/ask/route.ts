@@ -9,7 +9,7 @@ import { apiError } from "@/lib/api/respond";
 export const runtime = "nodejs";
 export const maxDuration = 120;
 
-// POST /api/v1/ask — the Copilot as an API. Any CRM/ATS/CMMS/portal can embed
+// POST /api/v1/ask — the Copilot as an API. Any CMMS/EAM/ERP/portal can embed
 // EAS troubleshooting intelligence with one authenticated call.
 export const POST = withApiKey(async (req: NextRequest, orgId: string) => {
   // Per-tenant throttle so one customer's integration can't exhaust shared

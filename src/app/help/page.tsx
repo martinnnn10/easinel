@@ -195,7 +195,7 @@ export default function HelpPage() {
             <div className="grid sm:grid-cols-2 gap-2 mt-3 text-[12px]">
               {[
                 ["Owner / Admin", "Everything, incl. users, integrations & API keys"],
-                ["Manager", "Work orders, PM programs, workforce"],
+                ["Manager", "Work orders, PM programs, team skills"],
                 ["Technician", "Create/close work orders, complete PMs, upload, ask"],
                 ["Viewer", "Read-only + ask the Copilot"],
               ].map(([r, d]) => (

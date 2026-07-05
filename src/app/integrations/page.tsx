@@ -23,10 +23,9 @@ const CAT_LABEL: Record<string, string> = {
   cmms: "CMMS / EAM",
   erp: "ERP",
   crm: "CRM",
-  ats: "ATS / HRIS",
   sensors: "Sensors & Condition Monitoring",
 };
-const CAT_ORDER = ["cmms", "erp", "crm", "ats", "sensors"];
+const CAT_ORDER = ["cmms", "erp", "crm", "sensors"];
 
 export default function IntegrationsPage() {
   const [tab, setTab] = useState<"connectors" | "developers">("connectors");
@@ -34,7 +33,7 @@ export default function IntegrationsPage() {
     <>
       <TopBar
         title="Integrations"
-        subtitle="EAS sits on top of your stack — CMMS, ERP, CRM, ATS & sensors"
+        subtitle="EAS sits on top of your maintenance stack — CMMS/EAM, ERP & condition-monitoring sensors"
         right={
           <div className="flex gap-1 bg-[var(--color-surface-2)] rounded-lg p-0.5">
             {(["connectors", "developers"] as const).map((t) => (

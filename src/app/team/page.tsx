@@ -24,7 +24,7 @@ const INVITE_ROLES = ["admin", "manager", "technician", "viewer"];
 const ROLE_DESC: Record<string, string> = {
   owner: "Full control incl. billing & owners",
   admin: "Manage users, integrations, API keys",
-  manager: "Workforce, work orders, all maintenance",
+  manager: "Team skills, work orders, all maintenance",
   technician: "Create/update work orders, ask Copilot, upload",
   viewer: "Read-only + ask Copilot",
 };
