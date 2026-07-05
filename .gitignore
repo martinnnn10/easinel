@@ -23,3 +23,6 @@ tsconfig.tsbuildinfo
 
 # Local Claude Code settings (machine-specific; never shared).
 .claude/settings.local.json
+
+# Manus deployment artifacts (generated, not source)
+easinel-manus-*.zip
