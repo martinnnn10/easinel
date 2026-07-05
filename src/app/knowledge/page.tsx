@@ -273,7 +273,7 @@ export default function KnowledgePage() {
           loading={detailLoading}
           onClose={() => setDetail(null)}
           onAskCopilot={(d) =>
-            router.push(d.asset?.id ? `/assets/${d.asset.id}?tab=ai` : `/`)
+            router.push(d.asset?.id ? `/assets/${d.asset.id}?tab=ai` : `/copilot`)
           }
         />
       )}

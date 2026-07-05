@@ -52,6 +52,10 @@ export function middleware(req: NextRequest) {
   if (!authGateActive()) return harden(NextResponse.next(), pathname);
 
   const isPublic =
+    // The marketing site at the root is public — the app lives behind /login
+    // and the protected routes (/today, /copilot, …). Exact match only, so
+    // every real app path stays gated.
+    pathname === "/" ||
     pathname.startsWith("/login") ||
     // A newly invited user must reach the invite-acceptance page (to set their
     // password) BEFORE they have a session — gating it would trap them at /login.

@@ -30,7 +30,7 @@ export default function TodayPage() {
         subtitle="What's down, what needs attention, and what to do next — grounded in your plant data"
         right={
           <div className="flex items-center gap-2">
-            <Link href="/" className="text-[13px] font-medium rounded-lg bg-[var(--color-accent)] text-white px-3.5 py-1.5 hover:brightness-110">Ask Copilot</Link>
+            <Link href="/copilot" className="text-[13px] font-medium rounded-lg bg-[var(--color-accent)] text-white px-3.5 py-1.5 hover:brightness-110">Ask Copilot</Link>
             <Link href="/work-orders" className="text-[13px] font-medium rounded-lg border border-[var(--color-border)] px-3.5 py-1.5 hover:bg-[var(--color-surface-2)]">Create work order</Link>
             <Link href="/handover" className="text-[13px] font-medium rounded-lg border border-[var(--color-border)] px-3.5 py-1.5 hover:bg-[var(--color-surface-2)]">Add handover note</Link>
           </div>
@@ -82,7 +82,7 @@ export default function TodayPage() {
 
                 <Section title="Recent Copilot sessions" href="/sessions" empty="No recent sessions.">
                   {d.recentSessions.map((s) => (
-                    <Row key={s.id} href={`/?c=${s.id}`} dot="var(--color-accent)" text={s.title} sub={new Date(s.updatedAt).toLocaleDateString()} />
+                    <Row key={s.id} href={`/copilot?c=${s.id}`} dot="var(--color-accent)" text={s.title} sub={new Date(s.updatedAt).toLocaleDateString()} />
                   ))}
                 </Section>
 

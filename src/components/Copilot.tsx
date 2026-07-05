@@ -77,7 +77,7 @@ export function Copilot({
     }
   }, [seed, conversationId, reset]);
 
-  // Resume a troubleshooting session linked via ?c=<id> (home only).
+  // Resume a troubleshooting session linked via ?c=<id> (/copilot only).
   useEffect(() => {
     if (assetId || seed) return;
     const sid = new URLSearchParams(window.location.search).get("c");

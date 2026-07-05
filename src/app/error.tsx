@@ -43,10 +43,10 @@ export default function Error({
             Try again
           </button>
           <Link
-            href="/"
+            href="/today"
             className="text-[13px] font-medium px-4 py-2 rounded-lg border border-[var(--color-border)] hover:bg-[var(--color-surface-2)]"
           >
-            Back to dashboard
+            Back to Today
           </Link>
         </div>
       </div>

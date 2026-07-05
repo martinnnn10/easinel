@@ -16,7 +16,8 @@ export default function LoginPage() {
       .then((r) => r.json())
       .then((d) => {
         if (d.user) {
-          window.location.href = "/";
+          window.location.href =
+            new URLSearchParams(window.location.search).get("next") || "/today";
           return;
         }
         setOidc(Boolean(d.oidc));
@@ -41,7 +42,8 @@ export default function LoginPage() {
       setBusy(false);
       return;
     }
-    window.location.href = "/";
+    window.location.href =
+      new URLSearchParams(window.location.search).get("next") || "/today";
   };
 
   const canSubmit =
@@ -56,7 +58,7 @@ export default function LoginPage() {
           <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-[var(--color-accent)] to-[#2f7a12] grid place-items-center text-[var(--color-on-accent)] font-bold shadow-lg shadow-black/40">
             E
           </div>
-          <div className="text-[15px] font-semibold tracking-tight">EAS Intelligence</div>
+          <div className="text-[15px] font-semibold tracking-tight">EAS Maintenance Intelligence</div>
         </div>
 
         <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6">
@@ -126,6 +128,11 @@ export default function LoginPage() {
         </div>
         <p className="text-center text-[11px] text-[var(--color-faint)] mt-4">
           Multi-org · Enterprise SSO (OIDC) · Role-based access
+        </p>
+        <p className="text-center text-[11px] mt-2">
+          <a href="/" className="text-[var(--color-faint)] hover:text-[var(--color-muted)] underline underline-offset-2">
+            ← Back to easmaint.com
+          </a>
         </p>
       </div>
     </div>

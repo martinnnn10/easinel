@@ -4,9 +4,9 @@ import { Sidebar } from "@/components/Sidebar";
 import { AppShell } from "@/components/AppShell";
 
 export const metadata: Metadata = {
-  title: "EAS Copilot — The AI Technician",
+  title: "EAS Maintenance Intelligence",
   description:
-    "The AI technician every maintenance department wishes they had. Diagnose equipment faults in seconds, grounded in your manuals, drawings, and repair history.",
+    "AI maintenance intelligence for industrial teams — every repair, manual, work order, drawing, and technician note becomes machine memory your team can use the next time equipment goes down.",
 };
 
 export default function RootLayout({

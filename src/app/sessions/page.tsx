@@ -39,7 +39,7 @@ export default function SessionsPage() {
         subtitle="Every diagnosis becomes searchable organizational knowledge"
         right={
           <button
-            onClick={() => router.push("/")}
+            onClick={() => router.push("/copilot")}
             className="text-[13px] font-medium rounded-lg bg-[var(--color-accent)] text-white px-3.5 py-1.5 hover:brightness-110"
           >
             + New session
@@ -64,7 +64,7 @@ export default function SessionsPage() {
                 part of the equipment's history.
               </p>
               <button
-                onClick={() => router.push("/")}
+                onClick={() => router.push("/copilot")}
                 className="mt-5 text-[13px] font-medium rounded-lg bg-[var(--color-accent)] text-white px-4 py-2 hover:brightness-110"
               >
                 Ask your first question
@@ -75,7 +75,7 @@ export default function SessionsPage() {
               {sessions.map((s) => (
                 <button
                   key={s.id}
-                  onClick={() => router.push(`/?c=${s.id}`)}
+                  onClick={() => router.push(`/copilot?c=${s.id}`)}
                   className="w-full text-left rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3 hover:border-[var(--color-accent)]/50 hover:bg-[var(--color-surface-2)] transition flex items-center gap-3"
                 >
                   <span className="w-9 h-9 rounded-lg bg-[var(--color-surface-2)] grid place-items-center text-[var(--color-accent)] shrink-0">💬</span>

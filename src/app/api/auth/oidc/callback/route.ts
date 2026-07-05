@@ -35,7 +35,7 @@ export const GET = safeHandler("auth.oidc.callback", async (req: NextRequest) =>
       });
     }
     const token = await createSession(user.id, user.orgId);
-    const res = NextResponse.redirect(new URL("/", url.origin));
+    const res = NextResponse.redirect(new URL("/today", url.origin));
     res.cookies.set(SESSION_COOKIE, token, {
       httpOnly: true,
       sameSite: "lax",

@@ -12,10 +12,10 @@ export default function NotFound() {
           The page you’re looking for doesn’t exist or may have moved.
         </p>
         <Link
-          href="/"
+          href="/today"
           className="inline-block mt-5 text-[13px] font-medium px-4 py-2 rounded-lg bg-[var(--color-accent)] text-white hover:brightness-110"
         >
-          Back to dashboard
+          Back to Today
         </Link>
       </div>
     </div>

@@ -16,7 +16,7 @@ const navGroups: { title: string; muted?: boolean; items: NavItem[] }[] = [
     title: "Daily",
     items: [
       { href: "/today", label: "Today", icon: BoardIcon },
-      { href: "/", label: "Copilot", icon: SparkIcon },
+      { href: "/copilot", label: "Copilot", icon: SparkIcon },
       { href: "/work-orders", label: "Work Orders", icon: WrenchIcon },
       { href: "/handover", label: "Shift Handover", icon: PulseIcon },
     ],
@@ -81,7 +81,9 @@ export function Sidebar() {
     setMobileOpen(false);
   }, [path]);
 
-  if (path.startsWith("/login")) return null;
+  // No sidebar on the public marketing site (/) or the login screen — the app
+  // chrome belongs to the logged-in experience only.
+  if (path === "/" || path.startsWith("/login")) return null;
 
   const toggleCollapse = () => {
     setCollapsed((c) => {
@@ -249,7 +251,7 @@ function NavLink({
   collapsed: boolean;
   muted?: boolean;
 }) {
-  const active = item.href === "/" ? path === "/" : path.startsWith(item.href);
+  const active = path.startsWith(item.href);
   const Icon = item.icon;
   return (
     <Link
