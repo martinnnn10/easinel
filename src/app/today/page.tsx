@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { TopBar } from "@/components/TopBar";
 import { OnboardingWizard } from "@/components/OnboardingWizard";
+import { ActivationChecklist } from "@/components/ActivationChecklist";
 
 interface Today {
   machinesDown: { id: string; name: string; assetTag: string | null }[];
@@ -21,6 +22,7 @@ export default function TodayPage() {
   const [d, setD] = useState<Today | null>(null);
   const [loading, setLoading] = useState(true);
   const [wizard, setWizard] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
   useEffect(() => {
     fetch("/api/today").then((r) => r.json()).then(setD).catch(() => {}).finally(() => setLoading(false));
   }, []);
@@ -47,41 +49,9 @@ export default function TodayPage() {
             <p className="text-[var(--color-muted)] text-sm">Couldn&apos;t load today&apos;s board.</p>
           ) : (
             <>
-              {/* First-run nudge: a brand-new org sees a calm setup card instead of
-                  a wall of zeros. Disappears as soon as any real activity exists. */}
-              {d.machinesDown.length === 0 &&
-                d.openCritical.length === 0 &&
-                d.pmsDue.length === 0 &&
-                d.recentClosed.length === 0 &&
-                d.handoverNotes.length === 0 &&
-                d.recentSessions.length === 0 && (
-                  <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5 mb-7">
-                    <div className="flex items-start justify-between gap-4 flex-wrap">
-                      <div>
-                        <h2 className="text-[15px] font-semibold">Set up your plant</h2>
-                        <p className="text-[13px] text-[var(--color-muted)] mt-1">
-                          Three guided steps and the machine memory starts building.
-                        </p>
-                      </div>
-                      <button
-                        onClick={() => setWizard(true)}
-                        className="text-[13px] font-medium rounded-lg bg-[var(--color-accent)] text-white px-4 py-2 hover:brightness-110 shrink-0"
-                      >
-                        Start guided setup · 2 min
-                      </button>
-                    </div>
-                    <div className="mt-4 grid sm:grid-cols-3 gap-3">
-                      <SetupStep
-                        n={1}
-                        href={`/copilot?ask=${encodeURIComponent("A PowerFlex drive shows Fault F081 — what does it mean and what do I check?")}`}
-                        title="Ask a real fault now"
-                        body="The Copilot already knows common industrial faults and answers with citations — before you upload anything."
-                      />
-                      <SetupStep n={2} href="/assets" title="Add your first machine" body="Name, make, and model — its history and memory attach to the asset." />
-                      <SetupStep n={3} href="/knowledge" title="Upload a manual or drawing" body="Now the Copilot cites YOUR plant's documents when that machine acts up." />
-                    </div>
-                  </div>
-                )}
+              {/* Activation checklist: tracks the REAL setup milestones toward
+                  first value. Self-hides once every step is met or dismissed. */}
+              <ActivationChecklist onLaunchWizard={() => setWizard(true)} reloadKey={reloadKey} />
 
               {/* One restrained status line — not a wall of KPI cards */}
               <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-[13px] mb-7 text-[var(--color-muted)]">
@@ -135,7 +105,7 @@ export default function TodayPage() {
         </div>
       </div>
 
-      {wizard && <OnboardingWizard onClose={() => { setWizard(false); fetch("/api/today").then((r) => r.json()).then(setD).catch(() => {}); }} />}
+      {wizard && <OnboardingWizard onClose={() => { setWizard(false); setReloadKey((k) => k + 1); fetch("/api/today").then((r) => r.json()).then(setD).catch(() => {}); }} />}
     </>
   );
 }
@@ -155,16 +125,6 @@ function Section({ title, href, empty, children }: { title: string; href: string
         <div className="space-y-0.5">{items}</div>
       )}
     </section>
-  );
-}
-
-function SetupStep({ n, href, title, body }: { n: number; href: string; title: string; body: string }) {
-  return (
-    <Link href={href} className="block rounded-xl border border-[var(--color-border-soft)] bg-[var(--color-surface-2)]/40 p-3.5 hover:border-[var(--color-accent)]/50 hover:bg-[var(--color-surface-2)] transition">
-      <span className="text-[11px] font-mono text-[var(--color-accent)]">{String(n).padStart(2, "0")}</span>
-      <p className="text-[13px] font-medium mt-1">{title}</p>
-      <p className="text-[11.5px] text-[var(--color-muted)] mt-0.5 leading-snug">{body}</p>
-    </Link>
   );
 }
 
