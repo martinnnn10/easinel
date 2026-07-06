@@ -255,6 +255,31 @@ export async function createWorkOrder(
     title: row.title,
     assetId: row.assetId,
   });
+  // Knowledge reuse (best-effort): if the plant has already solved this fault on
+  // this machine, record that prior knowledge was surfaced at intake — attributed
+  // to whoever documented that prior fix. Never blocks the create.
+  if ((row.type ?? "corrective") === "corrective" && (row.symptom || row.title)) {
+    try {
+      const { findPriorFixes } = await import("./recurrence");
+      const { logReuseEvent, resolveOriginalAuthor } = await import("@/lib/reuse/events");
+      const prior = await findPriorFixes(orgId, { assetId: row.assetId, symptom: row.symptom ?? row.title });
+      if (prior?.last) {
+        const author = await resolveOriginalAuthor(orgId, prior.last.id);
+        await logReuseEvent(orgId, {
+          eventType: "prior_fix_surfaced",
+          assetId: row.assetId,
+          workOrderId: row.id,
+          sourceType: "prior_work_order",
+          sourceId: prior.last.id,
+          surfacedToUserId: actor,
+          originalAuthorUserId: author,
+          label: prior.label,
+        });
+      }
+    } catch {
+      /* reuse logging is best-effort */
+    }
+  }
   return row;
 }
 
@@ -591,6 +616,27 @@ export async function transitionWorkOrder(
     await captureWorkOrderMemory(orgId, row, label).catch(() => {
       /* memory capture must never block the daily loop */
     });
+    // (3) Knowledge reuse: if prior knowledge was surfaced for this WO at intake,
+    //     record that it closed with that knowledge in hand. Impact (avoided
+    //     downtime) is computed later from real downtime — never invented here.
+    try {
+      const { findSurfacedEvent, logReuseEvent } = await import("@/lib/reuse/events");
+      const surfaced = await findSurfacedEvent(orgId, row.id);
+      if (surfaced) {
+        await logReuseEvent(orgId, {
+          eventType: "prior_fix_used_in_closeout",
+          assetId: row.assetId,
+          workOrderId: row.id,
+          sourceType: surfaced.sourceType,
+          sourceId: surfaced.sourceId,
+          surfacedToUserId: surfaced.surfacedToUserId,
+          originalAuthorUserId: surfaced.originalAuthorUserId,
+          label: surfaced.label,
+        });
+      }
+    } catch {
+      /* best-effort */
+    }
   }
 
   return { workOrder: row };

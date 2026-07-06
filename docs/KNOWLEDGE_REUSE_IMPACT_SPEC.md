@@ -1,10 +1,13 @@
 # Knowledge Reuse Impact — build spec (HOLD until production audit passes)
 
-> Status: **NOT STARTED — blocked.** Do not build until:
-> 1. Manus deploys the latest clean build
-> 2. Production no-demo-data audit passes
-> 3. Clean org starts empty
-> 4. ROI + machine-memory pages proven to use real customer data only
+> Status: **BUILT** (gate cleared — 876e18d deployed + audited). Core WO reuse
+> loop shipped: reuse_events table, prior_fix_surfaced at intake,
+> prior_fix_used_in_closeout at close, honest avoided-downtime math, /impact
+> manager page. The volume "Contributions" leaderboard was removed in favor of
+> this impact-first view.
+>
+> Still open (next increments): document_cited / lesson_surfaced from Copilot
+> citations, and pm_*_from_failure events wired into the Suggest-PM flow.
 >
 > Frame this as **"Knowledge Reuse Impact"**, NOT a contributions dashboard or
 > leaderboard. Impact over volume. Do not gamify quantity. Do not reward junk.

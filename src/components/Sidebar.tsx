@@ -174,7 +174,7 @@ export function Sidebar() {
             <div className="mt-2 pt-2 border-t border-[var(--color-border-soft)]">
               {!collapsed && <GroupHeader>{isAdmin ? "Admin" : "Team"}</GroupHeader>}
               <div className="flex flex-col gap-0.5">
-                <NavLink item={{ href: "/contributions", label: "Contributions", icon: AwardIcon }} path={path} collapsed={collapsed} muted />
+                <NavLink item={{ href: "/impact", label: "Reuse Impact", icon: AwardIcon }} path={path} collapsed={collapsed} muted />
                 {isAdmin && <NavLink item={{ href: "/roi", label: "Pilot Value", icon: TrophyIcon }} path={path} collapsed={collapsed} muted />}
                 {isAdmin && <NavLink item={{ href: "/team", label: "Team & Roles", icon: ShieldIcon }} path={path} collapsed={collapsed} muted />}
                 {isAdmin && <NavLink item={{ href: "/billing", label: "Billing", icon: CreditCardIcon }} path={path} collapsed={collapsed} muted />}

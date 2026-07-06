@@ -174,6 +174,30 @@ export const auditLog = sqliteTable("audit_log", {
     .default(sql`(unixepoch() * 1000)`),
 });
 
+// Append-only knowledge-reuse log. Records when captured maintenance knowledge
+// (a prior fix, scenario, lesson, document, or PM) was SURFACED to a technician
+// and, later, USED — so a manager can see whether shared knowledge actually
+// helped, not just how much was posted. Impact (avoided downtime) is computed at
+// read time from real work orders, never stored/invented here.
+export const reuseEvents = sqliteTable("reuse_events", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().default("__unset__"),
+  // prior_fix_surfaced | prior_fix_used_in_closeout | scenario_surfaced |
+  // lesson_surfaced | document_cited | pm_suggested_from_failure |
+  // pm_created_from_failure | pm_approved_from_failure
+  eventType: text("event_type").notNull(),
+  assetId: text("asset_id"),
+  workOrderId: text("work_order_id"),
+  sourceType: text("source_type"), // prior_work_order | scenario | lesson | document | pm
+  sourceId: text("source_id"),
+  surfacedToUserId: text("surfaced_to_user_id"), // who saw/used it (id or email)
+  originalAuthorUserId: text("original_author_user_id"), // who captured it (id or email)
+  label: text("label"), // fault label for grouping (e.g. "F007")
+  at: integer("at", { mode: "timestamp_ms" })
+    .notNull()
+    .default(sql`(unixepoch() * 1000)`),
+});
+
 // ───────────────────────── Platform layer ─────────────────────────
 
 // Work orders — first-class records that can originate in EAS or sync to/from

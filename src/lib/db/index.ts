@@ -159,6 +159,19 @@ const DDL = [
     detail TEXT,
     at INTEGER NOT NULL DEFAULT (unixepoch() * 1000)
   )`,
+  `CREATE TABLE IF NOT EXISTS reuse_events (
+    id TEXT PRIMARY KEY,
+    org_id TEXT NOT NULL DEFAULT '__unset__',
+    event_type TEXT NOT NULL,
+    asset_id TEXT,
+    work_order_id TEXT,
+    source_type TEXT,
+    source_id TEXT,
+    surfaced_to_user_id TEXT,
+    original_author_user_id TEXT,
+    label TEXT,
+    at INTEGER NOT NULL DEFAULT (unixepoch() * 1000)
+  )`,
   `CREATE TABLE IF NOT EXISTS work_orders (
     id TEXT PRIMARY KEY,
     org_id TEXT NOT NULL DEFAULT '__unset__',
