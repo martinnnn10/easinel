@@ -100,6 +100,8 @@ export function Sidebar() {
   const isAdmin =
     me?.authRequired &&
     (me?.user?.role === "owner" || me?.user?.role === "admin");
+  // Recognition/traceability is a manager tool too, not just admin.
+  const isManagerPlus = isAdmin || (me?.authRequired && me?.user?.role === "manager");
 
   const width = collapsed ? "md:w-[64px]" : "md:w-[230px]";
 
@@ -168,13 +170,14 @@ export function Sidebar() {
             </div>
           ))}
 
-          {isAdmin && (
+          {isManagerPlus && (
             <div className="mt-2 pt-2 border-t border-[var(--color-border-soft)]">
-              {!collapsed && <GroupHeader>Admin</GroupHeader>}
+              {!collapsed && <GroupHeader>{isAdmin ? "Admin" : "Team"}</GroupHeader>}
               <div className="flex flex-col gap-0.5">
-                <NavLink item={{ href: "/roi", label: "Pilot Value", icon: TrophyIcon }} path={path} collapsed={collapsed} muted />
-                <NavLink item={{ href: "/team", label: "Team & Roles", icon: ShieldIcon }} path={path} collapsed={collapsed} muted />
-                <NavLink item={{ href: "/billing", label: "Billing", icon: CreditCardIcon }} path={path} collapsed={collapsed} muted />
+                <NavLink item={{ href: "/contributions", label: "Contributions", icon: AwardIcon }} path={path} collapsed={collapsed} muted />
+                {isAdmin && <NavLink item={{ href: "/roi", label: "Pilot Value", icon: TrophyIcon }} path={path} collapsed={collapsed} muted />}
+                {isAdmin && <NavLink item={{ href: "/team", label: "Team & Roles", icon: ShieldIcon }} path={path} collapsed={collapsed} muted />}
+                {isAdmin && <NavLink item={{ href: "/billing", label: "Billing", icon: CreditCardIcon }} path={path} collapsed={collapsed} muted />}
               </div>
             </div>
           )}
@@ -397,6 +400,14 @@ function ChartIcon({ className }: { className?: string }) {
   );
 }
 
+function AwardIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="8" r="6" />
+      <path d="M8.2 13.9 7 22l5-3 5 3-1.2-8.1" />
+    </svg>
+  );
+}
 function TrophyIcon({ className }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
