@@ -629,6 +629,13 @@ const COLUMN_MIGRATIONS: { table: string; column: string; ddl: string }[] = [
   { table: "pm_completions", column: "duration_mins", ddl: "ALTER TABLE pm_completions ADD COLUMN duration_mins INTEGER" },
   // PM program enrichment: estimated downtime.
   { table: "pm_programs", column: "est_downtime_mins", ddl: "ALTER TABLE pm_programs ADD COLUMN est_downtime_mins INTEGER" },
+  // Pilot-readiness: email verification + password reset
+  { table: "users", column: "email_verified", ddl: "ALTER TABLE users ADD COLUMN email_verified INTEGER DEFAULT 0" },
+  { table: "users", column: "verification_token", ddl: "ALTER TABLE users ADD COLUMN verification_token TEXT" },
+  { table: "users", column: "reset_token", ddl: "ALTER TABLE users ADD COLUMN reset_token TEXT" },
+  { table: "users", column: "reset_token_expires", ddl: "ALTER TABLE users ADD COLUMN reset_token_expires INTEGER" },
+  // Document processing status
+  { table: "documents", column: "processing_status", ddl: "ALTER TABLE documents ADD COLUMN processing_status TEXT DEFAULT 'ready'" },
 ];
 
 async function runColumnMigrations(): Promise<void> {

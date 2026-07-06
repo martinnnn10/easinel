@@ -173,6 +173,7 @@ export async function ingestFile(
     sizeBytes: file.buffer.length,
     storagePath,
     charCount,
+    processingStatus: charCount > 0 ? "ready" : status === "binary_unsupported" ? "failed" : "ready",
   });
 
   await db.insert(auditLog).values({

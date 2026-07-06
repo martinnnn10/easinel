@@ -81,9 +81,9 @@ export default function MarketingHome() {
           <p className="mt-4 text-[12.5px] text-[var(--color-faint)]">
             Or{" "}
             <Link href="/login?signup=1" className="text-[var(--color-muted)] underline underline-offset-2 hover:text-[var(--color-text)]">
-              start a free 14-day trial
+              request a pilot workspace
             </Link>{" "}
-            — create your organization in two minutes.
+            — set up in two minutes, guided by our team.
           </p>
 
           {/* Hero product visual — the loop in one glance: machine down →
@@ -394,7 +394,7 @@ export default function MarketingHome() {
               href="/login?signup=1"
               className="text-[14px] font-medium rounded-xl border border-[var(--color-border)] px-6 py-3 text-[var(--color-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface)]"
             >
-              Start a free trial
+              Request a pilot workspace
             </Link>
           </div>
         </div>

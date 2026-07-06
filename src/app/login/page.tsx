@@ -114,6 +114,15 @@ export default function LoginPage() {
                 {busy ? "Please wait…" : mode === "signup" ? "Create organization" : "Sign in"}
               </button>
 
+              {mode === "signin" && (
+                <a
+                  href="/login/forgot"
+                  className="block mt-2 text-center text-[11px] text-[var(--color-faint)] hover:text-[var(--color-muted)] underline underline-offset-2"
+                >
+                  Forgot your password?
+                </a>
+              )}
+
               <button
                 onClick={() => {
                   setError("");
@@ -129,7 +138,7 @@ export default function LoginPage() {
           )}
         </div>
         <p className="text-center text-[11px] text-[var(--color-faint)] mt-4">
-          Multi-org · Enterprise SSO (OIDC) · Role-based access
+          Multi-org · Role-based access
         </p>
         <p className="text-center text-[11px] mt-2">
           <a href="/" className="text-[var(--color-faint)] hover:text-[var(--color-muted)] underline underline-offset-2">

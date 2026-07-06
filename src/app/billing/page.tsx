@@ -229,15 +229,15 @@ export default function BillingPage() {
             {/* Billing not fully configured — honest message, NO fake pricing. */}
             {!data?.billingReady && (
               <div className="rounded-lg bg-[var(--color-surface-2)] border border-[var(--color-border)] p-4">
-                <p className="text-[13px] text-[var(--color-text)] font-medium mb-1">
-                  Billing is not fully configured. Contact support.
+                <div className="flex items-center gap-2 mb-1">
+                  <div className="w-2 h-2 rounded-full bg-[var(--color-accent)]"></div>
+                  <p className="text-[13px] text-[var(--color-text)] font-medium">
+                    Pilot Active
+                  </p>
+                </div>
+                <p className="text-[12px] text-[var(--color-muted)]">
+                  Your workspace is on a guided pilot. Usage is included. Contact your account manager for billing questions.
                 </p>
-                <a
-                  href="mailto:eas@eautomatedstaffing.com"
-                  className="text-[13px] font-medium text-[var(--color-accent)] hover:underline"
-                >
-                  eas@eautomatedstaffing.com
-                </a>
               </div>
             )}
           </div>

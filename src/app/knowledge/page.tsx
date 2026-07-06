@@ -16,6 +16,7 @@ interface Doc {
   storagePath?: string | null;
   plcProjectId?: string;
   plcFidelity?: string;
+  processingStatus?: string;
 }
 
 interface DrawingInfo {
@@ -251,6 +252,17 @@ export default function KnowledgePage() {
                     >
                       {(d.charCount ?? 0) > 0 ? "Indexed" : "Stored"}
                     </span>
+                    {d.processingStatus && d.processingStatus !== "ready" && (
+                      <span
+                        className={`text-[10px] px-2 py-0.5 rounded-full ${
+                          d.processingStatus === "failed"
+                            ? "text-[var(--color-red)] bg-[var(--color-red)]/10"
+                            : "text-[var(--color-amber,#f59e0b)] bg-[#f59e0b]/10"
+                        }`}
+                      >
+                        {d.processingStatus === "failed" ? "Failed" : "Processing…"}
+                      </span>
+                    )}
                   </div>
                 );
               })}

@@ -76,6 +76,7 @@ export const documents = sqliteTable("documents", {
   // text content extracted at ingest time (for retrieval). Binary stored on disk.
   storagePath: text("storage_path"),
   charCount: integer("char_count").default(0),
+  processingStatus: text("processing_status").default("ready"), // pending|processing|ready|failed
   createdAt: integer("created_at", { mode: "timestamp_ms" })
     .notNull()
     .default(sql`(unixepoch() * 1000)`),
@@ -366,6 +367,11 @@ export const users = sqliteTable("users", {
   ssoProvider: text("sso_provider"),
   externalId: text("external_id"),
   lastLoginAt: integer("last_login_at", { mode: "timestamp_ms" }),
+  // Pilot-readiness: email verification + password reset
+  emailVerified: integer("email_verified", { mode: "boolean" }).default(false),
+  verificationToken: text("verification_token"),
+  resetToken: text("reset_token"),
+  resetTokenExpires: integer("reset_token_expires", { mode: "timestamp_ms" }),
   createdAt: integer("created_at", { mode: "timestamp_ms" })
     .notNull()
     .default(sql`(unixepoch() * 1000)`),

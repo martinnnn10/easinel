@@ -483,6 +483,17 @@ function AnswerMeta({ m }: { m: ChatMessage }) {
             {m.confidenceLabel} confidence{pct !== undefined ? ` · ${pct}%` : ""}
           </span>
         )}
+
+        {/* Grounding source badge — plant docs vs general knowledge */}
+        {citations.length > 0 ? (
+          <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full border border-[var(--color-accent)]/30 text-[var(--color-accent)] bg-[var(--color-accent)]/5">
+            Grounded in plant docs
+          </span>
+        ) : (
+          <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full border border-[var(--color-border)] text-[var(--color-faint)] bg-[var(--color-surface)]">
+            General knowledge
+          </span>
+        )}
       </div>
 
       {/* Numbered citations mapping to inline [n] markers */}
