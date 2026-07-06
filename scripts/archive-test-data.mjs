@@ -85,14 +85,20 @@ const one = async (sql, args) => (await db.execute({ sql, args })).rows[0];
 // This is a read-only assertion that we're pointing at the right database —
 // writes below never match on names.
 let fail = 0;
+let missing = 0;
 const check = async (table, nameCol, rec) => {
   const row = await one(
     `SELECT ${nameCol} AS name, status FROM ${table} WHERE id = ? AND org_id = ?`,
     [rec.id, ORG]
   );
   if (!row) {
-    console.error(`  ✗ MISSING  ${table} ${rec.id} (expected "${rec.name}") — wrong DB?`);
-    fail++;
+    // MISSING is non-fatal: the record may have already been archived on a prior
+    // run, or its id drifted since the export. We warn and skip — the discovery
+    // pass below still catches renamed/re-created test data by value. Only a
+    // NAME MISMATCH at a known id (the real "wrong DB / id collision" signal)
+    // aborts, because that means we're pointed at the wrong data.
+    console.warn(`  ⚠ MISSING  ${table} ${rec.id} (expected "${rec.name}") — skipping (already archived, or id changed).`);
+    missing++;
     return null;
   }
   if (row.name !== rec.name) {
@@ -111,8 +117,11 @@ for (const p of PMS) await check("pm_programs", "title", p);
 for (const w of WOS) await check("work_orders", "title", w);
 
 if (fail > 0) {
-  console.error(`\nAborting: ${fail} record(s) missing or mismatched. No writes performed.`);
+  console.error(`\nAborting: ${fail} record(s) had a NAME MISMATCH (wrong DB / id collision). No writes performed.`);
   process.exit(1);
+}
+if (missing > 0) {
+  console.warn(`\n${missing} exact-id record(s) not found — continuing (already archived, or ids drifted). The apply step is scoped to id + org, so a missing record is simply a no-op; the discovery pass below still handles renamed/re-created test data.`);
 }
 
 // ── PASS 2 discovery — collect candidate rows by value, scoped to the org.
