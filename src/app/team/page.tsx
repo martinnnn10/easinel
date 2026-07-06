@@ -90,6 +90,19 @@ export default function TeamPage() {
         <div className="max-w-4xl mx-auto px-5 py-6">
           {loading ? (
             <p className="text-[var(--color-muted)] text-sm">Loading…</p>
+          ) : you && !canManage ? (
+            /* Authenticated non-admin (technician/viewer): org management is
+               owner/admin-only — a clean Access Denied, not a broken UI. */
+            <div className="text-center py-20">
+              <div className="text-3xl mb-3">🔒</div>
+              <p className="text-[15px] font-medium">Team &amp; Roles is admin-only</p>
+              <p className="text-[var(--color-muted)] text-sm mt-1 max-w-sm mx-auto">
+                Members, roles, and invitations are managed by your organization&apos;s owner or admin.
+              </p>
+              <a href="/today" className="inline-block mt-5 text-[13px] font-medium rounded-lg bg-[var(--color-accent)] text-[var(--color-on-accent)] px-4 py-2 hover:brightness-110">
+                Back to Today
+              </a>
+            </div>
           ) : forbidden ? (
             <div className="text-center py-20">
               <p className="text-[15px] font-medium">Sign in required</p>

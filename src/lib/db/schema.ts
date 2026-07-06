@@ -82,6 +82,10 @@ export const documents = sqliteTable("documents", {
   storagePath: text("storage_path"),
   charCount: integer("char_count").default(0),
   processingStatus: text("processing_status").default("ready"), // pending|processing|ready|failed
+  // When set, the document is hidden from the Knowledge base list and excluded
+  // from retrieval (never cited by Copilot). The row and its chunks are kept —
+  // archiving is reversible (clear archived_at to restore). Not a delete.
+  archivedAt: integer("archived_at", { mode: "timestamp_ms" }),
   createdAt: integer("created_at", { mode: "timestamp_ms" })
     .notNull()
     .default(sql`(unixepoch() * 1000)`),

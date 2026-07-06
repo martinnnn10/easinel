@@ -78,6 +78,7 @@ async function vectorCandidates(
       embedding: chunksTable.embedding,
       filename: documents.filename,
       kind: documents.kind,
+      archivedAt: documents.archivedAt,
     })
     .from(chunksTable)
     .leftJoin(documents, eq(chunksTable.documentId, documents.id))
@@ -85,6 +86,7 @@ async function vectorCandidates(
 
   const out: { chunk: RetrievedChunk; sim: number }[] = [];
   for (const r of rows) {
+    if (r.archivedAt) continue; // archived documents never surface in retrieval
     if (!r.embedding) continue; // only chunks that were embedded participate
     // Respect asset scoping (same rule as lexical retrieval).
     const isAssetScoped = !!assetId;

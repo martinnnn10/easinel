@@ -12,7 +12,8 @@ interface BillingData {
     hasStripe: boolean;
   } | null;
   active: boolean;
-  stripeConfigured: boolean;
+  restricted?: boolean;
+  stripeConfigured?: boolean;
   billingReady?: boolean;
   plan?: { key: string; name: string; priceLabel: string; sites: number | null; features: string[] };
   usage?: {
@@ -115,6 +116,26 @@ export default function BillingPage() {
     );
   }
 
+  // Owner/admin only. A technician who navigates here directly gets a clean
+  // Access Denied (the API returns { restricted } to non-managers), not
+  // subscription details.
+  if (data?.restricted) {
+    return (
+      <div className="min-h-screen grid place-items-center bg-[var(--color-bg)] px-4">
+        <div className="max-w-sm text-center rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-8">
+          <div className="text-3xl mb-3">🔒</div>
+          <h1 className="text-[17px] font-semibold">Billing is admin-only</h1>
+          <p className="text-[13px] text-[var(--color-muted)] mt-2">
+            Subscription and billing are managed by your organization&apos;s owner or admin.
+          </p>
+          <a href="/today" className="inline-block mt-5 text-[13px] font-medium rounded-lg bg-[var(--color-accent)] text-[var(--color-on-accent)] px-4 py-2 hover:brightness-110">
+            Back to Today
+          </a>
+        </div>
+      </div>
+    );
+  }
+
   const sub = data?.subscription;
   const isTrialing = sub?.status === "trialing";
   const isActive = sub?.status === "active" || sub?.status === "grandfathered";
@@ -145,10 +166,10 @@ export default function BillingPage() {
             <div className="mt-4">
               <div className="flex items-center gap-2 mb-3">
                 <span className="inline-block w-2 h-2 rounded-full bg-[var(--color-amber)]" />
-                <span className="text-[13px] font-medium text-[var(--color-amber)]">Free Trial</span>
+                <span className="text-[13px] font-medium text-[var(--color-amber)]">Pilot</span>
               </div>
               <p className="text-[13px] text-[var(--color-muted)] mb-1">
-                Your 14-day free trial {isExpired ? "has expired" : "is active"}.
+                Your guided pilot {isExpired ? "has ended" : "is active"}.
               </p>
               {!isExpired && (
                 <p className="text-[24px] font-bold text-[var(--color-text)] mb-1">
@@ -157,7 +178,7 @@ export default function BillingPage() {
               )}
               {isExpired && (
                 <p className="text-[14px] text-[var(--color-red)] font-medium mb-4">
-                  Your trial has expired. Subscribe to continue using EAS Intelligence.
+                  Your pilot has ended. Contact EAS to continue.
                 </p>
               )}
             </div>

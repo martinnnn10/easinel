@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requirePermission } from "@/lib/auth/guard";
+import { can, type Role } from "@/lib/auth/roles";
 import { safeHandler } from "@/lib/api/safeHandler";
 import {
   getSubscription,
@@ -24,6 +25,18 @@ export const GET = safeHandler("billing.get", async () => {
   const orgId = gate.user.orgId;
   const sub = await getSubscription(orgId);
   const active = await hasActiveAccess(orgId);
+
+  // Subscription/plan/usage detail is owner/admin-only. Everyone else (the
+  // BillingBanner runs for all roles) gets just the grace status it needs — a
+  // technician hitting /api/billing directly can't read plan or usage details.
+  if (!can(gate.user.role as Role, "manage_billing")) {
+    return NextResponse.json({
+      subscription: sub ? { status: sub.status } : null,
+      active,
+      restricted: true,
+    });
+  }
+
   const planKey = sub?.plan ?? "free_trial";
   const plan = getPlan(planKey);
 

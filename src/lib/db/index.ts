@@ -582,6 +582,8 @@ const DDL = [
 const COLUMN_MIGRATIONS: { table: string; column: string; ddl: string }[] = [
   // ROI: fully-loaded downtime cost rate (turns downtime hours into dollars).
   { table: "orgs", column: "downtime_cost_per_hour", ddl: "ALTER TABLE orgs ADD COLUMN downtime_cost_per_hour REAL" },
+  // Reversible hide for a document (excluded from list + retrieval; row kept).
+  { table: "documents", column: "archived_at", ddl: "ALTER TABLE documents ADD COLUMN archived_at INTEGER" },
   { table: "assets", column: "site", ddl: "ALTER TABLE assets ADD COLUMN site TEXT" },
   { table: "assets", column: "line", ddl: "ALTER TABLE assets ADD COLUMN line TEXT" },
   { table: "assets", column: "cell", ddl: "ALTER TABLE assets ADD COLUMN cell TEXT" },

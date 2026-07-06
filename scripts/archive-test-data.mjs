@@ -32,6 +32,18 @@
  *   UPDATE assets      SET status='operational' WHERE org_id='<ORG>' AND id IN ('<asset ids>');
  *   UPDATE pm_programs SET status='draft'       WHERE org_id='<ORG>' AND id IN ('<pm ids>');
  *   UPDATE pm_schedules SET active=1 WHERE org_id='<ORG>' AND pm_program_id IN ('<pm ids>');
+ *   UPDATE documents   SET archived_at=NULL     WHERE org_id='<ORG>' AND id IN ('<doc ids>');
+ *   UPDATE invitations SET status='pending'     WHERE org_id='<ORG>' AND id IN ('<invite ids>');
+ *
+ * ── Two passes ─────────────────────────────────────────────────────────────
+ * PASS 1 (exact-ID): the records whose IDs were verified against the 2026-07-05
+ *   export — 2 assets, 5 "Test VFD" PMs, 1 work order. Matched on id + org.
+ * PASS 2 (discovery): items the 2026-07-06 Production Trust Audit surfaced whose
+ *   exact IDs we don't have yet — a "Test Conveyor" PM, three "test_upload_audit
+ *   .pdf" uploads, and the test@example.com / test2@example.com invitations.
+ *   These are matched by name/filename/email WITHIN THE PRODUCTION ORG ONLY, and
+ *   every candidate is printed for review in dry-run before any write. All
+ *   actions are archive/revoke (reversible) — never a delete.
  */
 import { createClient } from "@libsql/client";
 import { randomUUID } from "node:crypto";
@@ -57,6 +69,12 @@ const PMS = [
 const WOS = [
   { id: "wo_6e25c91e-528b-40be-b781-52010c8500dd", name: "VFD on conveyor keeps tripping after 10 minutes of running" },
 ];
+
+// ── PASS 2 (discovery). Items from the 2026-07-06 audit whose exact IDs we don't
+// have. Matched by value, scoped to the production org, printed before any write.
+const DISCOVER_PM_TITLES = ["Test Conveyor"];        // pm_programs.title LIKE '%…%'
+const DISCOVER_DOC_FILENAMES = ["test_upload_audit.pdf"]; // documents.filename = …
+const DISCOVER_INVITE_EMAILS = ["test@example.com", "test2@example.com"];
 
 const AUDIT_NOTE = "Archived as owner-created test data cleanup.";
 const ACTOR = "cleanup-script (approved by owner)";
@@ -97,8 +115,56 @@ if (fail > 0) {
   process.exit(1);
 }
 
+// ── PASS 2 discovery — collect candidate rows by value, scoped to the org.
+const rowsOf = async (sql, args) => (await db.execute({ sql, args })).rows;
+
+console.log("\nDiscovery — audit items matched by value (org-scoped):");
+
+// "Test Conveyor" PM(s): active (non-archived) programs only.
+const discoveredPms = [];
+for (const t of DISCOVER_PM_TITLES) {
+  const rows = await rowsOf(
+    "SELECT id, title, status FROM pm_programs WHERE org_id = ? AND title LIKE ? AND status != 'archived'",
+    [ORG, `%${t}%`]
+  );
+  for (const r of rows) {
+    console.log(`  • PM        ${r.id}  "${r.title}"  status=${r.status}  → archive`);
+    discoveredPms.push(r);
+  }
+}
+
+// "test_upload_audit.pdf" uploads: not-yet-archived documents.
+const discoveredDocs = [];
+for (const f of DISCOVER_DOC_FILENAMES) {
+  const rows = await rowsOf(
+    "SELECT id, filename FROM documents WHERE org_id = ? AND filename = ? AND archived_at IS NULL",
+    [ORG, f]
+  );
+  for (const r of rows) {
+    console.log(`  • Document  ${r.id}  "${r.filename}"  → archive (hide + drop from retrieval)`);
+    discoveredDocs.push(r);
+  }
+}
+
+// Test invitations: only pending ones (accepted/revoked left untouched).
+const discoveredInvites = [];
+for (const e of DISCOVER_INVITE_EMAILS) {
+  const rows = await rowsOf(
+    "SELECT id, email, status FROM invitations WHERE org_id = ? AND email = ? AND status = 'pending'",
+    [ORG, e]
+  );
+  for (const r of rows) {
+    console.log(`  • Invite    ${r.id}  ${r.email}  status=${r.status}  → revoke`);
+    discoveredInvites.push(r);
+  }
+}
+
+if (!discoveredPms.length && !discoveredDocs.length && !discoveredInvites.length) {
+  console.log("  (none found — already cleaned up, or different DB)");
+}
+
 if (!APPLY) {
-  console.log("\nDry-run complete. Re-run with --apply to archive the records above.");
+  console.log("\nDry-run complete. Re-run with --apply to archive/revoke everything above.");
   process.exit(0);
 }
 
@@ -138,6 +204,44 @@ try {
       args: [`aud_${randomUUID()}`, ORG, ACTOR, w.id, AUDIT_NOTE, now],
     });
   }
+  // ── PASS 2 (discovery) — archive PMs/docs, revoke invitations. Reversible.
+  for (const p of discoveredPms) {
+    await tx.execute({
+      sql: "UPDATE pm_programs SET status = 'archived', updated_at = ? WHERE id = ? AND org_id = ?",
+      args: [now, p.id, ORG],
+    });
+    await tx.execute({
+      sql: "UPDATE pm_schedules SET active = 0 WHERE pm_program_id = ? AND org_id = ?",
+      args: [p.id, ORG],
+    });
+    await tx.execute({
+      sql: "INSERT INTO audit_log (id, org_id, actor, action, target, detail, at) VALUES (?, ?, ?, 'pm.archived', ?, ?, ?)",
+      args: [`aud_${randomUUID()}`, ORG, ACTOR, p.id, AUDIT_NOTE, now],
+    });
+  }
+  for (const d of discoveredDocs) {
+    // Hide from the Knowledge base and exclude its chunks from retrieval; the
+    // row and chunks are kept (clear archived_at to restore).
+    await tx.execute({
+      sql: "UPDATE documents SET archived_at = ? WHERE id = ? AND org_id = ?",
+      args: [now, d.id, ORG],
+    });
+    await tx.execute({
+      sql: "INSERT INTO audit_log (id, org_id, actor, action, target, detail, at) VALUES (?, ?, ?, 'document.archived', ?, ?, ?)",
+      args: [`aud_${randomUUID()}`, ORG, ACTOR, d.id, AUDIT_NOTE, now],
+    });
+  }
+  for (const i of discoveredInvites) {
+    // Revoke (not delete) — disappears from the pending list; recoverable.
+    await tx.execute({
+      sql: "UPDATE invitations SET status = 'revoked' WHERE id = ? AND org_id = ? AND status = 'pending'",
+      args: [i.id, ORG],
+    });
+    await tx.execute({
+      sql: "INSERT INTO audit_log (id, org_id, actor, action, target, detail, at) VALUES (?, ?, ?, 'invitation.revoked', ?, ?, ?)",
+      args: [`aud_${randomUUID()}`, ORG, ACTOR, i.id, AUDIT_NOTE, now],
+    });
+  }
   await tx.commit();
 } catch (e) {
   await tx.rollback();
@@ -154,9 +258,21 @@ const sched = await one(
   [ORG, ...PMS.map((p) => p.id)]
 );
 console.log(`  active schedules remaining on archived PMs: ${sched.n} (expected 0)`);
+// Discovered items: confirm they're now hidden.
+for (const d of discoveredDocs) {
+  const row = await one("SELECT archived_at FROM documents WHERE id = ? AND org_id = ?", [d.id, ORG]);
+  console.log(`  document ${d.id} archived_at set: ${row?.archived_at ? "yes" : "NO"}`);
+}
+for (const i of discoveredInvites) {
+  const row = await one("SELECT status FROM invitations WHERE id = ? AND org_id = ?", [i.id, ORG]);
+  console.log(`  invitation ${i.id} (${i.email}) status: ${row?.status}`);
+}
+const expectedAudits =
+  ASSETS.length + PMS.length + WOS.length +
+  discoveredPms.length + discoveredDocs.length + discoveredInvites.length;
 const audits = await one(
   "SELECT COUNT(*) AS n FROM audit_log WHERE org_id = ? AND detail = ? AND at = ?",
   [ORG, AUDIT_NOTE, now]
 );
-console.log(`  audit_log rows written this run: ${audits.n} (expected ${ASSETS.length + PMS.length + WOS.length})`);
-console.log("\nDone. Records are archived, not deleted — see the file header for recovery SQL.");
+console.log(`  audit_log rows written this run: ${audits.n} (expected ${expectedAudits})`);
+console.log("\nDone. Records are archived/revoked, not deleted — see the file header for recovery SQL.");

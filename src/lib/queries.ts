@@ -10,7 +10,7 @@
 // can NEVER reach another org's messages (closed cross-tenant read risk).
 import { db, ensureDb } from "@/lib/db";
 import { assets, documents, chunks, conversations, messages } from "@/lib/db/schema";
-import { and, asc, desc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, isNull, sql } from "drizzle-orm";
 import { id } from "@/lib/util";
 import { extractDrawingInfo } from "@/lib/knowledge/drawing";
 
@@ -55,9 +55,11 @@ export async function listSessions(orgId: string, limit = 50): Promise<SessionSu
 export async function listDocuments(orgId: string, assetId?: string) {
   if (!orgId) throw new Error("listDocuments() requires orgId");
   await ensureDb();
+  // Archived documents are hidden from the Knowledge base (reversible; the row
+  // and its chunks are retained — see documents.archivedAt).
   const where = assetId
-    ? and(eq(documents.orgId, orgId), eq(documents.assetId, assetId))
-    : eq(documents.orgId, orgId);
+    ? and(eq(documents.orgId, orgId), eq(documents.assetId, assetId), isNull(documents.archivedAt))
+    : and(eq(documents.orgId, orgId), isNull(documents.archivedAt));
   return db.select().from(documents).where(where).orderBy(desc(documents.createdAt));
 }
 

@@ -52,6 +52,7 @@ export async function retrieve(
       assetId: chunksTable.assetId,
       filename: documents.filename,
       kind: documents.kind,
+      archivedAt: documents.archivedAt,
     })
     .from(chunksTable)
     .leftJoin(documents, eq(chunksTable.documentId, documents.id))
@@ -62,6 +63,8 @@ export async function retrieve(
 
   const scored: RetrievedChunk[] = [];
   for (const r of rows) {
+    // Archived documents never surface in retrieval (and so are never cited).
+    if (r.archivedAt) continue;
     // When scoped to an asset, prefer that asset's own docs, but still allow
     // GLOBAL (assetId null) knowledge through — this is what lets pre-seeded OEM
     // references answer day-one questions. We DROP only other assets' private
