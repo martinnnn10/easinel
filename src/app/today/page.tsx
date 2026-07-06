@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { TopBar } from "@/components/TopBar";
+import { OnboardingWizard } from "@/components/OnboardingWizard";
 
 interface Today {
   machinesDown: { id: string; name: string; assetTag: string | null }[];
@@ -19,6 +20,7 @@ const priDot: Record<string, string> = { urgent: "var(--color-red)", high: "var(
 export default function TodayPage() {
   const [d, setD] = useState<Today | null>(null);
   const [loading, setLoading] = useState(true);
+  const [wizard, setWizard] = useState(false);
   useEffect(() => {
     fetch("/api/today").then((r) => r.json()).then(setD).catch(() => {}).finally(() => setLoading(false));
   }, []);
@@ -54,10 +56,20 @@ export default function TodayPage() {
                 d.handoverNotes.length === 0 &&
                 d.recentSessions.length === 0 && (
                   <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5 mb-7">
-                    <h2 className="text-[15px] font-semibold">Set up your plant</h2>
-                    <p className="text-[13px] text-[var(--color-muted)] mt-1">
-                      Three steps and the machine memory starts building.
-                    </p>
+                    <div className="flex items-start justify-between gap-4 flex-wrap">
+                      <div>
+                        <h2 className="text-[15px] font-semibold">Set up your plant</h2>
+                        <p className="text-[13px] text-[var(--color-muted)] mt-1">
+                          Three guided steps and the machine memory starts building.
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => setWizard(true)}
+                        className="text-[13px] font-medium rounded-lg bg-[var(--color-accent)] text-white px-4 py-2 hover:brightness-110 shrink-0"
+                      >
+                        Start guided setup · 2 min
+                      </button>
+                    </div>
                     <div className="mt-4 grid sm:grid-cols-3 gap-3">
                       <SetupStep
                         n={1}
@@ -122,6 +134,8 @@ export default function TodayPage() {
           )}
         </div>
       </div>
+
+      {wizard && <OnboardingWizard onClose={() => { setWizard(false); fetch("/api/today").then((r) => r.json()).then(setD).catch(() => {}); }} />}
     </>
   );
 }

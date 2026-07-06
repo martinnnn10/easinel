@@ -41,6 +41,40 @@ interface DocDetail {
   drawing?: DrawingInfo | null;
 }
 
+// A document can retry extraction when it has a stored original and either
+// failed or never produced searchable text — and isn't a PLC/image (those have
+// their own handling and aren't text-extracted here).
+function canRetry(d: Doc): boolean {
+  if (d.plcProjectId || d.kind === "plc" || d.kind === "photo") return false;
+  if (!d.storagePath) return false;
+  if (d.processingStatus === "processing" || d.processingStatus === "pending") return false;
+  return d.processingStatus === "failed" || (d.charCount ?? 0) === 0;
+}
+
+// One honest status pill per document, reflecting the real processing lifecycle.
+function StatusPill({ doc: d, busy }: { doc: Doc; busy: boolean }) {
+  const ps = d.processingStatus;
+  let label: string;
+  let cls: string;
+  if (busy || ps === "processing") {
+    label = "Processing…";
+    cls = "text-[#f59e0b] bg-[#f59e0b]/10";
+  } else if (ps === "pending") {
+    label = "Pending";
+    cls = "text-[var(--color-muted)] bg-[var(--color-surface-2)]";
+  } else if (ps === "failed") {
+    label = "Failed";
+    cls = "text-[var(--color-red)] bg-[var(--color-red)]/10";
+  } else if ((d.charCount ?? 0) > 0) {
+    label = "Indexed";
+    cls = "text-[var(--color-green)] bg-[var(--color-green)]/10";
+  } else {
+    label = "Stored";
+    cls = "text-[var(--color-faint)] bg-[var(--color-surface-2)]";
+  }
+  return <span className={`text-[10px] px-2 py-0.5 rounded-full whitespace-nowrap ${cls}`}>{label}</span>;
+}
+
 const kindMeta: Record<string, { icon: string; label: string }> = {
   manual: { icon: "📘", label: "Manual" },
   drawing: { icon: "📐", label: "Drawing" },
@@ -67,6 +101,8 @@ export default function KnowledgePage() {
   // is never a dead click.
   const [detail, setDetail] = useState<DocDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [retrying, setRetrying] = useState<Set<string>>(new Set());
+  const [toast, setToast] = useState<string | null>(null);
 
   const load = useCallback(
     () =>
@@ -123,6 +159,21 @@ export default function KnowledgePage() {
       if (r.ok) setDetail(await r.json());
     } finally {
       setDetailLoading(false);
+    }
+  };
+
+  const reprocess = async (docId: string) => {
+    setRetrying((s) => new Set(s).add(docId));
+    try {
+      const r = await fetch(`/api/knowledge/${docId}/reprocess`, { method: "POST" });
+      const d = await r.json().catch(() => ({}));
+      setToast(d.message || (r.ok ? "Reprocessed." : "Reprocessing failed."));
+      await load();
+    } catch {
+      setToast("Reprocessing failed — please try again.");
+    } finally {
+      setRetrying((s) => { const n = new Set(s); n.delete(docId); return n; });
+      setTimeout(() => setToast(null), 5000);
     }
   };
 
@@ -243,25 +294,15 @@ export default function KnowledgePage() {
                       {isPlc ? "Open in PLC Explorer →" : "Open →"}
                     </span>
 
-                    <span
-                      className={`text-[10px] px-2 py-0.5 rounded-full ${
-                        (d.charCount ?? 0) > 0
-                          ? "text-[var(--color-green)] bg-[var(--color-green)]/10"
-                          : "text-[var(--color-faint)] bg-[var(--color-surface-2)]"
-                      }`}
-                    >
-                      {(d.charCount ?? 0) > 0 ? "Indexed" : "Stored"}
-                    </span>
-                    {d.processingStatus && d.processingStatus !== "ready" && (
-                      <span
-                        className={`text-[10px] px-2 py-0.5 rounded-full ${
-                          d.processingStatus === "failed"
-                            ? "text-[var(--color-red)] bg-[var(--color-red)]/10"
-                            : "text-[var(--color-amber,#f59e0b)] bg-[#f59e0b]/10"
-                        }`}
+                    <StatusPill doc={d} busy={retrying.has(d.id)} />
+                    {canRetry(d) && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); reprocess(d.id); }}
+                        disabled={retrying.has(d.id)}
+                        className="text-[10px] px-2 py-0.5 rounded-full border border-[var(--color-border)] text-[var(--color-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-2)] disabled:opacity-50 whitespace-nowrap"
                       >
-                        {d.processingStatus === "failed" ? "Failed" : "Processing…"}
-                      </span>
+                        {retrying.has(d.id) ? "Retrying…" : "Retry"}
+                      </button>
                     )}
                   </div>
                 );
@@ -270,6 +311,14 @@ export default function KnowledgePage() {
           )}
         </div>
       </div>
+
+      {toast && (
+        <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-[60] max-w-md">
+          <div className="rounded-lg bg-[var(--color-surface)] border border-[var(--color-border)] shadow-lg shadow-black/30 px-4 py-2.5 text-[12.5px] text-[var(--color-text)]">
+            {toast}
+          </div>
+        </div>
+      )}
 
       {acdGuide && (
         <AcdGuideModal
@@ -283,6 +332,8 @@ export default function KnowledgePage() {
         <DocumentDrawer
           detail={detail}
           loading={detailLoading}
+          reprocessing={retrying.has(detail.document.id)}
+          onReprocess={async (id) => { await reprocess(id); setDetail(null); }}
           onClose={() => setDetail(null)}
           onAskCopilot={(d) =>
             router.push(d.asset?.id ? `/assets/${d.asset.id}?tab=ai` : `/copilot`)
@@ -298,11 +349,15 @@ export default function KnowledgePage() {
 function DocumentDrawer({
   detail,
   loading,
+  reprocessing,
+  onReprocess,
   onClose,
   onAskCopilot,
 }: {
   detail: DocDetail;
   loading: boolean;
+  reprocessing: boolean;
+  onReprocess: (id: string) => void;
   onClose: () => void;
   onAskCopilot: (d: DocDetail) => void;
 }) {
@@ -429,6 +484,15 @@ function DocumentDrawer({
             >
               Ask the Copilot
             </button>
+            {canRetry(d) && (
+              <button
+                onClick={() => onReprocess(d.id)}
+                disabled={reprocessing}
+                className="text-[12.5px] font-medium rounded-lg border border-[var(--color-border)] px-3.5 py-2 hover:bg-[var(--color-surface-2)] disabled:opacity-50"
+              >
+                {reprocessing ? "Reprocessing…" : "Retry indexing"}
+              </button>
+            )}
           </div>
 
           {/* Drawing intelligence — HONEST facts parsed from the indexed text */}

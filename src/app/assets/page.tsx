@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { TopBar } from "@/components/TopBar";
 import { MachineFinder } from "@/components/MachineFinder";
+import { OnboardingWizard } from "@/components/OnboardingWizard";
 
 interface Asset {
   id: string;
@@ -41,6 +42,7 @@ export default function AssetsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
+  const [wizard, setWizard] = useState(false);
 
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("");
@@ -144,7 +146,7 @@ export default function AssetsPage() {
                   : "No equipment matches these filters."}
               </p>
             ) : (
-              <EmptyState onCreate={() => setShowForm(true)} />
+              <EmptyState onCreate={() => setShowForm(true)} onGuided={() => setWizard(true)} />
             )
           ) : (
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -213,6 +215,8 @@ export default function AssetsPage() {
           onCreated={() => { setShowForm(false); load(); }}
         />
       )}
+
+      {wizard && <OnboardingWizard onClose={() => { setWizard(false); load(); }} />}
     </>
   );
 }
@@ -262,7 +266,7 @@ function ErrorState({ message, onRetry }: { message: string; onRetry: () => void
   );
 }
 
-function EmptyState({ onCreate }: { onCreate: () => void }) {
+function EmptyState({ onCreate, onGuided }: { onCreate: () => void; onGuided: () => void }) {
   return (
     <div className="text-center py-20">
       <div className="w-12 h-12 mx-auto rounded-xl bg-[var(--color-surface-2)] grid place-items-center mb-4 text-[var(--color-accent)]">
@@ -273,12 +277,20 @@ function EmptyState({ onCreate }: { onCreate: () => void }) {
         Add your first asset to build its digital twin — nameplate, failure
         history, reliability metrics, drawings, PLC program, and a dedicated AI.
       </p>
-      <button
-        onClick={onCreate}
-        className="mt-5 text-[13px] font-medium rounded-lg bg-[var(--color-accent)] text-white px-4 py-2 hover:brightness-110"
-      >
-        + Add your first asset
-      </button>
+      <div className="mt-5 flex items-center justify-center gap-2.5">
+        <button
+          onClick={onGuided}
+          className="text-[13px] font-medium rounded-lg bg-[var(--color-accent)] text-white px-4 py-2 hover:brightness-110"
+        >
+          Start guided setup · 2 min
+        </button>
+        <button
+          onClick={onCreate}
+          className="text-[13px] font-medium rounded-lg border border-[var(--color-border)] px-4 py-2 hover:bg-[var(--color-surface-2)]"
+        >
+          Add manually
+        </button>
+      </div>
     </div>
   );
 }

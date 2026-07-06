@@ -1,8 +1,9 @@
 import { db, ensureDb } from "@/lib/db";
 import { documents, chunks, auditLog } from "@/lib/db/schema";
+import { and, eq } from "drizzle-orm";
 import { chunkText } from "./chunk";
 import { extractDocument, classifyKind, isImage, isDrawingName, type ExtractStatus } from "./extract";
-import { putObject } from "@/lib/storage";
+import { putObject, getObject } from "@/lib/storage";
 import { id } from "@/lib/util";
 import { parsePlcBuffer, savePlcProject, plcSummaryText } from "@/lib/plc/store";
 import { getEmbeddingProvider } from "@/lib/embeddings";
@@ -203,4 +204,85 @@ export async function ingestFile(
 
 function sanitize(name: string): string {
   return name.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 120);
+}
+
+export interface ReprocessResult {
+  ok: boolean;
+  indexed: boolean;
+  charCount: number;
+  chunkCount: number;
+  status: string;
+  message: string;
+}
+
+/**
+ * Re-run text extraction + indexing for a document whose original binary is
+ * still stored — the "Retry" path for a document that landed in `failed` (or a
+ * stored-but-unindexed) state. Strictly org-scoped. Old chunks are replaced so
+ * a successful retry doesn't double-index. Never throws to the caller: a hard
+ * failure is reported as { ok:false } and the row is left in `failed`.
+ */
+export async function reprocessDocument(orgId: string, documentId: string): Promise<ReprocessResult> {
+  if (!orgId) throw new Error("reprocessDocument() requires orgId");
+  await ensureDb();
+
+  const [doc] = await db
+    .select()
+    .from(documents)
+    .where(and(eq(documents.orgId, orgId), eq(documents.id, documentId)))
+    .limit(1);
+  if (!doc) return { ok: false, indexed: false, charCount: 0, chunkCount: 0, status: "not_found", message: "Document not found." };
+  if (!doc.storagePath) {
+    return { ok: false, indexed: false, charCount: 0, chunkCount: 0, status: "no_original", message: "No stored original to reprocess — the text was indexed directly." };
+  }
+
+  // Mark as processing so the UI reflects the in-flight retry.
+  await db.update(documents).set({ processingStatus: "processing" }).where(and(eq(documents.orgId, orgId), eq(documents.id, documentId)));
+
+  try {
+    const buffer = await getObject(doc.storagePath);
+    const result = await extractDocument(buffer, doc.filename, doc.mimeType ?? undefined);
+    const charCount = result.text.length;
+
+    // Replace any prior chunks for this doc (org-scoped) before re-indexing.
+    await db.delete(chunks).where(and(eq(chunks.orgId, orgId), eq(chunks.documentId, documentId)));
+
+    let chunkCount = 0;
+    let indexed = false;
+    if (result.status === "extracted" && result.text.trim()) {
+      const pieces = chunkText(result.text);
+      await insertChunksWithEmbeddings(orgId, documentId, doc.assetId ?? null, pieces);
+      chunkCount = pieces.length;
+      indexed = chunkCount > 0;
+    }
+
+    const processingStatus = indexed ? "ready" : result.status === "binary_unsupported" ? "failed" : "ready";
+    await db
+      .update(documents)
+      .set({ charCount, processingStatus })
+      .where(and(eq(documents.orgId, orgId), eq(documents.id, documentId)));
+
+    await db.insert(auditLog).values({
+      id: id("aud"),
+      orgId,
+      actor: "user",
+      action: "document.reprocess",
+      target: documentId,
+      detail: JSON.stringify({ filename: doc.filename, chunkCount, status: result.status }),
+    });
+
+    return {
+      ok: indexed,
+      indexed,
+      charCount,
+      chunkCount,
+      status: result.status,
+      message: indexed
+        ? `Re-indexed "${doc.filename}" — ${chunkCount} searchable chunks.`
+        : `"${doc.filename}" still has no extractable text (${result.status}). ${result.detail ?? ""}`.trim(),
+    };
+  } catch (err) {
+    await db.update(documents).set({ processingStatus: "failed" }).where(and(eq(documents.orgId, orgId), eq(documents.id, documentId)));
+    return { ok: false, indexed: false, charCount: 0, chunkCount: 0, status: "error", message: (err as Error).message };
+  }
 }

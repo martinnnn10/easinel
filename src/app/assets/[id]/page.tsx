@@ -69,7 +69,10 @@ export default function AssetPage({ params }: { params: Promise<{ id: string }> 
   // Honor a ?tab= deep link (e.g. from a closed work order linking to Lessons),
   // falling back to the overview when absent or unrecognized.
   const validTabs: Tab[] = ["overview", "pms", "parts", "workorders", "failures", "documents", "lessons", "plc", "alarms", "sessions", "ai"];
-  const initialTab = validTabs.includes(searchParams.get("tab") as Tab) ? (searchParams.get("tab") as Tab) : "overview";
+  // ?upload=1 (from guided setup) lands straight on Documents to upload a manual.
+  const initialTab = searchParams.get("upload") === "1"
+    ? "documents"
+    : validTabs.includes(searchParams.get("tab") as Tab) ? (searchParams.get("tab") as Tab) : "overview";
   const [tab, setTab] = useState<Tab>(initialTab);
 
   const load = useCallback(() => {
