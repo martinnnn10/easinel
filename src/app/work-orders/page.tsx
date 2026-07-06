@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { TopBar } from "@/components/TopBar";
+import { MicButton } from "@/components/MicButton";
 
 interface WorkOrder {
   id: string;
@@ -35,6 +36,13 @@ interface Stats {
 interface AssetLite {
   id: string;
   name: string;
+}
+// The plant's own prior proven fix for a symptom (from /api/work-orders/recurrence).
+interface PriorFix {
+  count: number;
+  label: string;
+  totalDowntimeMins: number;
+  last: { id: string; number: string | null; fix: string; failedPart: string | null; rootCause: string | null; downtimeMins: number | null; at: number | null } | null;
 }
 
 // Roles allowed to approve/reject maintenance requests (mirrors the server
@@ -697,6 +705,8 @@ function NewWorkOrderModal({ onClose, onCreated, presetAssetId, presetType }: { 
   const [assets, setAssets] = useState<AssetLite[]>([]);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  // "Seen before" — the plant's own prior proven fix for this symptom.
+  const [priorFix, setPriorFix] = useState<PriorFix | null>(null);
 
   useEffect(() => {
     fetch("/api/assets")
@@ -704,6 +714,24 @@ function NewWorkOrderModal({ onClose, onCreated, presetAssetId, presetType }: { 
       .then((d) => setAssets((d.assets ?? []).map((a: AssetLite) => ({ id: a.id, name: a.name }))))
       .catch(() => setAssets([]));
   }, []);
+
+  // Debounced recurrence lookup: as the tech describes the symptom (and picks an
+  // asset), surface the machine's prior fix from real closed corrective WOs.
+  useEffect(() => {
+    const symptom = form.symptom.trim();
+    if (symptom.length < 6) { setPriorFix(null); return; }
+    const t = setTimeout(() => {
+      fetch("/api/work-orders/recurrence", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ symptom, assetId: form.assetId || null }),
+      })
+        .then((r) => (r.ok ? r.json() : { priorFix: null }))
+        .then((d) => setPriorFix(d.priorFix ?? null))
+        .catch(() => setPriorFix(null));
+    }, 450);
+    return () => clearTimeout(t);
+  }, [form.symptom, form.assetId]);
 
   const submit = async (openCopilot: boolean) => {
     if (!form.symptom.trim()) return;
@@ -745,14 +773,51 @@ function NewWorkOrderModal({ onClose, onCreated, presetAssetId, presetType }: { 
           Describe the symptom the way you’d say it out loud. You can refine it later.
         </p>
         <div className="space-y-3">
-          <textarea
-            autoFocus
-            placeholder="e.g. Line 2 packer keeps faulting about 20 minutes after startup"
-            value={form.symptom}
-            onChange={(e) => setForm({ ...form, symptom: e.target.value })}
-            rows={3}
-            className="w-full rounded-lg bg-[var(--color-surface-2)] border border-[var(--color-border)] px-3 py-2.5 text-[14px] outline-none focus:border-[var(--color-accent)] resize-none"
-          />
+          <div className="relative">
+            <textarea
+              autoFocus
+              placeholder="e.g. Line 2 packer keeps faulting about 20 minutes after startup"
+              value={form.symptom}
+              onChange={(e) => setForm({ ...form, symptom: e.target.value })}
+              rows={3}
+              className="w-full rounded-lg bg-[var(--color-surface-2)] border border-[var(--color-border)] px-3 py-2.5 pr-10 text-[14px] outline-none focus:border-[var(--color-accent)] resize-none"
+            />
+            <div className="absolute right-2 top-2">
+              <MicButton
+                title="Dictate symptom"
+                onText={(t) => setForm((f) => ({ ...f, symptom: (f.symptom ? f.symptom + " " : "") + t }))}
+              />
+            </div>
+          </div>
+
+          {/* "Seen before" — the machine-memory payoff, before touching a wrench */}
+          {priorFix && priorFix.last && (
+            <Link
+              href={`/work-orders/${priorFix.last.id}`}
+              className="block rounded-xl border border-[var(--color-accent)]/40 bg-[var(--color-accent)]/[0.07] px-3.5 py-3 hover:bg-[var(--color-accent)]/[0.12] transition active:scale-[0.995]"
+            >
+              <div className="flex items-start gap-2.5">
+                <span className="text-[var(--color-accent)] text-base leading-none mt-0.5" aria-hidden>↻</span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[13px] font-medium">
+                    Seen before —{" "}
+                    {priorFix.count > 1
+                      ? `this fault has been fixed ${priorFix.count}× here`
+                      : "this fault has been fixed here before"}
+                    {priorFix.label ? ` · ${priorFix.label}` : ""}
+                  </p>
+                  <p className="text-[12px] text-[var(--color-muted)] mt-0.5 truncate">
+                    Last fix: {priorFix.last.fix}
+                    {priorFix.last.downtimeMins != null ? ` · ${priorFix.last.downtimeMins} min down` : ""}
+                    {priorFix.last.number ? ` · ${priorFix.last.number}` : ""}
+                    {priorFix.last.at ? ` · ${new Date(priorFix.last.at).toLocaleDateString()}` : ""}
+                  </p>
+                </div>
+                <span className="text-[var(--color-accent)] text-[13px] shrink-0" aria-hidden>→</span>
+              </div>
+            </Link>
+          )}
+
           <select
             value={form.assetId}
             onChange={(e) => setForm({ ...form, assetId: e.target.value })}

@@ -4,6 +4,7 @@ import { getCurrentUser } from "@/lib/auth/session";
 import {
   getOrg,
   renameOrg,
+  setDowntimeRate,
   listMembers,
   listInvitations,
 } from "@/lib/auth/session";
@@ -25,7 +26,7 @@ export const GET = safeHandler("org.get", async () => {
   const canManage = user.role === "owner" || user.role === "admin";
   const invites = canManage ? await listInvitations(user.orgId) : [];
   return NextResponse.json({
-    org: org ?? { id: user.orgId, name: "My Organization" },
+    org: org ?? { id: user.orgId, name: "My Organization", downtimeCostPerHour: null },
     members: members.map((m) => ({
       id: m.id,
       name: m.name,
@@ -44,19 +45,30 @@ export const GET = safeHandler("org.get", async () => {
   });
 });
 
-// PATCH /api/org — rename the organization. Owners/admins only.
+// PATCH /api/org — rename the organization and/or set its downtime cost rate.
+// Owners/admins only. Either field may be provided independently.
 export const PATCH = safeHandler("org.patch", async (req: NextRequest) => {
   const gate = await requirePermission("manage_users");
   if (gate instanceof NextResponse) return gate;
-  const { name } = await req.json().catch(() => ({}));
-  if (!name || typeof name !== "string" || !name.trim()) {
+  const body = await req.json().catch(() => ({}));
+  const hasName = typeof body.name === "string" && body.name.trim();
+  const hasRate = body.downtimeCostPerHour !== undefined;
+
+  if (!hasName && !hasRate) {
     return NextResponse.json(
-      { error: "bad_request", message: "A non-empty organization name is required." },
+      { error: "bad_request", message: "Provide an organization name or a downtime cost rate." },
       { status: 400 }
     );
   }
-  await renameOrg(gate.user.orgId, name);
-  await audit(gate.user.orgId, gate.user.email, "org.rename", gate.user.orgId, name.trim());
+  if (hasName) {
+    await renameOrg(gate.user.orgId, body.name);
+    await audit(gate.user.orgId, gate.user.email, "org.rename", gate.user.orgId, body.name.trim());
+  }
+  if (hasRate) {
+    const rate = body.downtimeCostPerHour === null ? null : Number(body.downtimeCostPerHour);
+    await setDowntimeRate(gate.user.orgId, rate);
+    await audit(gate.user.orgId, gate.user.email, "org.downtime_rate", gate.user.orgId, String(rate));
+  }
   const org = await getOrg(gate.user.orgId);
   return NextResponse.json({ org });
 });

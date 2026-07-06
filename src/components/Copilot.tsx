@@ -87,6 +87,18 @@ export function Copilot({
     }
   }, [assetId, seed, loadSession]);
 
+  // Auto-ask a starter question linked via ?ask=<question> — the onboarding deep
+  // link so a brand-new org lands a real, cited grounded answer on click #1
+  // (the seeded OEM knowledge answers common faults with zero uploads).
+  useEffect(() => {
+    if (seed) return;
+    const q = new URLSearchParams(window.location.search).get("ask");
+    if (q && !seeded.current) {
+      seeded.current = true;
+      send(q, []);
+    }
+  }, [seed, send]);
+
   useEffect(() => {
     scrollRef.current?.scrollTo({
       top: scrollRef.current.scrollHeight,

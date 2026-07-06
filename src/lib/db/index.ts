@@ -580,6 +580,8 @@ const DDL = [
 // existing columns and add only what's missing. This never drops data and is the
 // libSQL stand-in for what will become a numbered Drizzle/Postgres migration.
 const COLUMN_MIGRATIONS: { table: string; column: string; ddl: string }[] = [
+  // ROI: fully-loaded downtime cost rate (turns downtime hours into dollars).
+  { table: "orgs", column: "downtime_cost_per_hour", ddl: "ALTER TABLE orgs ADD COLUMN downtime_cost_per_hour REAL" },
   { table: "assets", column: "site", ddl: "ALTER TABLE assets ADD COLUMN site TEXT" },
   { table: "assets", column: "line", ddl: "ALTER TABLE assets ADD COLUMN line TEXT" },
   { table: "assets", column: "cell", ddl: "ALTER TABLE assets ADD COLUMN cell TEXT" },

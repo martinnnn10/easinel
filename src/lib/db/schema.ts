@@ -12,6 +12,11 @@ import { sqliteTable, text, integer, real } from "drizzle-orm/sqlite-core";
 export const orgs = sqliteTable("orgs", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
+  // Fully-loaded cost of one hour of unplanned downtime for this plant/line
+  // (lost production + labor + scrap). One honest org-level input that turns
+  // recorded downtime hours into dollars. Null until the owner sets it — the UI
+  // never invents a rate.
+  downtimeCostPerHour: real("downtime_cost_per_hour"),
   createdAt: integer("created_at", { mode: "timestamp_ms" })
     .notNull()
     .default(sql`(unixepoch() * 1000)`),

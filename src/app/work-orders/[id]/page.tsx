@@ -6,6 +6,7 @@ import Link from "next/link";
 import { TopBar } from "@/components/TopBar";
 import { Copilot } from "@/components/Copilot";
 import { Markdown } from "@/components/Markdown";
+import { MicButton } from "@/components/MicButton";
 
 interface WorkOrder {
   id: string;
@@ -21,13 +22,14 @@ interface WorkOrder {
   assetId?: string | null;
   assignedTo?: string | null;
   externalSystem?: string | null;
-  reportedAt?: number | null;
-  startedAt?: number | null;
-  closedAt?: number | null;
+  // Timestamps arrive from the API as ISO strings (Date columns) or ms numbers.
+  reportedAt?: number | string | null;
+  startedAt?: number | string | null;
+  closedAt?: number | string | null;
   downtimeMins?: number | null;
   rootCause?: string | null;
   failedPart?: string | null;
-  createdAt?: number;
+  createdAt?: number | string;
 }
 interface HistoryEvent {
   id: string;
@@ -77,7 +79,7 @@ const ACTIONS: Record<string, { to: string; label: string; primary?: boolean }[]
   synced: [{ to: "in_progress", label: "Start work", primary: true }],
 };
 
-function fmt(ts?: number | null): string {
+function fmt(ts?: number | string | null): string {
   if (!ts) return "—";
   return new Date(ts).toLocaleString([], {
     month: "short",
@@ -104,6 +106,7 @@ export default function WorkOrderDetailPage() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [pmState, setPmState] = useState<"idle" | "loading" | "done" | "error">("idle");
   const [pmMsg, setPmMsg] = useState("");
+  const [pmProgramId, setPmProgramId] = useState<string | null>(null);
   // RCA generation
   const [rca, setRca] = useState<{ markdown: string; confidence: string; aiGenerated: boolean } | null>(null);
   const [rcaState, setRcaState] = useState<"idle" | "loading" | "open" | "saving" | "saved" | "error">("idle");
@@ -139,6 +142,7 @@ export default function WorkOrderDetailPage() {
       });
       const d = await r.json();
       if (!r.ok) throw new Error(d.message || d.error || "Failed");
+      setPmProgramId(d.program?.id ?? null);
       setPmMsg(`Draft PM created (${d.confidence} confidence, ${d.evidenceCount} evidence items). Review & approve it under PM Program.`);
       setPmState("done");
     } catch (e) {
@@ -185,6 +189,7 @@ export default function WorkOrderDetailPage() {
       rootCause?: string;
       failedPart?: string;
       repairAction?: string;
+      downtimeMins?: number | null;
     } = {}
   ): Promise<boolean> => {
     if (busy) return false; // ignore re-entrant clicks
@@ -341,7 +346,7 @@ export default function WorkOrderDetailPage() {
                           )}
                         </div>
                         {pmState === "done" ? (
-                          <a href="/pm" className="shrink-0 text-[12px] font-medium rounded-lg bg-[var(--color-accent)] text-white px-3 py-1.5 hover:brightness-110">
+                          <a href={pmProgramId ? `/pm/${pmProgramId}` : "/pm"} className="shrink-0 text-[12px] font-medium rounded-lg bg-[var(--color-accent)] text-white px-3 py-1.5 hover:brightness-110">
                             Review PM →
                           </a>
                         ) : (
@@ -474,6 +479,18 @@ export default function WorkOrderDetailPage() {
         <CloseOutModal
           busy={busy}
           error={actionError}
+          assetId={wo.assetId ?? null}
+          symptom={wo.symptom ?? wo.title}
+          suggestedDowntimeMins={(() => {
+            // reportedAt/createdAt arrive as ISO strings or ms numbers — coerce
+            // to a timestamp before differencing (raw subtraction of a string
+            // yields NaN and blanks the field).
+            const ref = wo.reportedAt ?? wo.createdAt;
+            if (!ref) return null;
+            const t = typeof ref === "number" ? ref : new Date(ref).getTime();
+            if (!Number.isFinite(t)) return null;
+            return Math.max(1, Math.round((Date.now() - t) / 60000));
+          })()}
           onClose={() => { if (!busy) { setActionError(null); setCloseOut(false); } }}
           onConfirm={async (d) => {
             const ok = await transition("done", {
@@ -481,6 +498,7 @@ export default function WorkOrderDetailPage() {
               rootCause: d.rootCause,
               failedPart: d.failedPart,
               repairAction: d.repairAction,
+              downtimeMins: d.downtimeMins,
               note: "Closed out",
             });
             // Only dismiss on success — on failure the modal stays open with the
@@ -577,16 +595,28 @@ export interface CloseOutData {
   rootCause: string;
   failedPart: string;
   repairAction: string;
+  downtimeMins: number | null;
+}
+
+interface PriorFix {
+  count: number; label: string; totalDowntimeMins: number;
+  last: { id: string; number: string | null; fix: string; downtimeMins: number | null; at: number | null } | null;
 }
 
 function CloseOutModal({
   busy,
   error,
+  suggestedDowntimeMins,
+  assetId,
+  symptom,
   onClose,
   onConfirm,
 }: {
   busy: boolean;
   error?: string | null;
+  suggestedDowntimeMins?: number | null;
+  assetId?: string | null;
+  symptom?: string | null;
   onClose: () => void;
   onConfirm: (data: CloseOutData) => void;
 }) {
@@ -594,6 +624,27 @@ function CloseOutModal({
   const [rootCause, setRootCause] = useState("");
   const [failedPart, setFailedPart] = useState("");
   const [repairAction, setRepairAction] = useState("");
+  // Prefilled with the reported-down → now estimate; the tech corrects it to the
+  // real downtime (a WO left open overnight shouldn't log 14 h of "downtime").
+  const [downtime, setDowntime] = useState(
+    suggestedDowntimeMins != null ? String(suggestedDowntimeMins) : ""
+  );
+  // Repeat-failure heads-up: has this machine hit this fault before? (prior
+  // closed corrective WOs, real data only). Turns close-out into a PM decision.
+  const [priorFix, setPriorFix] = useState<PriorFix | null>(null);
+  useEffect(() => {
+    if (!assetId || !symptom) return;
+    let alive = true;
+    fetch("/api/work-orders/recurrence", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ assetId, symptom }),
+    })
+      .then((r) => (r.ok ? r.json() : { priorFix: null }))
+      .then((d) => { if (alive) setPriorFix(d.priorFix ?? null); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [assetId, symptom]);
 
   // Esc closes the modal (unless a submit is in flight).
   useEffect(() => {
@@ -624,16 +675,37 @@ function CloseOutModal({
             {error}
           </div>
         )}
+        {priorFix && (
+          <div className="mb-3 rounded-lg border border-[var(--color-amber)]/40 bg-[var(--color-amber)]/[0.07] px-3 py-2.5 text-[12px]">
+            <span className="text-[var(--color-amber)] font-medium">
+              {priorFix.count === 1 ? "Heads up — 2nd time on this machine." : `Heads up — ${priorFix.count + 1}th time on this machine.`}
+            </span>{" "}
+            <span className="text-[var(--color-muted)]">
+              {priorFix.totalDowntimeMins > 0
+                ? `${priorFix.totalDowntimeMins >= 60 ? `${(priorFix.totalDowntimeMins / 60).toFixed(1)} h` : `${priorFix.totalDowntimeMins} min`} lost to this already. `
+                : ""}
+              Once you close, turn it into a PM to stop the next one.
+            </span>
+          </div>
+        )}
         <div className="space-y-3">
           <Field label="What fixed it? (resolution) *">
-            <textarea
-              autoFocus
-              placeholder="e.g. Panel cooling fan stalled; replaced fan, cleaned filter, verified current held steady."
-              value={resolution}
-              onChange={(e) => setResolution(e.target.value)}
-              rows={3}
-              className="w-full rounded-lg bg-[var(--color-surface-2)] border border-[var(--color-border)] px-3 py-2.5 text-[14px] outline-none focus:border-[var(--color-accent)] resize-none"
-            />
+            <div className="relative">
+              <textarea
+                autoFocus
+                placeholder="e.g. Panel cooling fan stalled; replaced fan, cleaned filter, verified current held steady."
+                value={resolution}
+                onChange={(e) => setResolution(e.target.value)}
+                rows={3}
+                className="w-full rounded-lg bg-[var(--color-surface-2)] border border-[var(--color-border)] px-3 py-2.5 pr-10 text-[14px] outline-none focus:border-[var(--color-accent)] resize-none"
+              />
+              <div className="absolute right-2 top-2">
+                <MicButton
+                  title="Dictate resolution"
+                  onText={(t) => setResolution((r) => (r ? r + " " : "") + t)}
+                />
+              </div>
+            </div>
           </Field>
           <div className="grid grid-cols-2 gap-3">
             <Field label="Root cause">
@@ -646,6 +718,20 @@ function CloseOutModal({
           <Field label="Repair action">
             <input value={repairAction} onChange={(e) => setRepairAction(e.target.value)} placeholder="Replaced bearing, re-greased, aligned coupling" className="w-full rounded-lg bg-[var(--color-surface-2)] border border-[var(--color-border)] px-3 py-2 text-[13px] outline-none focus:border-[var(--color-accent)]" />
           </Field>
+          <Field label="Actual downtime (minutes)">
+            <input
+              type="number"
+              min={1}
+              inputMode="numeric"
+              value={downtime}
+              onChange={(e) => setDowntime(e.target.value)}
+              placeholder="e.g. 42"
+              className="w-full rounded-lg bg-[var(--color-surface-2)] border border-[var(--color-border)] px-3 py-2 text-[13px] outline-none focus:border-[var(--color-accent)]"
+            />
+            <p className="text-[11px] text-[var(--color-faint)] mt-1">
+              Estimated from reported → now. Correct it to the real time the machine was down — this drives your downtime metrics.
+            </p>
+          </Field>
         </div>
         <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 mt-4">
           <button onClick={onClose} className="text-[13px] px-3 py-2.5 sm:py-1.5 rounded-lg text-[var(--color-muted)] hover:text-[var(--color-text)]">
@@ -653,7 +739,7 @@ function CloseOutModal({
           </button>
           <button
             disabled={busy || !resolution.trim()}
-            onClick={() => onConfirm({ resolution: resolution.trim(), rootCause: rootCause.trim(), failedPart: failedPart.trim(), repairAction: repairAction.trim() })}
+            onClick={() => onConfirm({ resolution: resolution.trim(), rootCause: rootCause.trim(), failedPart: failedPart.trim(), repairAction: repairAction.trim(), downtimeMins: downtime.trim() && Number.isFinite(Number(downtime)) ? Math.max(1, Math.round(Number(downtime))) : null })}
             className="text-[13px] font-medium px-4 py-2.5 sm:py-1.5 rounded-lg bg-[var(--color-green)] text-white disabled:opacity-40 hover:brightness-110"
           >
             {busy ? "Closing…" : "Mark done"}

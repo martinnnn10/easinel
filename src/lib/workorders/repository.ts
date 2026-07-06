@@ -479,7 +479,16 @@ export async function transitionWorkOrder(
   orgId: string,
   woId: string,
   toStatus: string,
-  opts: { note?: string | null; resolution?: string | null; actor?: string } = {}
+  opts: {
+    note?: string | null;
+    resolution?: string | null;
+    actor?: string;
+    // Explicit downtime (minutes) captured at close-out. When provided, it is
+    // authoritative — the technician's real "how long was the machine actually
+    // down" value overrides the wall-clock auto-estimate below. This keeps the
+    // Avg-downtime KPI honest for WOs left open across shifts/weekends.
+    downtimeMins?: number | null;
+  } = {}
 ): Promise<TransitionResult> {
   await ensureDb();
   const actor = opts.actor ?? "system";
@@ -512,9 +521,17 @@ export async function transitionWorkOrder(
   }
   if (toStatus === "done") {
     patch.closedAt = now;
-    // True downtime: from when it was reported down to now (minutes).
-    const reported = existing.reportedAt ? ms(existing.reportedAt) : ms(existing.createdAt);
-    patch.downtimeMins = Math.max(1, Math.round((now.getTime() - reported) / 60000));
+    if (opts.downtimeMins != null && Number.isFinite(opts.downtimeMins)) {
+      // Technician-confirmed downtime wins — the honest "machine actually down"
+      // figure, not the wall clock.
+      patch.downtimeMins = Math.max(1, Math.round(opts.downtimeMins));
+    } else {
+      // Fallback estimate: reported-down → now (minutes). Overstates when a WO
+      // sits open across shifts, which is exactly why close-out lets the tech
+      // correct it (see CloseOutModal). Used only when no explicit value given.
+      const reported = existing.reportedAt ? ms(existing.reportedAt) : ms(existing.createdAt);
+      patch.downtimeMins = Math.max(1, Math.round((now.getTime() - reported) / 60000));
+    }
   }
   if (toStatus === "open" && from === "done") {
     // Reopen: clear close stamps so the next close recomputes cleanly.

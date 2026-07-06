@@ -16,7 +16,20 @@ interface Asset {
 }
 interface Doc { id: string; filename: string; kind: string; charCount?: number; createdAt?: number; }
 interface Photo { id: string; caption?: string | null; }
-interface Wo { id: string; number?: string | null; title: string; status: string; priority: string; type: string; createdAt?: number; }
+interface Wo {
+  id: string; number?: string | null; title: string; status: string; priority: string; type: string;
+  // Timestamps arrive as ISO strings (Date columns) or ms numbers.
+  createdAt?: number | string;
+  symptom?: string | null; rootCause?: string | null; failedPart?: string | null; repairAction?: string | null;
+  resolution?: string | null; downtimeMins?: number | null; closedAt?: number | string | null;
+}
+// Coerce an ISO-string / ms-number / null timestamp to milliseconds (0 when absent/invalid).
+const toMs = (v: unknown): number => {
+  if (v == null) return 0;
+  if (typeof v === "number") return Number.isFinite(v) ? v : 0;
+  const t = new Date(v as string).getTime();
+  return Number.isFinite(t) ? t : 0;
+};
 interface Alarm { id: string; code?: string | null; message: string; severity: string; source: string; occurredAt: number; }
 interface Plc { id: string; filename: string; controllerName?: string | null; routineCount: number; tagCount: number; fidelity: string; }
 interface Sess { id: string; title: string; messageCount: number; updatedAt: number; }
@@ -205,7 +218,7 @@ export default function AssetPage({ params }: { params: Promise<{ id: string }> 
           {tab === "overview" && <Overview assetId={id} asset={asset} metrics={metrics} parent={twin.parent ?? null} children={children} pmPrograms={pmPrograms} onChanged={load} />}
           {tab === "pms" && <PmPrograms assetId={id} pmPrograms={pmPrograms} onChanged={load} />}
           {tab === "parts" && <Parts parts={parts} />}
-          {tab === "failures" && <Failures wos={failureWos} alarms={alarms} />}
+          {tab === "failures" && <Failures wos={failureWos} alarms={alarms} onPlanPm={() => setTab("pms")} />}
           {tab === "documents" && <Documents assetId={id} docs={docs} lessons={[]} onUpload={load} />}
           {tab === "lessons" && <Lessons lessons={lessons} />}
           {tab === "plc" && <PlcList projects={plcProjects} />}
@@ -391,32 +404,145 @@ function Parts({ parts }: { parts: PartRow[] }) {
   );
 }
 
-// This machine's failure record: corrective repairs (with captured root cause /
-// failed part) and fault/critical alarms — the raw material the PM loop learns from.
-function Failures({ wos, alarms }: { wos: Wo[]; alarms: Alarm[] }) {
+// ── Fault-signature grouping (machine memory) ───────────────────────────────
+// Cluster this machine's corrective repairs by the recurring problem so a repeat
+// offender reads as one story ("F007 overload ×3") with the proven fix inline —
+// not a flat list. Signature priority: a fault code in the title/symptom, else
+// the normalized failed part, else the normalized root cause, else the title.
+const norm = (s?: string | null) => (s ?? "").toLowerCase().replace(/\s+/g, " ").trim();
+function faultSignature(w: Wo): { key: string; label: string } {
+  const code = `${w.title ?? ""} ${w.symptom ?? ""}`.match(/\b([a-z]?\d{2,4})\b/i)?.[1];
+  if (code && /\d/.test(code)) {
+    const codeUp = code.toUpperCase();
+    return { key: `code:${codeUp}`, label: codeUp };
+  }
+  if (norm(w.failedPart)) return { key: `part:${norm(w.failedPart)}`, label: w.failedPart!.trim() };
+  if (norm(w.rootCause)) return { key: `cause:${norm(w.rootCause)}`, label: w.rootCause!.trim() };
+  const t = (w.title ?? "").trim();
+  return { key: `title:${norm(t)}`, label: t || "Corrective repair" };
+}
+interface FaultGroup { key: string; label: string; items: Wo[]; totalDowntime: number; }
+function groupFailures(wos: Wo[]): FaultGroup[] {
+  const map = new Map<string, FaultGroup>();
+  for (const w of wos) {
+    const { key, label } = faultSignature(w);
+    let g = map.get(key);
+    if (!g) { g = { key, label, items: [], totalDowntime: 0 }; map.set(key, g); }
+    g.items.push(w);
+    g.totalDowntime += Number(w.downtimeMins) || 0;
+  }
+  const at = (w: Wo) => toMs(w.closedAt ?? w.createdAt);
+  for (const g of map.values()) g.items.sort((a, b) => at(b) - at(a));
+  // Recurring problems first (by count), then most-recent.
+  return [...map.values()].sort(
+    (a, b) => b.items.length - a.items.length || at(b.items[0]) - at(a.items[0])
+  );
+}
+const hrs = (mins: number) => (mins >= 60 ? `${(mins / 60).toFixed(1)} h` : `${mins} min`);
+
+// This machine's failure record: corrective repairs grouped by recurring fault
+// (with the captured root cause / failed part / proven fix inline) plus fault
+// alarms — the raw material the PM loop learns from. All from real closed WOs.
+function Failures({ wos, alarms, onPlanPm }: { wos: Wo[]; alarms: Alarm[]; onPlanPm?: () => void }) {
   const faults = alarms.filter((a) => a.severity === "fault" || a.severity === "critical");
   if (wos.length === 0 && faults.length === 0)
     return <EmptyRow>No recorded failures for this machine. Corrective work orders and fault alarms will appear here.</EmptyRow>;
+
+  const groups = groupFailures(wos);
+  // The dominant repeat offender (≥2 events) — the honest "this keeps costing you" signal.
+  const topRepeat = groups.find((g) => g.items.length >= 2 && g.totalDowntime > 0);
+
   return (
     <div className="space-y-4">
-      {wos.length > 0 && (
-        <div>
-          <h3 className="text-[12px] uppercase tracking-wide text-[var(--color-muted)] mb-2">Corrective repairs</h3>
-          <div className="space-y-1">
-            {wos.map((w) => (
-              <Link key={w.id} href={`/work-orders/${w.id}`} className="flex items-center gap-2 text-[13px] rounded-lg px-3 py-2 hover:bg-[var(--color-surface-2)]">
-                {w.number && <span className="font-mono text-[10px] text-[var(--color-faint)]">{w.number}</span>}
-                <span className="truncate flex-1">{w.title}</span>
-                <span className="text-[10px] uppercase text-[var(--color-faint)]">{w.status}</span>
-                {w.createdAt && <span className="text-[10px] text-[var(--color-faint)]">{new Date(w.createdAt).toISOString().slice(0, 10)}</span>}
-              </Link>
-            ))}
+      {topRepeat && (
+        <div className="rounded-xl border border-[var(--color-amber)]/40 bg-[var(--color-amber)]/[0.06] p-3.5">
+          <div className="flex items-start gap-3">
+            <span className="text-[var(--color-amber)] text-lg leading-none mt-0.5">⚠</span>
+            <div className="min-w-0 flex-1">
+              <p className="text-[13.5px] font-medium">
+                <span className="text-[var(--color-amber)]">{topRepeat.label}</span> has recurred{" "}
+                {topRepeat.items.length}× — {hrs(topRepeat.totalDowntime)} of downtime on this machine.
+              </p>
+              <p className="text-[12px] text-[var(--color-muted)] mt-0.5">
+                Turn this repeat into a preventive program before the next failure.
+              </p>
+            </div>
+            {onPlanPm && (
+              <button
+                onClick={onPlanPm}
+                className="shrink-0 text-[12px] font-medium rounded-lg bg-[var(--color-accent)] text-[var(--color-on-accent)] px-3 py-1.5 hover:brightness-110"
+              >
+                Plan a PM →
+              </button>
+            )}
           </div>
         </div>
       )}
+
+      {groups.length > 0 && (
+        <div className="space-y-3">
+          {groups.map((g) => {
+            const repeat = g.items.length >= 2;
+            const avg = g.totalDowntime && g.items.filter((w) => w.downtimeMins).length
+              ? Math.round(g.totalDowntime / g.items.filter((w) => w.downtimeMins).length)
+              : null;
+            return (
+              <div key={g.key} className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] overflow-hidden">
+                <div className="flex items-center gap-2 px-3.5 py-2.5 border-b border-[var(--color-border-soft)] bg-[var(--color-surface-2)]/40">
+                  {repeat && (
+                    <span className="text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-[var(--color-amber)]/15 text-[var(--color-amber)]">
+                      ×{g.items.length}
+                    </span>
+                  )}
+                  <span className="text-[13px] font-medium truncate flex-1">{g.label}</span>
+                  <span className="text-[11px] text-[var(--color-faint)] shrink-0">
+                    {repeat ? `${g.items.length} occurrences` : "1 occurrence"}
+                    {avg != null ? ` · ${avg} min avg` : ""}
+                  </span>
+                </div>
+                <div className="divide-y divide-[var(--color-border-soft)]">
+                  {g.items.map((w) => {
+                    // Only closed repairs have a "fix"; an open one is still being worked.
+                    const fix = w.repairAction || w.failedPart || w.rootCause || w.resolution;
+                    const open = w.status !== "done";
+                    const when = toMs(w.closedAt ?? w.createdAt);
+                    return (
+                      <Link
+                        key={w.id}
+                        href={`/work-orders/${w.id}`}
+                        className="block px-3.5 py-2.5 hover:bg-[var(--color-surface-2)]/50 transition"
+                      >
+                        <div className="flex items-center gap-2">
+                          {w.number && <span className="font-mono text-[10px] text-[var(--color-faint)]">{w.number}</span>}
+                          <span className="text-[12.5px] truncate flex-1">
+                            {open ? (
+                              <><span className="text-[var(--color-amber)] uppercase text-[10px] font-semibold tracking-wide mr-1">Open</span>{w.title}</>
+                            ) : fix ? (
+                              <><span className="text-[var(--color-muted)]">Fix:</span> {fix}</>
+                            ) : (
+                              w.title
+                            )}
+                          </span>
+                          {w.downtimeMins != null && (
+                            <span className="text-[11px] text-[var(--color-muted)] shrink-0">{w.downtimeMins} min down</span>
+                          )}
+                          <span className="text-[10px] text-[var(--color-faint)] shrink-0">
+                            {when ? new Date(when).toISOString().slice(0, 10) : ""}
+                          </span>
+                        </div>
+                      </Link>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
       {faults.length > 0 && (
         <div>
-          <h3 className="text-[12px] uppercase tracking-wide text-[var(--color-muted)] mb-2">Fault & critical alarms</h3>
+          <h3 className="text-[12px] uppercase tracking-wide text-[var(--color-muted)] mb-2">Fault &amp; critical alarms</h3>
           <div className="space-y-1">
             {faults.map((a) => (
               <div key={a.id} className="flex items-center gap-2 text-[13px] rounded-lg px-3 py-2 hover:bg-[var(--color-surface-2)]">

@@ -73,10 +73,24 @@ export async function createOrg(name: string): Promise<string> {
   return orgId;
 }
 
-export async function getOrg(orgId: string): Promise<{ id: string; name: string } | null> {
+export async function getOrg(
+  orgId: string
+): Promise<{ id: string; name: string; downtimeCostPerHour: number | null } | null> {
   await ensureDb();
   const rows = await db.select().from(orgs).where(eq(orgs.id, orgId));
-  return rows[0] ? { id: rows[0].id, name: rows[0].name } : null;
+  return rows[0]
+    ? { id: rows[0].id, name: rows[0].name, downtimeCostPerHour: rows[0].downtimeCostPerHour ?? null }
+    : null;
+}
+
+// Set the org's fully-loaded downtime cost rate ($/hour). Pass null to clear it.
+// Non-positive/NaN inputs are treated as "clear" — the UI never shows an
+// invented rate.
+export async function setDowntimeRate(orgId: string, rate: number | null): Promise<void> {
+  if (!orgId) throw new Error("setDowntimeRate() requires orgId");
+  await ensureDb();
+  const clean = rate != null && Number.isFinite(rate) && rate > 0 ? rate : null;
+  await db.update(orgs).set({ downtimeCostPerHour: clean }).where(eq(orgs.id, orgId));
 }
 
 export async function createSession(userId: string, orgId: string): Promise<string> {

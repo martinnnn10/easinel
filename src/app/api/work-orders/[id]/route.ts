@@ -65,6 +65,9 @@ export const PATCH = safeHandler("workorders.update", async (req: NextRequest, {
     const result = await transitionWorkOrder(user.orgId, id, body.status, {
       note: body.note ?? null,
       resolution: body.resolution ?? null,
+      // Technician-confirmed downtime from the close-out modal is authoritative
+      // over the wall-clock estimate (protects the Avg-downtime KPI).
+      downtimeMins: typeof body.downtimeMins === "number" ? body.downtimeMins : null,
       actor: user.id,
     });
     if (result.error === "not_found") {

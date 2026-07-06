@@ -1,0 +1,16 @@
+import { chromium } from "playwright-core";
+import { execSync } from "child_process";
+const EXE = execSync("ls -d /opt/pw-browsers/chromium*/chrome-linux/chrome 2>/dev/null | head -1").toString().trim();
+const SHOT = process.env.SHOT_DIR;
+const b = await chromium.launch({ executablePath: EXE, args: ["--no-sandbox"] });
+const p = await (await b.newContext({ viewport: { width: 1440, height: 950 } })).newPage();
+await p.goto("http://127.0.0.1:4001/work-orders/wo_ef2bc3d0-6a36-46ef-8ab8-f28b1b7ccad6", { waitUntil: "networkidle" });
+await p.waitForTimeout(1200);
+await p.locator("button", { hasText: /^Close out$/ }).first().click();
+await p.waitForTimeout(900);
+const t = await p.locator("body").innerText();
+console.log("Actual downtime field?", /Actual downtime/i.test(t));
+console.log("repeat heads-up?", /Heads up/i.test(t));
+console.log("resolution mic?", await p.locator("button[title='Dictate resolution']").count() > 0);
+await p.screenshot({ path: SHOT + "/ROI-closeout.png" });
+await b.close();

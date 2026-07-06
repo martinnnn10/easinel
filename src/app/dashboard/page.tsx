@@ -22,6 +22,10 @@ interface KpiData {
   openWorkOrders: { total: number; urgent: number; high: number; medium: number; low: number };
   pmCompliance: number | null;
   downtimeHours: number;
+  downtimeCostPerHour: number | null;
+  downtimeCost: number | null;
+  prevDowntimeHours: number;
+  downtimeDeltaPct: number | null;
   assetHealth: { total: number; operational: number; degraded: number; down: number };
   workOrderTrend: { period: string; count: number }[];
   downtimeTrend: { period: string; hours: number }[];
@@ -76,18 +80,141 @@ function KpiCard({
   );
 }
 
+function periodLabel(days: number): string {
+  if (days <= 30) return "last 30 days";
+  if (days <= 90) return "this quarter";
+  if (days <= 180) return "last 6 months";
+  return "last year";
+}
+
+// The ROI headline. Downtime this period in hours, dollarized once the org sets a
+// fully-loaded rate, with a signed period-over-period verdict. Honest: shows
+// hours-only (and a calm prompt) until a real rate exists — never invents a rate.
+function ValueBand({
+  data,
+  periodDays,
+  canEdit,
+  onSaved,
+}: {
+  data: KpiData;
+  periodDays: number;
+  canEdit: boolean;
+  onSaved: () => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [rate, setRate] = useState(data.downtimeCostPerHour != null ? String(data.downtimeCostPerHour) : "");
+  const [busy, setBusy] = useState(false);
+
+  const save = async () => {
+    setBusy(true);
+    try {
+      const val = rate.trim() === "" ? null : Number(rate);
+      await fetch("/api/org", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ downtimeCostPerHour: val }),
+      });
+      setEditing(false);
+      onSaved();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const delta = data.downtimeDeltaPct;
+  // Less downtime than the prior period is good (green ↓); more is bad (red ↑).
+  const deltaColor = delta == null || delta === 0 ? "var(--color-muted)" : delta < 0 ? "var(--color-green)" : "var(--color-red)";
+  const money = (n: number) => `$${Math.round(n).toLocaleString()}`;
+
+  return (
+    <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5 mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+        <div className="min-w-0 flex-1">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--color-muted)]">
+            Downtime impact · {periodLabel(periodDays)}
+          </p>
+          <div className="flex items-baseline gap-3 mt-1.5 flex-wrap">
+            {data.downtimeCost != null ? (
+              <>
+                <span className="text-[30px] font-semibold tracking-tight text-[var(--color-red)]">{money(data.downtimeCost)}</span>
+                <span className="text-[14px] text-[var(--color-muted)]">{data.downtimeHours} h of downtime</span>
+              </>
+            ) : (
+              <span className="text-[30px] font-semibold tracking-tight">{data.downtimeHours} <span className="text-[16px] font-normal text-[var(--color-muted)]">h of downtime</span></span>
+            )}
+            {delta != null && (
+              <span className="text-[13px] font-medium" style={{ color: deltaColor }}>
+                {delta < 0 ? "↓" : delta > 0 ? "↑" : ""} {Math.abs(delta)}% vs prior {periodLabel(periodDays).replace("this ", "").replace("last ", "")}
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Rate control */}
+        <div className="shrink-0">
+          {editing ? (
+            <div className="flex items-center gap-1.5">
+              <span className="text-[13px] text-[var(--color-muted)]">$</span>
+              <input
+                type="number"
+                min={0}
+                value={rate}
+                onChange={(e) => setRate(e.target.value)}
+                placeholder="0"
+                autoFocus
+                className="w-24 rounded-lg bg-[var(--color-surface-2)] border border-[var(--color-border)] px-2.5 py-1.5 text-[13px] outline-none focus:border-[var(--color-accent)]"
+              />
+              <span className="text-[12px] text-[var(--color-muted)]">/hr</span>
+              <button onClick={save} disabled={busy} className="text-[12px] font-medium rounded-lg bg-[var(--color-accent)] text-[var(--color-on-accent)] px-3 py-1.5 hover:brightness-110 disabled:opacity-50">
+                {busy ? "…" : "Save"}
+              </button>
+              <button onClick={() => setEditing(false)} className="text-[12px] text-[var(--color-muted)] hover:text-[var(--color-text)] px-1">Cancel</button>
+            </div>
+          ) : data.downtimeCostPerHour != null ? (
+            <div className="text-[12px] text-[var(--color-faint)]">
+              at ${data.downtimeCostPerHour.toLocaleString()}/h
+              {canEdit && (
+                <button onClick={() => setEditing(true)} className="ml-2 text-[var(--color-accent)] hover:underline">edit</button>
+              )}
+            </div>
+          ) : canEdit ? (
+            <button
+              onClick={() => setEditing(true)}
+              className="text-[12px] font-medium rounded-lg border border-[var(--color-accent)] text-[var(--color-accent)] px-3 py-1.5 hover:bg-[var(--color-accent)]/10"
+            >
+              Set downtime rate → see $ impact
+            </button>
+          ) : (
+            <p className="text-[11.5px] text-[var(--color-faint)] max-w-[180px]">
+              Ask an admin to set your line&apos;s downtime rate to see dollar impact.
+            </p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function DashboardPage() {
   const [data, setData] = useState<KpiData | null>(null);
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState(90);
+  const [role, setRole] = useState<string>("");
+
+  const loadData = () =>
+    fetch(`/api/dashboard?days=${period}`)
+      .then((r) => r.json())
+      .then(setData);
 
   useEffect(() => {
     setLoading(true);
-    fetch(`/api/dashboard?days=${period}`)
-      .then((r) => r.json())
-      .then(setData)
-      .finally(() => setLoading(false));
+    loadData().finally(() => setLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [period]);
+
+  useEffect(() => {
+    fetch("/api/auth/me").then((r) => r.json()).then((d) => setRole(d?.user?.role ?? "")).catch(() => {});
+  }, []);
 
   if (loading) {
     return (
@@ -141,6 +268,15 @@ export default function DashboardPage() {
             <option value={365}>Last year</option>
           </select>
         </div>
+
+        {/* Value band — the ROI headline: downtime this period, in hours and (once
+            a rate is set) dollars, with a period-over-period verdict. */}
+        <ValueBand
+          data={data}
+          periodDays={period}
+          canEdit={role === "owner" || role === "admin"}
+          onSaved={loadData}
+        />
 
         {/* KPI Cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">

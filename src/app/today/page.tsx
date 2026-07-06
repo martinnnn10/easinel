@@ -59,9 +59,14 @@ export default function TodayPage() {
                       Three steps and the machine memory starts building.
                     </p>
                     <div className="mt-4 grid sm:grid-cols-3 gap-3">
-                      <SetupStep n={1} href="/assets" title="Add your first machine" body="Name, make, and model — the memory attaches to the asset." />
-                      <SetupStep n={2} href="/knowledge" title="Upload a manual or drawing" body="The Copilot cites what you upload when that machine acts up." />
-                      <SetupStep n={3} href="/copilot" title="Ask the Copilot" body="Try a real fault code or symptom from your plant." />
+                      <SetupStep
+                        n={1}
+                        href={`/copilot?ask=${encodeURIComponent("A PowerFlex drive shows Fault F081 — what does it mean and what do I check?")}`}
+                        title="Ask a real fault now"
+                        body="The Copilot already knows common industrial faults and answers with citations — before you upload anything."
+                      />
+                      <SetupStep n={2} href="/assets" title="Add your first machine" body="Name, make, and model — its history and memory attach to the asset." />
+                      <SetupStep n={3} href="/knowledge" title="Upload a manual or drawing" body="Now the Copilot cites YOUR plant's documents when that machine acts up." />
                     </div>
                   </div>
                 )}
