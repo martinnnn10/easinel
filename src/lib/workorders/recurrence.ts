@@ -109,8 +109,11 @@ export async function findPriorFixes(
   const totalDowntimeMins = matches.reduce((sum, w) => sum + (Number(w.downtimeMins) || 0), 0);
   // Most recent matching repair drives the headline "last fix".
   const last = [...matches].sort((a, b) => ms(b.closedAt ?? b.createdAt) - ms(a.closedAt ?? a.createdAt))[0];
+  // The proven fix — captured close-out fields only. NEVER fall back to the WO
+  // title (that's the problem statement, not the fix); empty means "no fix
+  // captured", which the UI renders honestly rather than mislabeling.
   const fix =
-    (last.repairAction || last.failedPart || last.rootCause || last.resolution || last.title || "").trim();
+    (last.repairAction || last.failedPart || last.rootCause || last.resolution || "").trim();
 
   // Label the recurrence: the shared fault code, else the top keyword, else a phrase.
   const label = newCode ?? [...newKw][0] ?? symptom.slice(0, 40);

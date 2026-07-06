@@ -54,9 +54,16 @@ export const PATCH = safeHandler("workorders.update", async (req: NextRequest, {
     "repairAction",
     "downtimeMins",
   ];
-  const hasEdits = editableKeys.some((k) => body[k] !== undefined);
+  // When a status transition is also present, the transition is the AUTHORITATIVE
+  // writer of downtimeMins — its idempotency + optimistic-concurrency guards
+  // protect the value. Excluding it from the field-edit path prevents a blank
+  // re-close (downtimeMins:null) from nulling a previously-captured real value
+  // before the guarded transition even runs.
+  const editInput = { ...body };
+  if (body.status) delete editInput.downtimeMins;
+  const hasEdits = editableKeys.some((k) => editInput[k] !== undefined);
   if (hasEdits) {
-    const updated = await updateWorkOrder(user.orgId, id, body, user.id);
+    const updated = await updateWorkOrder(user.orgId, id, editInput, user.id);
     if (!updated) return NextResponse.json({ error: "not found" }, { status: 404 });
   }
 

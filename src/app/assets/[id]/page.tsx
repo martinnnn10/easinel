@@ -411,8 +411,12 @@ function Parts({ parts }: { parts: PartRow[] }) {
 // the normalized failed part, else the normalized root cause, else the title.
 const norm = (s?: string | null) => (s ?? "").toLowerCase().replace(/\s+/g, " ").trim();
 function faultSignature(w: Wo): { key: string; label: string } {
-  const code = `${w.title ?? ""} ${w.symptom ?? ""}`.match(/\b([a-z]?\d{2,4})\b/i)?.[1];
-  if (code && /\d/.test(code)) {
+  // Narrow fault-code detector — MUST mirror recurrence.ts faultCode(): a
+  // letter-prefixed code (F007/E12) or a bare 3-4 digit code, never an incidental
+  // 2-digit number ("Line 12", "20 minutes", "480 V") which would otherwise
+  // fabricate a false repeat-offender group and cost banner.
+  const code = `${w.title ?? ""} ${w.symptom ?? ""}`.match(/\b([a-z]\d{2,4}|\d{3,4})\b/i)?.[1];
+  if (code) {
     const codeUp = code.toUpperCase();
     return { key: `code:${codeUp}`, label: codeUp };
   }

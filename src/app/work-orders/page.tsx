@@ -807,7 +807,7 @@ function NewWorkOrderModal({ onClose, onCreated, presetAssetId, presetType }: { 
                     {priorFix.label ? ` · ${priorFix.label}` : ""}
                   </p>
                   <p className="text-[12px] text-[var(--color-muted)] mt-0.5 truncate">
-                    Last fix: {priorFix.last.fix}
+                    {priorFix.last.fix ? `Last fix: ${priorFix.last.fix}` : "Last repair"}
                     {priorFix.last.downtimeMins != null ? ` · ${priorFix.last.downtimeMins} min down` : ""}
                     {priorFix.last.number ? ` · ${priorFix.last.number}` : ""}
                     {priorFix.last.at ? ` · ${new Date(priorFix.last.at).toLocaleDateString()}` : ""}
