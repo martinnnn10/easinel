@@ -11,13 +11,13 @@ interface ReusedFix {
   timesSurfaced: number;
   timesUsed: number;
   originalAuthor: string | null;
+  avoidedDowntimeHours: number | null;
 }
 interface Impact {
   periodDays: number;
   repeatsCaughtAtIntake: number;
   workOrdersAssisted: number;
   mostReusedFixes: ReusedFix[];
-  topReusers: { name: string; count: number }[];
   comparableWorkOrders: number;
   avoidedDowntimeHours: number | null;
   avoidedDowntimeCost: number | null;
@@ -76,11 +76,11 @@ export default function ImpactPage() {
           ) : !d.hasData ? (
             <div className="text-center py-20 border border-dashed border-[var(--color-border)] rounded-2xl">
               <div className="text-3xl mb-3">🔁</div>
-              <p className="text-[15px] font-medium">No knowledge reuse yet</p>
+              <p className="text-[15px] font-medium">No reuse impact yet</p>
               <p className="text-[var(--color-muted)] text-sm mt-1 max-w-md mx-auto">
-                When a technician logs a fault this plant has solved before, the prior fix is surfaced
-                at intake — and that reuse shows up here, along with any downtime it helped avoid.
-                Nothing is estimated until the evidence exists.
+                Capture root causes and close work orders to build machine memory. Once a fault
+                recurs, the prior fix is surfaced at intake and its impact shows up here — nothing is
+                estimated until the evidence exists.
               </p>
             </div>
           ) : (
@@ -122,17 +122,17 @@ export default function ImpactPage() {
                 )}
               </div>
 
-              {/* Reuse counters */}
+              {/* Reuse counters — impact-first, never entry volume */}
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-7">
-                <Stat label="Repeats caught at intake" value={d.repeatsCaughtAtIntake} sub="prior fix surfaced before work began" />
-                <Stat label="Work orders assisted" value={d.workOrdersAssisted} sub="closed with prior knowledge in hand" />
-                <Stat label="PMs from repeat failures" value={d.pmsFromRepeats} sub="preventive work born from recurrence" />
+                <Stat label="Prior fixes surfaced at intake" value={d.repeatsCaughtAtIntake} sub="a proven fix shown before work began" />
+                <Stat label="Work orders helped by prior knowledge" value={d.workOrdersAssisted} sub="closed with a prior fix in hand" />
+                <Stat label="PMs suggested from real failures" value={d.pmsFromRepeats} sub="preventive work born from recurrence" />
               </div>
 
-              {/* Most reused fixes */}
+              {/* Most reused fixes — ranked by proven impact, not entry volume */}
               {d.mostReusedFixes.length > 0 && (
                 <section className="mb-7">
-                  <h2 className="text-[12px] font-semibold uppercase tracking-wide text-[var(--color-muted)] mb-2">Most reused fixes</h2>
+                  <h2 className="text-[12px] font-semibold uppercase tracking-wide text-[var(--color-muted)] mb-2">Most reused fixes &amp; machine memory</h2>
                   <div className="rounded-xl border border-[var(--color-border)] overflow-hidden">
                     {d.mostReusedFixes.map((f, i) => (
                       <div key={f.sourceId} className={`flex items-center gap-3 px-4 py-3 ${i > 0 ? "border-t border-[var(--color-border-soft)]" : ""}`}>
@@ -143,9 +143,13 @@ export default function ImpactPage() {
                           <p className="text-[13px] font-medium truncate">
                             <span className="font-mono">{f.label}</span>{f.assetName ? ` · ${f.assetName}` : ""}
                           </p>
-                          <p className="text-[11px] text-[var(--color-faint)]">
-                            surfaced {f.timesSurfaced}× · reused at close {f.timesUsed}×
-                            {f.originalAuthor ? ` · documented by ${f.originalAuthor}` : ""}
+                          {/* Impact-based attribution — the Jose line, only when data supports it */}
+                          <p className="text-[11.5px] text-[var(--color-muted)]">
+                            {f.originalAuthor ? `${f.originalAuthor}'s fix ` : "This fix "}
+                            reused on {f.timesUsed} later work order{f.timesUsed === 1 ? "" : "s"}
+                            {f.avoidedDowntimeHours != null
+                              ? ` — linked to ${f.avoidedDowntimeHours}h fewer downtime`
+                              : ""}
                           </p>
                         </div>
                         <Link href={`/work-orders/${f.sourceId}`} className="text-[11px] font-medium text-[var(--color-accent)] shrink-0 hover:underline">View →</Link>
@@ -153,22 +157,8 @@ export default function ImpactPage() {
                     ))}
                   </div>
                   <p className="text-[11.5px] text-[var(--color-faint)] mt-2">
-                    A fix that gets reused is a person&apos;s documented repair paying off again and again — worth recognizing at review time.
+                    A fix that keeps getting reused is a documented repair paying off again and again — recognized by the impact it had, not how much was typed.
                   </p>
-                </section>
-              )}
-
-              {/* Top reusers */}
-              {d.topReusers.length > 0 && (
-                <section>
-                  <h2 className="text-[12px] font-semibold uppercase tracking-wide text-[var(--color-muted)] mb-2">Technicians reusing plant knowledge</h2>
-                  <div className="flex flex-wrap gap-2">
-                    {d.topReusers.map((r) => (
-                      <span key={r.name} className="text-[12.5px] px-3 py-1.5 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)]">
-                        {r.name} <strong className="text-[var(--color-accent)]">{r.count}</strong>
-                      </span>
-                    ))}
-                  </div>
                 </section>
               )}
 

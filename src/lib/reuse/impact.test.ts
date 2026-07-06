@@ -56,6 +56,10 @@ describe("knowledge reuse loop", () => {
     expect(r.workOrdersAssisted).toBeGreaterThanOrEqual(2);
     expect(r.mostReusedFixes.length).toBeGreaterThanOrEqual(1);
     expect(r.mostReusedFixes[0].label).toBe("F007");
+    // Impact-first ranking: the fix with proven avoided downtime leads, and the
+    // saved time is attributed to it (the "Jose line").
+    expect(r.mostReusedFixes[0].avoidedDowntimeHours).toBeCloseTo(1.2, 1);
+    expect(r.mostReusedFixes[0].timesUsed).toBeGreaterThanOrEqual(1);
   });
 
   it("credits avoided downtime only for repairs with enough prior history", async () => {

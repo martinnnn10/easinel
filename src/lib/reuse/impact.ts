@@ -25,6 +25,9 @@ export interface ReusedFix {
   timesSurfaced: number;
   timesUsed: number;
   originalAuthor: string | null;
+  // Avoided downtime attributable to reuses of THIS fix — null unless there was
+  // enough same-fault history on the machine to compare honestly.
+  avoidedDowntimeHours: number | null;
 }
 
 export interface ReuseImpact {
@@ -32,7 +35,6 @@ export interface ReuseImpact {
   repeatsCaughtAtIntake: number; // WOs where prior knowledge existed at intake
   workOrdersAssisted: number; // WOs closed after prior knowledge surfaced
   mostReusedFixes: ReusedFix[];
-  topReusers: { name: string; count: number }[];
   // Impact — null until the evidence supports it.
   comparableWorkOrders: number;
   avoidedDowntimeHours: number | null;
@@ -104,6 +106,7 @@ export async function getReuseImpact(orgId: string, periodDays = 90): Promise<Re
       sourceId: e.sourceId, label: e.label ?? "—",
       assetName: e.assetId ? assetName.get(e.assetId) ?? null : null,
       timesSurfaced: 0, timesUsed: 0, originalAuthor: nameOf(e.originalAuthorUserId),
+      avoidedDowntimeHours: null,
     };
     f.timesSurfaced++;
     bySource.set(e.sourceId, f);
@@ -113,27 +116,15 @@ export async function getReuseImpact(orgId: string, periodDays = 90): Promise<Re
     const f = bySource.get(e.sourceId);
     if (f) f.timesUsed++;
   }
-  const mostReusedFixes = [...bySource.values()]
-    .sort((a, b) => (b.timesUsed - a.timesUsed) || (b.timesSurfaced - a.timesSurfaced))
-    .slice(0, 8);
-
-  // Top reusers — technicians who closed WOs with prior knowledge in hand.
-  const reuserCount = new Map<string, number>();
-  for (const e of used) {
-    const n = nameOf(e.surfacedToUserId);
-    if (n) reuserCount.set(n, (reuserCount.get(n) ?? 0) + 1);
-  }
-  const topReusers = [...reuserCount.entries()]
-    .map(([name, count]) => ({ name, count }))
-    .sort((a, b) => b.count - a.count)
-    .slice(0, 5);
 
   // ── Avoided downtime — honest comparison only ────────────────────────────
   // For each assisted WO, compare its downtime to the median of PRIOR same-fault
   // closed WOs on the same asset. Count only when there are >= MIN_PRIORS priors
-  // AND this WO beat the median.
+  // AND this WO beat the median. Attribute the saved time back to the specific
+  // prior fix that was surfaced, so per-fix impact is honest and traceable.
   let avoidedMins = 0;
   let comparableWorkOrders = 0;
+  const avoidedBySource = new Map<string, number>();
   const seenAssisted = new Set<string>();
   for (const e of used) {
     if (!e.workOrderId || seenAssisted.has(e.workOrderId)) continue;
@@ -157,8 +148,26 @@ export async function getReuseImpact(orgId: string, periodDays = 90): Promise<Re
     if (priors.length < MIN_PRIORS) continue; // not enough history — stay honest
     const base = median(priors);
     comparableWorkOrders++;
-    if (thisDown < base) avoidedMins += base - thisDown;
+    if (thisDown < base) {
+      const saved = base - thisDown;
+      avoidedMins += saved;
+      if (e.sourceId) avoidedBySource.set(e.sourceId, (avoidedBySource.get(e.sourceId) ?? 0) + saved);
+    }
   }
+
+  // Attach per-fix avoided hours (only where a real comparison existed).
+  for (const [sourceId, mins] of avoidedBySource) {
+    const f = bySource.get(sourceId);
+    if (f && mins > 0) f.avoidedDowntimeHours = Math.round((mins / 60) * 10) / 10;
+  }
+  // Rank by proven impact first (avoided hours), then reuse count.
+  const mostReusedFixes = [...bySource.values()]
+    .sort((a, b) =>
+      (b.avoidedDowntimeHours ?? 0) - (a.avoidedDowntimeHours ?? 0) ||
+      (b.timesUsed - a.timesUsed) ||
+      (b.timesSurfaced - a.timesSurfaced)
+    )
+    .slice(0, 8);
 
   const downtimeCostPerHour =
     orgRow?.downtimeCostPerHour != null && orgRow.downtimeCostPerHour > 0 ? orgRow.downtimeCostPerHour : null;
@@ -174,7 +183,6 @@ export async function getReuseImpact(orgId: string, periodDays = 90): Promise<Re
     repeatsCaughtAtIntake,
     workOrdersAssisted,
     mostReusedFixes,
-    topReusers,
     comparableWorkOrders,
     avoidedDowntimeHours,
     avoidedDowntimeCost,
