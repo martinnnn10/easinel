@@ -13,11 +13,22 @@ interface ReusedFix {
   originalAuthor: string | null;
   avoidedDowntimeHours: number | null;
 }
+interface CitedKnowledge {
+  sourceId: string;
+  kind: "lesson" | "document";
+  label: string;
+  assetName: string | null;
+  author: string | null;
+  timesCited: number;
+  workOrderId: string | null;
+}
 interface Impact {
   periodDays: number;
   repeatsCaughtAtIntake: number;
   workOrdersAssisted: number;
   mostReusedFixes: ReusedFix[];
+  knowledgeCitations: number;
+  citedKnowledge: CitedKnowledge[];
   comparableWorkOrders: number;
   avoidedDowntimeHours: number | null;
   avoidedDowntimeCost: number | null;
@@ -123,9 +134,10 @@ export default function ImpactPage() {
               </div>
 
               {/* Reuse counters — impact-first, never entry volume */}
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-7">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-7">
                 <Stat label="Prior fixes surfaced at intake" value={d.repeatsCaughtAtIntake} sub="a proven fix shown before work began" />
                 <Stat label="Work orders helped by prior knowledge" value={d.workOrdersAssisted} sub="closed with a prior fix in hand" />
+                <Stat label="Knowledge cited by Copilot" value={d.knowledgeCitations} sub="your lessons & docs answering questions" />
                 <Stat label="PMs suggested from real failures" value={d.pmsFromRepeats} sub="preventive work born from recurrence" />
               </div>
 
@@ -158,6 +170,38 @@ export default function ImpactPage() {
                   </div>
                   <p className="text-[11.5px] text-[var(--color-faint)] mt-2">
                     A fix that keeps getting reused is a documented repair paying off again and again — recognized by the impact it had, not how much was typed.
+                  </p>
+                </section>
+              )}
+
+              {/* Captured knowledge Copilot reused to answer questions */}
+              {d.citedKnowledge.length > 0 && (
+                <section className="mb-7">
+                  <h2 className="text-[12px] font-semibold uppercase tracking-wide text-[var(--color-muted)] mb-2">Captured knowledge cited by Copilot</h2>
+                  <div className="rounded-xl border border-[var(--color-border)] overflow-hidden">
+                    {d.citedKnowledge.map((k, i) => (
+                      <div key={`${k.kind}:${k.sourceId}`} className={`flex items-center gap-3 px-4 py-3 ${i > 0 ? "border-t border-[var(--color-border-soft)]" : ""}`}>
+                        <span className="w-8 h-8 rounded-full bg-[var(--color-accent)]/12 text-[var(--color-accent)] grid place-items-center text-[11px] font-semibold shrink-0">
+                          {k.timesCited}×
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-[13px] font-medium truncate">
+                            {k.label}{k.assetName ? ` · ${k.assetName}` : ""}
+                          </p>
+                          <p className="text-[11.5px] text-[var(--color-muted)]">
+                            {k.kind === "lesson"
+                              ? `${k.author ? `${k.author}'s lesson` : "A captured lesson"} — cited in ${k.timesCited} Copilot answer${k.timesCited === 1 ? "" : "s"}`
+                              : `Uploaded document — cited in ${k.timesCited} Copilot answer${k.timesCited === 1 ? "" : "s"}`}
+                          </p>
+                        </div>
+                        {k.workOrderId && (
+                          <Link href={`/work-orders/${k.workOrderId}`} className="text-[11px] font-medium text-[var(--color-accent)] shrink-0 hover:underline">View →</Link>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-[11.5px] text-[var(--color-faint)] mt-2">
+                    When a teammate&apos;s documented fix answers someone else&apos;s question, that&apos;s machine memory paying off — the person who wrote it down made the whole team faster.
                   </p>
                 </section>
               )}

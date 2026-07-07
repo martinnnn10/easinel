@@ -5,8 +5,11 @@ process.env.EMBEDDINGS_DISABLED = "1";
 
 import { createAsset } from "@/lib/assets/repository";
 import { createWorkOrder, transitionWorkOrder } from "@/lib/workorders/repository";
+import { db, ensureDb } from "@/lib/db";
+import { users, documents } from "@/lib/db/schema";
+import { memoryDocId } from "@/lib/workorders/memory";
 import { getReuseImpact } from "./impact";
-import { findSurfacedEvent } from "./events";
+import { findSurfacedEvent, logCitationReuse } from "./events";
 
 const ORG = "org_reuse";
 
@@ -36,8 +39,8 @@ beforeAll(async () => {
     assetId: assetA, type: "corrective",
   });
   assistedId = wo.id;
-  await transitionWorkOrder(ORG, wo.id, "in_progress", { actor: "u_maria" });
-  await transitionWorkOrder(ORG, wo.id, "done", { downtimeMins: 40, resolution: "cleaned filter", actor: "u_maria" });
+  await transitionWorkOrder(ORG, wo.id, "in_progress", { actor: "u_reuse_author" });
+  await transitionWorkOrder(ORG, wo.id, "done", { downtimeMins: 40, resolution: "cleaned filter", actor: "u_reuse_author" });
 });
 
 describe("knowledge reuse loop", () => {
@@ -71,6 +74,44 @@ describe("knowledge reuse loop", () => {
     expect(r.avoidedDowntimeHours).toBeCloseTo(1.2, 1);
     // No rate set → dollars stay null (never invented).
     expect(r.avoidedDowntimeCost).toBeNull();
+  });
+});
+
+describe("Copilot citation reuse", () => {
+  it("credits a cited lesson to the tech who documented it, and fences to the org's own knowledge", async () => {
+    await ensureDb();
+    // Name the closer so author resolution has a display name.
+    await db.insert(users).values({ id: "u_reuse_author", orgId: ORG, email: "maria-reuse@plant.com", name: "Maria Diaz", role: "technician" });
+    // A document owned by ANOTHER org — must never be credited to this org.
+    await db.insert(documents).values({ id: "doc_foreign", orgId: "org_other", filename: "Foreign manual.pdf", kind: "manual" });
+
+    // Copilot cited the lesson captured from the assisted repair (authored by
+    // Maria at close-out) plus a foreign doc. Two answers cite the lesson.
+    const lessonDoc = memoryDocId(assistedId);
+    await logCitationReuse(ORG, [{ documentId: lessonDoc }, { documentId: "doc_foreign" }], { assetId: assetA, userId: "u_reader" });
+    await logCitationReuse(ORG, [{ documentId: lessonDoc }], { assetId: assetA, userId: "u_reader2" });
+
+    const r = await getReuseImpact(ORG, 90);
+    expect(r.knowledgeCitations).toBe(2); // two citations of the lesson; foreign doc excluded
+    const lesson = r.citedKnowledge.find((k) => k.kind === "lesson" && k.workOrderId === assistedId);
+    expect(lesson).toBeTruthy();
+    expect(lesson!.author).toBe("Maria Diaz");
+    expect(lesson!.timesCited).toBe(2);
+    // The foreign doc was never counted.
+    expect(r.citedKnowledge.some((k) => k.sourceId === "doc_foreign")).toBe(false);
+  });
+
+  it("records an uploaded document citation without inventing an author", async () => {
+    await ensureDb();
+    await db.insert(documents).values({ id: "doc_own_manual", orgId: ORG, filename: "VFD manual.pdf", kind: "manual" });
+    await logCitationReuse(ORG, [{ documentId: "doc_own_manual" }], { userId: "u_reader" });
+
+    const r = await getReuseImpact(ORG, 90);
+    const doc = r.citedKnowledge.find((k) => k.sourceId === "doc_own_manual");
+    expect(doc).toBeTruthy();
+    expect(doc!.kind).toBe("document");
+    expect(doc!.author).toBeNull(); // uploaded docs carry no per-person author
+    expect(doc!.workOrderId).toBeNull();
   });
 });
 

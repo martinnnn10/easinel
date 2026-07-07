@@ -40,5 +40,26 @@ export const PATCH = safeHandler("pm.approve", async (
     })
     .where(eq(schema.pmPrograms.id, id));
 
+  // Knowledge reuse (best-effort): a PM that grew out of a documented failure was
+  // approved — preventive work is now live because someone captured the failure.
+  if (pm.sourceWorkOrderId) {
+    try {
+      const { logReuseEvent, resolveOriginalAuthor } = await import("@/lib/reuse/events");
+      const author = await resolveOriginalAuthor(user.orgId, pm.sourceWorkOrderId);
+      await logReuseEvent(user.orgId, {
+        eventType: "pm_approved_from_failure",
+        assetId: pm.assetId ?? null,
+        workOrderId: pm.sourceWorkOrderId,
+        sourceType: "pm_program",
+        sourceId: pm.id,
+        surfacedToUserId: user.email,
+        originalAuthorUserId: author,
+        label: pm.failureMode ?? pm.title,
+      });
+    } catch {
+      /* best-effort */
+    }
+  }
+
   return NextResponse.json({ id, status: "active" });
 });

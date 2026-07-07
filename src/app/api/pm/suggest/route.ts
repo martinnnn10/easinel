@@ -31,5 +31,28 @@ export const POST = safeHandler("pm.suggest", async (req: NextRequest) => {
     );
   }
   const program = await createProgram(gate.user.orgId, suggestion, gate.user.email);
+
+  // Knowledge reuse (best-effort): this preventive program was born from a real
+  // recurring failure. Credit the technician who documented that failure so the
+  // impact of writing it down is visible. Never blocks the create.
+  try {
+    const { logReuseEvent, resolveOriginalAuthor } = await import("@/lib/reuse/events");
+    const author = suggestion.sourceWorkOrderId
+      ? await resolveOriginalAuthor(gate.user.orgId, suggestion.sourceWorkOrderId)
+      : null;
+    await logReuseEvent(gate.user.orgId, {
+      eventType: "pm_created_from_failure",
+      assetId: suggestion.assetId ?? null,
+      workOrderId: suggestion.sourceWorkOrderId ?? null,
+      sourceType: "pm_program",
+      sourceId: program.id,
+      surfacedToUserId: gate.user.email,
+      originalAuthorUserId: author,
+      label: suggestion.failureMode ?? suggestion.title,
+    });
+  } catch {
+    /* best-effort */
+  }
+
   return NextResponse.json({ program, confidence: suggestion.confidence, evidenceCount: suggestion.evidenceCount }, { status: 201 });
 });

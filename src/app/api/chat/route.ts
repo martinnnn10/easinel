@@ -65,6 +65,22 @@ export const POST = safeHandler("chat.post", async (req: NextRequest) => {
   );
   await addMessage(orgId, conversationId, "user", question);
 
+  // Knowledge reuse (best-effort, off the critical path): if the answer cited
+  // the org's own captured knowledge, record that a teammate's lesson or an
+  // uploaded document was reused to answer a question. Never awaited — a logging
+  // hiccup must not delay the streamed answer.
+  if (citations.length) {
+    import("@/lib/reuse/events")
+      .then(({ logCitationReuse }) =>
+        logCitationReuse(
+          orgId,
+          citations.map((c) => ({ documentId: c.documentId, filename: c.filename })),
+          { assetId: body.assetId ?? null, userId: gate.user.id }
+        )
+      )
+      .catch(() => {});
+  }
+
   const encoder = new TextEncoder();
   let assembled = "";
 

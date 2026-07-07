@@ -10,8 +10,8 @@
  */
 
 import { db, ensureDb } from "@/lib/db";
-import { reuseEvents, auditLog } from "@/lib/db/schema";
-import { and, eq, desc } from "drizzle-orm";
+import { reuseEvents, auditLog, documents } from "@/lib/db/schema";
+import { and, eq, desc, inArray } from "drizzle-orm";
 import { id } from "@/lib/util";
 
 export type ReuseEventType =
@@ -78,6 +78,70 @@ export async function resolveOriginalAuthor(orgId: string, priorWoId: string): P
     return created?.actor ?? null;
   } catch {
     return null;
+  }
+}
+
+// A Copilot answer cited some sources. Record, per distinct source, that the
+// plant's OWN captured knowledge was reused to answer a question — a lesson a
+// teammate wrote (credited to its author) or a document the org uploaded.
+//
+// Honesty fences:
+//   - Only the org's own documents count. Pre-seeded OEM / GLOBAL_ORG knowledge
+//     is not the team's reuse, so citations that don't resolve to an org-owned
+//     document are silently skipped.
+//   - De-duped per answer: citing the same lesson twice in one answer is one
+//     reuse instance, not two.
+//   - Best-effort: never blocks or delays the streamed answer.
+export interface CitedSource {
+  documentId: string;
+  filename?: string | null;
+}
+export async function logCitationReuse(
+  orgId: string,
+  citations: CitedSource[],
+  opts: { assetId?: string | null; userId?: string | null } = {}
+): Promise<void> {
+  if (!orgId || !citations?.length) return;
+  try {
+    await ensureDb();
+    const ids = [...new Set(citations.map((c) => c.documentId).filter(Boolean))];
+    if (!ids.length) return;
+    // Fence to the org's own knowledge — this excludes GLOBAL_ORG/OEM content.
+    const owned = await db
+      .select({ id: documents.id, kind: documents.kind, filename: documents.filename })
+      .from(documents)
+      .where(and(eq(documents.orgId, orgId), inArray(documents.id, ids)));
+    for (const doc of owned) {
+      if (doc.kind === "lesson") {
+        // A captured close-out lesson: doc id is `mem_<workOrderId>` — credit the
+        // technician who documented that fix.
+        const woId = doc.id.startsWith("mem_") ? doc.id.slice(4) : doc.id;
+        const author = await resolveOriginalAuthor(orgId, woId);
+        await logReuseEvent(orgId, {
+          eventType: "lesson_surfaced",
+          assetId: opts.assetId ?? null,
+          sourceType: "lesson",
+          sourceId: woId,
+          surfacedToUserId: opts.userId ?? null,
+          originalAuthorUserId: author,
+          label: doc.filename,
+        });
+      } else {
+        // An uploaded manual/drawing/SOP — no per-person author, credit the
+        // knowledge base itself.
+        await logReuseEvent(orgId, {
+          eventType: "document_cited",
+          assetId: opts.assetId ?? null,
+          sourceType: "document",
+          sourceId: doc.id,
+          surfacedToUserId: opts.userId ?? null,
+          originalAuthorUserId: null,
+          label: doc.filename,
+        });
+      }
+    }
+  } catch {
+    /* citation logging is best-effort — never block or delay the answer */
   }
 }
 

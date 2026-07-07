@@ -30,11 +30,26 @@ export interface ReusedFix {
   avoidedDowntimeHours: number | null;
 }
 
+// A piece of the org's own captured knowledge that Copilot cited to answer
+// questions — a teammate's lesson (credited) or an uploaded document.
+export interface CitedKnowledge {
+  sourceId: string;
+  kind: "lesson" | "document";
+  label: string;
+  assetName: string | null;
+  author: string | null; // resolved teammate name, for lessons only
+  timesCited: number;
+  workOrderId: string | null; // link target for lessons
+}
+
 export interface ReuseImpact {
   periodDays: number;
   repeatsCaughtAtIntake: number; // WOs where prior knowledge existed at intake
   workOrdersAssisted: number; // WOs closed after prior knowledge surfaced
   mostReusedFixes: ReusedFix[];
+  // Copilot citations of the org's own captured knowledge.
+  knowledgeCitations: number; // times captured knowledge was cited in an answer
+  citedKnowledge: CitedKnowledge[];
   // Impact — null until the evidence supports it.
   comparableWorkOrders: number;
   avoidedDowntimeHours: number | null;
@@ -97,6 +112,35 @@ export async function getReuseImpact(orgId: string, periodDays = 90): Promise<Re
 
   const repeatsCaughtAtIntake = new Set(surfaced.map((e) => e.workOrderId)).size;
   const workOrdersAssisted = new Set(used.map((e) => e.workOrderId)).size;
+
+  // ── Copilot citations of the org's own captured knowledge ────────────────
+  // Every lesson_surfaced / document_cited is one instance of shared knowledge
+  // answering a question. Group by source to rank the most-cited knowledge and
+  // credit the teammate who wrote it (lessons carry an author; documents don't).
+  const citationEvents = events.filter(
+    (e) => e.eventType === "lesson_surfaced" || e.eventType === "document_cited"
+  );
+  const knowledgeCitations = citationEvents.length;
+  const citedMap = new Map<string, CitedKnowledge>();
+  for (const e of citationEvents) {
+    if (!e.sourceId) continue;
+    const key = `${e.eventType}:${e.sourceId}`;
+    const isLesson = e.eventType === "lesson_surfaced";
+    const c = citedMap.get(key) ?? {
+      sourceId: e.sourceId,
+      kind: isLesson ? "lesson" : "document",
+      label: e.label ?? "Captured knowledge",
+      assetName: e.assetId ? assetName.get(e.assetId) ?? null : null,
+      author: isLesson ? nameOf(e.originalAuthorUserId) : null,
+      timesCited: 0,
+      workOrderId: isLesson ? e.sourceId : null,
+    };
+    c.timesCited++;
+    citedMap.set(key, c);
+  }
+  const citedKnowledge = [...citedMap.values()]
+    .sort((a, b) => b.timesCited - a.timesCited)
+    .slice(0, 6);
 
   // Most-reused fixes: group by the prior source, count surfaced/used.
   const bySource = new Map<string, ReusedFix>();
@@ -183,12 +227,14 @@ export async function getReuseImpact(orgId: string, periodDays = 90): Promise<Re
     repeatsCaughtAtIntake,
     workOrdersAssisted,
     mostReusedFixes,
+    knowledgeCitations,
+    citedKnowledge,
     comparableWorkOrders,
     avoidedDowntimeHours,
     avoidedDowntimeCost,
     downtimeCostPerHour,
     pmsFromRepeats,
-    hasData: surfaced.length > 0 || used.length > 0,
+    hasData: surfaced.length > 0 || used.length > 0 || knowledgeCitations > 0,
     hasEnoughForSavings,
   };
 }
