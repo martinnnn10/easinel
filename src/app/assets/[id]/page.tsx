@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState, use } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Copilot } from "@/components/Copilot";
+import { SuggestPmButton } from "@/components/SuggestPmButton";
 
 // ───────────────────────── Types (mirror the twin payload) ─────────────────────────
 interface Asset {
@@ -74,6 +75,14 @@ export default function AssetPage({ params }: { params: Promise<{ id: string }> 
     ? "documents"
     : validTabs.includes(searchParams.get("tab") as Tab) ? (searchParams.get("tab") as Tab) : "overview";
   const [tab, setTab] = useState<Tab>(initialTab);
+  // Whether this user can draft/approve PMs (manage_pm = owner/admin/manager).
+  const [canManagePm, setCanManagePm] = useState(false);
+  useEffect(() => {
+    fetch("/api/auth/me")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => setCanManagePm(["owner", "admin", "manager"].includes(d?.user?.role)))
+      .catch(() => {});
+  }, []);
 
   const load = useCallback(() => {
     setError(null);
@@ -221,7 +230,7 @@ export default function AssetPage({ params }: { params: Promise<{ id: string }> 
           {tab === "overview" && <Overview assetId={id} asset={asset} metrics={metrics} parent={twin.parent ?? null} children={children} pmPrograms={pmPrograms} onChanged={load} />}
           {tab === "pms" && <PmPrograms assetId={id} pmPrograms={pmPrograms} onChanged={load} />}
           {tab === "parts" && <Parts parts={parts} />}
-          {tab === "failures" && <Failures wos={failureWos} alarms={alarms} onPlanPm={() => setTab("pms")} />}
+          {tab === "failures" && <Failures wos={failureWos} alarms={alarms} canManagePm={canManagePm} onPlanPm={() => setTab("pms")} />}
           {tab === "documents" && <Documents assetId={id} docs={docs} lessons={[]} onUpload={load} />}
           {tab === "lessons" && <Lessons lessons={lessons} />}
           {tab === "plc" && <PlcList projects={plcProjects} />}
@@ -451,7 +460,7 @@ const hrs = (mins: number) => (mins >= 60 ? `${(mins / 60).toFixed(1)} h` : `${m
 // This machine's failure record: corrective repairs grouped by recurring fault
 // (with the captured root cause / failed part / proven fix inline) plus fault
 // alarms — the raw material the PM loop learns from. All from real closed WOs.
-function Failures({ wos, alarms, onPlanPm }: { wos: Wo[]; alarms: Alarm[]; onPlanPm?: () => void }) {
+function Failures({ wos, alarms, canManagePm, onPlanPm }: { wos: Wo[]; alarms: Alarm[]; canManagePm?: boolean; onPlanPm?: () => void }) {
   const faults = alarms.filter((a) => a.severity === "fault" || a.severity === "critical");
   if (wos.length === 0 && faults.length === 0)
     return <EmptyRow>No recorded failures for this machine. Corrective work orders and fault alarms will appear here.</EmptyRow>;
@@ -459,6 +468,11 @@ function Failures({ wos, alarms, onPlanPm }: { wos: Wo[]; alarms: Alarm[]; onPla
   const groups = groupFailures(wos);
   // The dominant repeat offender (≥2 events) — the honest "this keeps costing you" signal.
   const topRepeat = groups.find((g) => g.items.length >= 2 && g.totalDowntime > 0);
+  // Seed a PM draft from the most recent CLOSED repair in the dominant group (its
+  // captured close-out is the grounding); fall back to the newest item.
+  const seedWo = topRepeat
+    ? (topRepeat.items.find((w) => w.status === "done") ?? topRepeat.items[0])
+    : null;
 
   return (
     <div className="space-y-4">
@@ -475,13 +489,8 @@ function Failures({ wos, alarms, onPlanPm }: { wos: Wo[]; alarms: Alarm[]; onPla
                 Turn this repeat into a preventive program before the next failure.
               </p>
             </div>
-            {onPlanPm && (
-              <button
-                onClick={onPlanPm}
-                className="shrink-0 text-[12px] font-medium rounded-lg bg-[var(--color-accent)] text-[var(--color-on-accent)] px-3 py-1.5 hover:brightness-110"
-              >
-                Plan a PM →
-              </button>
+            {seedWo && (
+              <SuggestPmButton workOrderId={seedWo.id} canManagePm={!!canManagePm} onFallback={onPlanPm} />
             )}
           </div>
         </div>
