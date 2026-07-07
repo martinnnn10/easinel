@@ -25,8 +25,11 @@ interface Note {
 interface AssetOpt { id: string; name: string }
 interface RepeatRisk {
   assetId: string; assetName: string; label: string; count: number;
-  totalDowntimeMins: number; lastAt: number | null; hasActivePm: boolean;
+  totalDowntimeMins: number; lastAt: number | null;
+  pmState: "active" | "draft" | "none";
+  sourceWorkOrderId: string;
 }
+const PM_MANAGER_ROLES = ["owner", "admin", "manager"];
 interface Digest {
   stats: { open: number; inProgress: number; onHold: number; closedThisShift: number; pendingRequests: number; pmsDue: number; repeatRisks: number };
   machinesDown: { id: string; name: string }[];
@@ -46,6 +49,8 @@ export default function HandoverPage() {
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
   const [showForm, setShowForm] = useState(false);
+  const [role, setRole] = useState<string>("viewer");
+  const canManagePm = PM_MANAGER_ROLES.includes(role);
 
   const load = useCallback((h: number) => {
     setLoading(true);
@@ -62,6 +67,7 @@ export default function HandoverPage() {
   useEffect(() => { load(hours); }, [load, hours]);
   useEffect(() => {
     fetch("/api/assets").then((r) => r.json()).then((d) => setAssets((d.assets ?? []).map((a: AssetOpt) => ({ id: a.id, name: a.name })))).catch(() => {});
+    fetch("/api/auth/me").then((r) => r.json()).then((d) => setRole(d?.user?.role ?? "viewer")).catch(() => {});
   }, []);
 
   const fullDigest = buildFullDigest(hours, notesDigest, context);
@@ -115,13 +121,7 @@ export default function HandoverPage() {
                 </div>
                 <div className="space-y-1.5">
                   {context.repeatRisks.map((r) => (
-                    <a key={`${r.assetId}:${r.label}`} href={`/assets/${r.assetId}`} className="flex items-baseline gap-2 text-[12.5px] hover:underline">
-                      <span className="font-medium text-[var(--color-text)] truncate">{r.assetName}</span>
-                      <span className="text-[var(--color-muted)] truncate flex-1">{r.label} · {r.count}×{r.totalDowntimeMins ? ` · ${Math.round((r.totalDowntimeMins / 60) * 10) / 10}h` : ""}</span>
-                      <span className={`text-[10.5px] shrink-0 ${r.hasActivePm ? "text-[var(--color-green)]" : "text-[var(--color-amber)]"}`}>
-                        {r.hasActivePm ? "PM in place" : "no PM yet"}
-                      </span>
-                    </a>
+                    <RepeatRiskRow key={`${r.assetId}:${r.label}`} r={r} canManagePm={canManagePm} />
                   ))}
                 </div>
                 <p className="text-[10.5px] text-[var(--color-faint)] mt-2">
@@ -177,6 +177,52 @@ export default function HandoverPage() {
         <AddNoteModal assets={assets} onClose={() => setShowForm(false)} onSaved={() => { setShowForm(false); load(hours); }} />
       )}
     </>
+  );
+}
+
+// One recurring-fault row. For managers, a chronic fault with no PM gets a
+// one-tap "Suggest PM" that drafts a grounded preventive program from the most
+// recent matching repair — detection → prevention without leaving the handover.
+function RepeatRiskRow({ r, canManagePm }: { r: RepeatRisk; canManagePm: boolean }) {
+  const [busy, setBusy] = useState(false);
+  const [drafted, setDrafted] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+
+  const suggest = async () => {
+    setBusy(true); setErr(null);
+    try {
+      const res = await fetch("/api/pm/suggest", {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ workOrderId: r.sourceWorkOrderId }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (res.ok && (d.program?.id)) setDrafted(d.program.id);
+      else setErr(d.message || "Couldn't draft a PM.");
+    } catch { setErr("Couldn't draft a PM."); }
+    finally { setBusy(false); }
+  };
+
+  return (
+    <div className="flex items-baseline gap-2 text-[12.5px]">
+      <a href={`/assets/${r.assetId}`} className="flex items-baseline gap-2 flex-1 min-w-0 hover:underline">
+        <span className="font-medium text-[var(--color-text)] truncate">{r.assetName}</span>
+        <span className="text-[var(--color-muted)] truncate">{r.label} · {r.count}×{r.totalDowntimeMins ? ` · ${Math.round((r.totalDowntimeMins / 60) * 10) / 10}h` : ""}</span>
+      </a>
+      {drafted ? (
+        <a href={`/pm/${drafted}`} className="text-[10.5px] shrink-0 text-[var(--color-green)] font-medium hover:underline">PM drafted — review →</a>
+      ) : r.pmState === "active" ? (
+        <span className="text-[10.5px] shrink-0 text-[var(--color-green)]">PM in place</span>
+      ) : r.pmState === "draft" ? (
+        <a href="/pm" className="text-[10.5px] shrink-0 text-[var(--color-muted)] hover:underline">PM drafted</a>
+      ) : canManagePm ? (
+        <button onClick={suggest} disabled={busy} className="text-[10.5px] shrink-0 font-medium rounded-md border border-[var(--color-amber)]/50 text-[var(--color-amber)] px-2 py-0.5 hover:bg-[var(--color-amber)]/10 disabled:opacity-50">
+          {busy ? "Drafting…" : "Suggest PM"}
+        </button>
+      ) : (
+        <span className="text-[10.5px] shrink-0 text-[var(--color-amber)]">no PM yet</span>
+      )}
+      {err && <span className="text-[10.5px] shrink-0 text-[var(--color-red)]">{err}</span>}
+    </div>
   );
 }
 
@@ -311,7 +357,8 @@ function buildFullDigest(hours: number, notesDigest: string, context: Digest | n
   if (context?.repeatRisks?.length) {
     lines.push(`\n**Recurring faults (90d):**`);
     for (const r of context.repeatRisks) {
-      lines.push(`- ${r.assetName}: ${r.label} — ${r.count}×${r.hasActivePm ? " (PM in place)" : " — no PM yet"}`);
+      const pm = r.pmState === "active" ? " (PM in place)" : r.pmState === "draft" ? " (PM drafted)" : " — no PM yet";
+      lines.push(`- ${r.assetName}: ${r.label} — ${r.count}×${pm}`);
     }
   }
   if (notesDigest) {

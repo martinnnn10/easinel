@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { createWorkOrder, transitionWorkOrder } from "@/lib/workorders/repository";
 import { createAsset } from "@/lib/assets/repository";
+import { createProgram } from "@/lib/pm/repository";
 import { generateHandover } from "./generate";
 
 const ORG = "org_handover_test";
@@ -53,10 +54,18 @@ describe("shift handover digest", () => {
     const risk = d.repeatRisks.find((r) => r.assetId === a.id);
     expect(risk).toBeTruthy();
     expect(risk!.count).toBe(3);
-    expect(risk!.hasActivePm).toBe(false); // no PM yet → the payoff callout
+    expect(risk!.pmState).toBe("none"); // no PM yet → the payoff callout
+    expect(risk!.sourceWorkOrderId).toBeTruthy(); // seeds a one-tap Suggest-PM draft
     expect(d.repeatRisks.some((r) => r.assetId === b.id)).toBe(false); // one-off not flagged
     expect(d.stats.repeatRisks).toBeGreaterThanOrEqual(1);
     expect(d.watchItems.join(" ")).toMatch(/recurring fault and no PM/i);
     expect(d.markdown).toContain("Repeat risks");
+
+    // Once a PM is drafted for that machine, the risk reads "draft" (not "none")
+    // so it can't be double-suggested; it drops out of the no-PM watch item.
+    await createProgram(RORG, { assetId: a.id, title: "Bearing PM" }, "mgr@x.com");
+    const d2 = await generateHandover(RORG, 12);
+    expect(d2.repeatRisks.find((r) => r.assetId === a.id)!.pmState).toBe("draft");
+    expect(d2.watchItems.join(" ")).not.toMatch(/recurring fault and no PM/i);
   });
 });

@@ -65,7 +65,10 @@ export interface RepeatRisk {
   count: number; // corrective closes on this machine in the window
   totalDowntimeMins: number;
   lastAt: number | null;
-  hasActivePm: boolean;
+  // PM coverage for this machine: an active program breaks the cycle; a draft is
+  // already proposed (awaiting approval); none is the callout to act on.
+  pmState: "active" | "draft" | "none";
+  sourceWorkOrderId: string; // most recent matching repair — seeds a Suggest-PM draft
 }
 
 export interface HandoverDigest {
@@ -99,13 +102,13 @@ export async function generateHandover(orgId: string, windowHours = 12, now = Da
   if (!orgId) throw new Error("generateHandover() requires orgId");
   const since = now - windowHours * 3600_000;
 
-  const [all, stats, pendingRequests, allAssets, pmsDueRaw, activePms] = await Promise.all([
+  const [all, stats, pendingRequests, allAssets, pmsDueRaw, allPms] = await Promise.all([
     listWorkOrders(orgId),
     workOrderStats(orgId),
     countPendingRequests(orgId),
     listAssets(orgId),
     listDue(orgId),
-    listPrograms(orgId, "active"),
+    listPrograms(orgId),
   ]);
   const assetsDown = allAssets.filter((a) => a.status === "down");
   const assetName = new Map(allAssets.map((a) => [a.id, a.name]));
@@ -131,7 +134,7 @@ export async function generateHandover(orgId: string, windowHours = 12, now = Da
   // group at/above the threshold is a recurring problem. Flag whether the machine
   // already has an active PM, so the callout is "recurring AND unprevented".
   const repeatSince = now - REPEAT_WINDOW_DAYS * 86400_000;
-  const groups = new Map<string, { assetId: string; label: string; count: number; downtime: number; lastAt: number }>();
+  const groups = new Map<string, { assetId: string; label: string; count: number; downtime: number; lastAt: number; sourceWoId: string }>();
   for (const w of all) {
     if (w.type !== "corrective" || w.status !== "done" || !w.assetId) continue;
     const closed = ms(w.closedAt ?? w.updatedAt);
@@ -139,13 +142,14 @@ export async function generateHandover(orgId: string, windowHours = 12, now = Da
     const key = faultKeyOf(w);
     if (!key) continue;
     const gk = `${w.assetId}::${key}`;
-    const g = groups.get(gk) ?? { assetId: w.assetId, label: key, count: 0, downtime: 0, lastAt: 0 };
+    const g = groups.get(gk) ?? { assetId: w.assetId, label: key, count: 0, downtime: 0, lastAt: 0, sourceWoId: w.id };
     g.count++;
     g.downtime += Number(w.downtimeMins) || 0;
-    g.lastAt = Math.max(g.lastAt, closed);
+    if (closed >= g.lastAt) { g.lastAt = closed; g.sourceWoId = w.id; } // newest repair seeds the PM draft
     groups.set(gk, g);
   }
-  const coveredAssets = new Set(activePms.map((p) => p.assetId).filter(Boolean));
+  const activePmAssets = new Set(allPms.filter((p) => p.status === "active").map((p) => p.assetId).filter(Boolean));
+  const draftPmAssets = new Set(allPms.filter((p) => p.status === "draft").map((p) => p.assetId).filter(Boolean));
   const repeatRisks: RepeatRisk[] = [...groups.values()]
     .filter((g) => g.count >= REPEAT_THRESHOLD)
     .map((g) => ({
@@ -155,7 +159,8 @@ export async function generateHandover(orgId: string, windowHours = 12, now = Da
       count: g.count,
       totalDowntimeMins: g.downtime,
       lastAt: g.lastAt || null,
-      hasActivePm: coveredAssets.has(g.assetId),
+      pmState: (activePmAssets.has(g.assetId) ? "active" : draftPmAssets.has(g.assetId) ? "draft" : "none") as RepeatRisk["pmState"],
+      sourceWorkOrderId: g.sourceWoId,
     }))
     .sort((a, b) => b.count - a.count || (b.lastAt ?? 0) - (a.lastAt ?? 0))
     .slice(0, 6);
@@ -168,7 +173,7 @@ export async function generateHandover(orgId: string, windowHours = 12, now = Da
   if (onHold.length) watchItems.push(`${onHold.length} work order(s) on hold — confirm what's blocking them.`);
   if (pendingRequests > 0) watchItems.push(`${pendingRequests} maintenance request(s) awaiting approval.`);
   if (pmsDue.length) watchItems.push(`${pmsDue.length} preventive task(s) due.`);
-  const uncoveredRepeats = repeatRisks.filter((r) => !r.hasActivePm);
+  const uncoveredRepeats = repeatRisks.filter((r) => r.pmState === "none");
   if (uncoveredRepeats.length) {
     watchItems.push(
       `${uncoveredRepeats.length} machine(s) with a recurring fault and no PM in place: ${uncoveredRepeats
@@ -208,7 +213,7 @@ export async function generateHandover(orgId: string, windowHours = 12, now = Da
           (r) =>
             `- ${r.assetName}: ${r.label} — ${r.count}× ${
               r.totalDowntimeMins ? `, ${Math.round((r.totalDowntimeMins / 60) * 10) / 10}h downtime` : ""
-            }${r.hasActivePm ? " (PM in place)" : " — no PM yet"}`
+            }${r.pmState === "active" ? " (PM in place)" : r.pmState === "draft" ? " (PM drafted)" : " — no PM yet"}`
         )
       : ["- None — no fault has recurred enough to flag."]),
     ``,
