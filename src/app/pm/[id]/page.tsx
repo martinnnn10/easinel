@@ -97,6 +97,10 @@ export default function PmDetailPage({ params }: { params: Promise<{ id: string 
   const [error, setError] = useState<string | null>(null);
   const [role, setRole] = useState<Role | null>(null);
   const [busy, setBusy] = useState<null | "approve" | "archive">(null);
+  // Connected CMMS connectors this PM can be pushed to (push_work_order capable).
+  const [pushTargets, setPushTargets] = useState<{ key: string; name: string }[]>([]);
+  const [pushing, setPushing] = useState<string | null>(null);
+  const [pushMsg, setPushMsg] = useState<{ ok: boolean; text: string; url?: string } | null>(null);
 
   const load = useCallback(() => {
     setError(null);
@@ -118,7 +122,40 @@ export default function PmDetailPage({ params }: { params: Promise<{ id: string 
       .then((r) => r.json())
       .then((d) => setRole(d?.user?.role ?? null))
       .catch(() => setRole(null));
+    // Which connected CMMS can receive a pushed PM (as a work order)?
+    fetch("/api/integrations")
+      .then((r) => r.json())
+      .then((d) => {
+        const cat = (d.catalog ?? []) as { key: string; name: string; capabilities: string[] }[];
+        const connected = (d.connected ?? []) as { connectorKey: string; status: string }[];
+        const targets = connected
+          .filter((c) => c.status === "connected")
+          .map((c) => cat.find((x) => x.key === c.connectorKey))
+          .filter((x): x is { key: string; name: string; capabilities: string[] } => !!x && x.capabilities.includes("push_work_order"))
+          .map((x) => ({ key: x.key, name: x.name }));
+        setPushTargets(targets);
+      })
+      .catch(() => {});
   }, [load]);
+
+  const pushPm = async (connectorKey: string, name: string) => {
+    setPushing(connectorKey);
+    setPushMsg(null);
+    try {
+      const r = await fetch("/api/integrations", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ action: "push_pm", connectorKey, pmProgramId: id }),
+      });
+      const d = await r.json();
+      if (d.pushed) setPushMsg({ ok: true, text: `Sent to ${name}`, url: d.result?.url });
+      else setPushMsg({ ok: false, text: d.reason ?? `Couldn't push to ${name}.` });
+    } catch {
+      setPushMsg({ ok: false, text: "Push failed — please retry." });
+    } finally {
+      setPushing(null);
+    }
+  };
 
   const act = async (action: "approve" | "archive") => {
     setBusy(action);
@@ -159,6 +196,7 @@ export default function PmDetailPage({ params }: { params: Promise<{ id: string 
   const parts = parseList(pm.parts);
   const safety = parseList(pm.safety);
   const canManage = role ? can(role, "manage_pm") : false;
+  const canManageIntegrations = role ? can(role, "manage_integrations") : false;
   const cadence = pm.frequencyLabel || (pm.intervalDays ? `Every ${pm.intervalDays} days` : "—");
 
   return (
@@ -204,6 +242,35 @@ export default function PmDetailPage({ params }: { params: Promise<{ id: string 
 
         {error === "action_failed" && (
           <p className="mt-3 text-[12px] text-[var(--color-red)]">That action failed. Please retry.</p>
+        )}
+
+        {/* Push this PM back into the connected CMMS as a work order — the
+            intelligence flows into the tool the team already uses. Only shown
+            when a push-capable CMMS is connected and the user may manage it. */}
+        {canManageIntegrations && pushTargets.length > 0 && (
+          <div className="mt-3 flex items-center gap-2.5 flex-wrap">
+            {pushTargets.map((t) => (
+              <button
+                key={t.key}
+                onClick={() => pushPm(t.key, t.name)}
+                disabled={pushing !== null}
+                className="text-[12px] rounded-lg px-3 py-1.5 border border-[var(--color-border)] hover:bg-[var(--color-surface-2)] disabled:opacity-50"
+              >
+                {pushing === t.key ? `Sending to ${t.name}…` : `Push to ${t.name} →`}
+              </button>
+            ))}
+            {pushMsg && (
+              <span className={`text-[12px] ${pushMsg.ok ? "text-[var(--color-green)]" : "text-[var(--color-amber)]"}`}>
+                {pushMsg.text}
+                {pushMsg.ok && pushMsg.url && (
+                  <>
+                    {" — "}
+                    <a href={pushMsg.url} target="_blank" rel="noopener noreferrer" className="underline">open in CMMS ↗</a>
+                  </>
+                )}
+              </span>
+            )}
+          </div>
         )}
 
         {/* Approval gate hint for non-managers */}
