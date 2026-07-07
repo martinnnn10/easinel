@@ -161,8 +161,8 @@ A conveyor that overloads **every morning** but runs fine once warm is almost al
 | Soft-start/VFD accel ramp too aggressive | 8% | Too-fast ramp on a heavy cold load trips on current |
 
 ## Recommended Troubleshooting Order
-1. LOTO the conveyor. Manually rotate the drive by hand — note if it's notably harder to turn cold. Hard = mechanical/lube.
-2. With power on (guards in place), clamp-meter the motor amps at the first cold start vs. mid-shift. A large cold-vs-warm delta confirms breakaway torque.
+1. With power on (guards in place, arc-flash PPE), clamp-meter the motor amps at the first cold start vs. mid-shift. A large cold-vs-warm delta confirms breakaway torque.
+2. If mechanical drag is suspected: LOTO the conveyor, verify zero energy, then manually rotate the drive by hand — note if it's notably harder to turn cold. Hard = mechanical/lube.
 3. Compare measured FLA to the motor nameplate and the overload relay setting. Relay should be ~115–125% of FLA.
 4. Inspect gearbox oil level/grade and bearing lube. Cold-climate areas may need a lower-viscosity (synthetic) lubricant.
 5. If VFD-driven, lengthen the accel ramp and/or enable torque-boost for cold starts.
@@ -246,15 +246,16 @@ A "hunting" servo is oscillating around its commanded position — almost always
 ${q}
 
 ### Tasks
-1. Perform LOTO and verify zero energy state.
-2. Diagnose per Copilot troubleshooting guidance.
-3. Repair / replace affected component.
-4. Function-test and return to service.
-5. Update asset history and close work order.
+1. Diagnose per Copilot troubleshooting guidance (energized diagnostics with proper PPE as applicable).
+2. Identify failed component and required parts.
+3. LOTO and verify zero energy before contact/repair work.
+4. Repair / replace affected component.
+5. Remove LOTO, function-test under load, and return to service.
+6. Update asset history and close work order.
 
 ### Safety
-- LOTO required. Verify stored energy (electrical bus, hydraulic accumulators, suspended loads) is discharged.
-- Required PPE: arc-flash rated if energized verification is needed.
+- Energized diagnostics: arc-flash rated PPE, CAT III/IV meter, stand to the side.
+- Contact/repair work: LOTO required. Verify stored energy (electrical bus, hydraulic accumulators, suspended loads) is discharged before touching conductors.
 
 ### Estimated Labor
 - 1 technician × 1.5 hr (adjust after diagnosis)
@@ -274,8 +275,9 @@ ${q}
 **Estimated duration:** 45 min
 
 ### Safety First
-- LOTO the equipment and verify zero energy.
-- Confirm stored energy is discharged (electrical, hydraulic, pneumatic, gravity).
+- LOTO the equipment and verify zero energy before performing PM tasks (PM work involves contact with moving parts, guards, and conductors).
+- Confirm stored energy is discharged (electrical bus, hydraulic/pneumatic pressure, gravity/spring).
+- Exception: thermal scans and vibration readings are done energized/running with proper PPE and guards in place.
 
 ### PM Steps
 1. Visual inspection — leaks, damage, loose hardware, abnormal wear.
@@ -361,7 +363,8 @@ const GUIDANCE: GuidanceTopic[] = [
       "**Bad analog input channel or module** — a failed channel or a module in a fault/over-range state, less common than a field-side open.",
     ].join("\n"),
     checks: [
-      "LOTO as required; the sensor circuit is low voltage but the machine it controls may not be.",
+      "Check the module's diagnostic/status bits first (energized) — confirm whether the controller sees over-range, under-range, or open-circuit. This tells you field-side vs module-side immediately.",
+      "If the machine must be stopped to safely access the sensor wiring: LOTO the machine (not just the sensor circuit — the machine it controls may have stored energy).",
       "At the sensor, disconnect and **measure resistance across the element**. A Pt100 reads ~100 Ω at 0 °C and ~110 Ω near room temp; **open (OL / infinite) = broken element or lead**, **~0 Ω = shorted**. For a thermocouple, check for continuity and correct polarity.",
       "For a 3-wire RTD, measure each lead pair — the two compensation legs should read **equal, low** resistance. Unequal legs = wiring/terminal problem.",
       "Reseat and torque every terminal from the sensor head → junction box → input card. Look for corrosion, a backed-out ferrule, or a broken strand.",
@@ -382,11 +385,11 @@ const GUIDANCE: GuidanceTopic[] = [
       "**Thermal / cooling** — clogged filters or a failed fan let the motor or drive heat-soak and trip after it warms.",
     ].join("\n"),
     checks: [
-      "LOTO and verify zero energy before any contact work.",
-      "Clamp-meter all three phases at start and running; compare to the **motor nameplate FLA** and check phase balance.",
+      "Clamp-meter all three phases at start and running (energized, arc-flash PPE); compare to the **motor nameplate FLA** and check phase balance.",
       "Verify the overload relay/parameter is set to ~115–125 % of FLA, not lower.",
-      "Hand-rotate the load (de-energized) for drag; check alignment and bearings.",
       "Check cooling — filters, fans, ambient — if the trip only happens once warm.",
+      "If mechanical drag is suspected: LOTO, verify zero energy, then hand-rotate the load; check alignment and bearings.",
+      "If winding is suspect: LOTO, megger the motor windings phase-to-phase and phase-to-ground.",
     ].join("\n"),
     tools: "True-RMS clamp ammeter, IR thermometer, insulated hand tools, megohmmeter for winding checks.",
     parts: "Overload relay/heater element sized to FLA; bearings only if drag is confirmed.",
@@ -435,8 +438,9 @@ ${topic.checks.split("\n").map((l, i) => `${i + 1}. ${l}`).join("\n")}
 - ${topic.parts}
 
 ## Safety Considerations
-- Lockout/tagout and verify stored energy (electrical bus, hydraulic/pneumatic pressure, gravity/spring) is discharged before touching wiring or terminals.
-- Use PPE appropriate to the task; arc-flash rated for any energized verification.
+- **Energized diagnostics** (voltage checks, fault code reads, amp clamps): wear arc-flash rated PPE appropriate to the incident energy; use a CAT III/IV rated meter; stand to the side of the panel.
+- **Contact/repair work** (replacing parts, pulling leads, accessing bus bars): LOTO and verify stored energy (electrical bus, hydraulic/pneumatic, gravity/spring) is discharged before touching conductors.
+- On a VFD: the DC bus holds lethal voltage for minutes after power-off — verify 0 VDC on bus caps before opening the drive.
 
 ## Confidence
 **Low–Medium** — sound general guidance, but not yet grounded in your documents. Attach the relevant drawing/manual to raise it and pinpoint specifics.
@@ -449,18 +453,19 @@ ${topic.checks.split("\n").map((l, i) => `${i + 1}. ${l}`).join("\n")}
 I don't have enough grounded information yet for *"${summarizeRequest(q)}"* — no uploaded document clearly matched this question. Here is an honest, general starting point; the more you attach, the more specific I get.
 
 ## How to Narrow It Down
-1. **LOTO and verify zero energy** before any contact work.
-2. Capture the exact symptom and any data — fault code, amps, temperature, pressure, the reading on the HMI/keypad.
-3. Identify the specific component and its make/model/part number so the right manual and wiring can be found.
-4. Inspect the most likely item first and confirm with a measurement that has a clear good/bad threshold — eliminate with evidence, don't swap parts.
+1. Capture the exact symptom and any data — fault code, amps, temperature, pressure, the reading on the HMI/keypad. Most of this requires the equipment to be **energized** — wear proper PPE.
+2. Identify the specific component and its make/model/part number so the right manual and wiring can be found.
+3. Inspect the most likely item first and confirm with a measurement that has a clear good/bad threshold — eliminate with evidence, don't swap parts.
+4. Once you've identified the failed component and need to touch conductors or replace parts: **LOTO and verify zero energy** before contact work.
 5. Verify the fix under load and document what you found.
 
 ## Required Tools
-- Multimeter (CAT III), clamp ammeter, IR thermometer, basic hand tools.
+- Multimeter (CAT III/IV), clamp ammeter, IR thermometer, basic hand tools.
 
 ## Safety Considerations
-- Lockout/tagout and verify stored energy (electrical bus, hydraulic/pneumatic pressure, gravity/spring) is discharged.
-- Use PPE appropriate to the task; arc-flash rated for any energized verification.
+- **Energized diagnostics** (voltage checks, fault code reads, amp clamps): wear arc-flash rated PPE; use a CAT III/IV rated meter; stand to the side.
+- **Contact/repair work** (replacing parts, pulling leads, opening enclosures): LOTO and verify stored energy is discharged before touching conductors.
+- On a VFD: the DC bus holds lethal voltage for minutes after power-off — verify 0 VDC on bus caps before opening the drive.
 
 ## Confidence
 **Low** — upload the relevant manual, drawing, PLC export, or this asset's failure history (or paste the exact fault code) and I'll tailor every step and cite your own records.

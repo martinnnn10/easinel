@@ -132,7 +132,7 @@ export function buildFaultCodeAnswer(question: string, ctx: RetrievedChunk[]): s
     );
   }
   parts.push(
-    `## Safety\n- Follow LOTO before touching terminals. On a VFD the **DC bus holds lethal voltage for up to 5 minutes** after power-off — verify 0 VDC first.\n- Never defeat a safety (STO / e-stop / guard) string to clear a fault.`
+    `## Safety\n- **Energized diagnostics** (reading fault codes, checking voltages, clamping amps): wear arc-flash rated PPE; use a CAT III/IV meter; stand to the side of the panel.\n- **Before contact/repair work** (replacing parts, pulling leads, accessing bus bars): LOTO and verify zero energy. On a VFD the **DC bus holds lethal voltage for up to 5 minutes** after power-off — verify 0 VDC on bus caps before touching anything inside.\n- Never defeat a safety (STO / e-stop / guard) string to clear a fault.`
   );
   parts.push(`## When To Create a Work Order\n${whenToWorkOrder(hit.name)}`);
   parts.push(`## Confidence\n**High** — matched to the OEM fault reference for this equipment class.`);

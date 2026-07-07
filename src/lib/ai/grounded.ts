@@ -202,16 +202,17 @@ Based on your uploaded documentation for *"${summarizeRequest(question)}"*, the 
 > "${lead.text}" — **${lead.filename}** [${lead.marker}]
 
 ## What It Means / What To Check First
-1. **LOTO and verify zero energy** before any contact work on wiring or terminals.
-2. Act on the passage above first — it is the closest match in your own documentation. Confirm the specific terminals, channel, fault code, or part numbers it names against the physical device.
-3. Where it names a check (a reading, a terminal, a setting), take that measurement and compare it to the good/bad threshold the document gives.
-4. Verify end-to-end (source → wiring → input/channel → controller) rather than swapping parts.
+1. Act on the passage above first — it is the closest match in your own documentation. Confirm the specific terminals, channel, fault code, or part numbers it names against the physical device.
+2. Where it names a check (a reading, a terminal, a setting), take that measurement with proper PPE (arc-flash rated for energized work) and compare it to the good/bad threshold the document gives.
+3. Verify end-to-end (source → wiring → input/channel → controller) rather than swapping parts.
+4. **Before any contact/repair work** (replacing a part, opening an enclosure to access bus bars, pulling a lead): LOTO and verify zero energy.
 5. Record what you found and close the loop against this document.
 ${supporting.length ? `\n## Supporting Evidence\n${supporting.map((p) => `- "${p.text}" — **${p.filename}** [${p.marker}]`).join("\n")}` : ""}
 
 ## Safety Notes
-- Lockout/tagout and verify stored energy (electrical bus, hydraulic/pneumatic, gravity/spring) is discharged before touching wiring or terminals.
-- Use PPE appropriate to the task; arc-flash rated for any energized verification.
+- **Energized diagnostics** (voltage checks, fault code reads, amp clamps): follow the equipment's arc flash label and your site's electrical safety program for PPE selection. Use a CAT III/IV rated meter; stand to the side of the panel. If no arc flash label or study is available, escalate to a qualified electrical supervisor before opening the panel energized.
+- **Contact/repair work** (replacing parts, pulling leads, accessing bus bars): LOTO and verify stored energy (electrical bus, hydraulic/pneumatic, gravity/spring) is discharged before touching conductors.
+- On a VFD: the DC bus holds lethal voltage for minutes after power-off — verify 0 VDC on bus caps before opening the drive.
 
 ## Confidence
 **Medium** — grounded in ${passages.length} matching passage${passages.length === 1 ? "" : "s"} from your own documents. Attach the wiring/loop drawing for this exact device and I can point to the specific terminals and channel.
