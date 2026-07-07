@@ -64,7 +64,6 @@ function Connectors() {
   const [catalog, setCatalog] = useState<Connector[]>([]);
   const [connected, setConnected] = useState<Connected[]>([]);
   const [busy, setBusy] = useState<string>("");
-  const [toast, setToast] = useState<string>("");
 
   const load = useCallback(async () => {
     const d = await fetch("/api/integrations").then((r) => r.json());
@@ -78,6 +77,8 @@ function Connectors() {
   const statusOf = (key: string) =>
     connected.find((c) => c.connectorKey === key)?.status ?? "disconnected";
 
+  const [note, setNote] = useState<{ kind: "ok" | "info"; text: string } | null>(null);
+
   const act = async (connectorKey: string, action: string) => {
     setBusy(connectorKey + action);
     const d = await fetch("/api/integrations", {
@@ -85,11 +86,19 @@ function Connectors() {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ action, connectorKey }),
     }).then((r) => r.json());
-    if (action === "sync" && d.ok) {
-      setToast(
-        `Synced ${d.assetsImported} assets and ${d.workOrdersImported} work orders.`
-      );
-      setTimeout(() => setToast(""), 4000);
+    if (action === "sync") {
+      if (d.imported) {
+        const bits = [
+          `${d.assetsImported} assets`,
+          `${d.workOrdersImported} work orders`,
+          d.workOrdersUpdated ? `${d.workOrdersUpdated} updated` : null,
+        ].filter(Boolean).join(" · ");
+        setNote({ kind: "ok", text: `Synced from live ${connectorKey}: ${bits}.` });
+      } else {
+        // Honest: sandbox/preview never writes sample data into the workspace.
+        setNote({ kind: "info", text: d.reason ?? "Preview connector — no data imported." });
+      }
+      setTimeout(() => setNote(null), 7000);
     }
     setBusy("");
     load();
@@ -97,17 +106,21 @@ function Connectors() {
 
   return (
     <>
-      {toast && (
-        <div className="mb-4 rounded-lg bg-[var(--color-green)]/10 border border-[var(--color-green)]/30 text-[var(--color-green)] text-[13px] px-3 py-2">
-          {toast}
+      {note && (
+        <div className={`mb-4 rounded-lg text-[13px] px-3 py-2 border ${
+          note.kind === "ok"
+            ? "bg-[var(--color-green)]/10 border-[var(--color-green)]/30 text-[var(--color-green)]"
+            : "bg-[var(--color-amber)]/10 border-[var(--color-amber)]/30 text-[var(--color-amber)]"
+        }`}>
+          {note.text}
         </div>
       )}
       <div className="rounded-lg bg-[var(--color-surface-2)] border border-[var(--color-border)] px-4 py-3 mb-6 text-[12px] text-[var(--color-muted)]">
         Each connector activates the moment you add live credentials. Until then
         it stays in a safe <strong className="text-[var(--color-text)]">preview state</strong> so you
-        can review the data contract and field mapping before any production
-        system is touched. No connector reads or writes external data without
-        your explicit credentials.
+        can review the data contract and field mapping first. A preview connector
+        never writes sample data into your workspace — a real sync imports your
+        equipment and work orders only once your own credentials are live.
       </div>
 
       {CAT_ORDER.map((cat) => {

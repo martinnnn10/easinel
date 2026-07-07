@@ -18,6 +18,7 @@ export type EventType =
   | "document.indexed"
   | "integration.connected"
   | "integration.synced"
+  | "integration.pm_pushed"
   | "copilot.answered"
   | "workorder.closed"
   | "pm.suggested"

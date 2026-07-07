@@ -76,6 +76,25 @@ export function maintainxAdapter(def: ConnectorDef, apiKey: string): ConnectorAd
     return json;
   }
 
+  // Walk cursor-paginated list endpoints so a real plant's full history is
+  // imported, not just the first page. Reads both the common list envelopes and
+  // both common next-cursor field names; capped to avoid runaway pulls.
+  async function paginate(path: string, listKey: string): Promise<Record<string, unknown>[]> {
+    const out: Record<string, unknown>[] = [];
+    let cursor: string | undefined;
+    for (let page = 0; page < 40; page++) {
+      const q = new URLSearchParams({ pageSize: "100" });
+      if (cursor) q.set("cursor", cursor);
+      const data = (await call(`${path}?${q.toString()}`)) as Record<string, unknown>;
+      const rows = ((data?.[listKey] as unknown[]) ?? (data?.data as unknown[]) ?? []) as Record<string, unknown>[];
+      out.push(...rows);
+      const next = (data?.nextCursor ?? data?.nextPageToken ?? (data?.meta as { nextCursor?: string })?.nextCursor) as string | undefined;
+      if (!next || rows.length === 0) break;
+      cursor = next;
+    }
+    return out;
+  }
+
   return {
     def,
     async testConnection() {
@@ -87,11 +106,7 @@ export function maintainxAdapter(def: ConnectorDef, apiKey: string): ConnectorAd
       }
     },
     async pullAssets(): Promise<ExternalAsset[]> {
-      const data = (await call("/assets?pageSize=50")) as {
-        assets?: unknown[];
-        data?: unknown[];
-      };
-      const rows = (data?.assets ?? data?.data ?? []) as Record<string, unknown>[];
+      const rows = await paginate("/assets", "assets");
       return rows.map((a) => ({
         externalId: String(a.id ?? a.assetId ?? ""),
         name: String(a.name ?? a.title ?? "Asset"),
@@ -99,11 +114,7 @@ export function maintainxAdapter(def: ConnectorDef, apiKey: string): ConnectorAd
       }));
     },
     async pullWorkOrders(): Promise<ExternalWorkOrder[]> {
-      const data = (await call("/workorders?pageSize=50")) as {
-        workOrders?: unknown[];
-        data?: unknown[];
-      };
-      const rows = (data?.workOrders ?? data?.data ?? []) as Record<string, unknown>[];
+      const rows = await paginate("/workorders", "workOrders");
       return rows.map((w) => ({
         externalId: String(w.id ?? ""),
         title: String(w.title ?? w.name ?? "Work order"),
