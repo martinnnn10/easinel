@@ -22,13 +22,23 @@ const REPEAT_STOP = new Set([
   "the", "and", "for", "with", "that", "this", "from", "was", "are", "not",
   "when", "then", "after", "again", "still", "into", "over", "machine", "fault",
   "issue", "problem", "error", "alarm", "failure", "failed", "down",
+  // Shift/location/unit noise that must NEVER anchor a fault group on its own —
+  // otherwise "line jam" + "line stopped" + "line fault" fabricate a "line ×3"
+  // recurring fault where there is none.
+  "line", "area", "cell", "zone", "side", "unit", "units", "time", "times",
+  "today", "shift", "morning", "night", "week", "weekend", "hour", "hours",
+  "minute", "minutes", "volts", "volt", "amps", "amp", "temp", "degrees", "rpm",
 ]);
 
-// A stable key for "the same failure recurring" on a machine: prefer a fault
-// code, then the failed part, then the leading significant keyword.
+// A stable key for "the same failure recurring" on a machine: a real fault code,
+// then the failed part, then the leading significant keyword. A bare 3-4 digit
+// number is deliberately NOT treated as a fault code — it is almost always a
+// measurement (480 V, 1200 rpm, 150 psi), and grouping unrelated repairs by a
+// coincidental number would invent a "recurring fault" from noise. A genuine
+// fault code carries a letter prefix (F007, E12).
 function faultKeyOf(w: WorkOrder): string | null {
   const text = [w.title, w.symptom, w.rootCause, w.failedPart].filter(Boolean).join(" ");
-  const code = text.match(/\b([a-z]\d{2,4}|\d{3,4})\b/i);
+  const code = text.match(/\b([a-z]\d{2,4})\b/i);
   if (code) return code[1].toUpperCase();
   const part = (w.failedPart ?? "").trim().toLowerCase();
   if (part) return part.replace(/\s+/g, " ").split(" ").slice(0, 3).join(" ");

@@ -9,6 +9,7 @@ import {
   canTransition,
   isOpenStatus,
   createWorkOrder,
+  createWorkOrderRequest,
   getWorkOrder,
   listWorkOrders,
   transitionWorkOrder,
@@ -254,5 +255,39 @@ describe("createWorkOrder org-isolation guard", () => {
 
     const wo2 = await createWorkOrder(ORG, { title: "y", symptom: "made-up id", assetId: "ast_does_not_exist" });
     expect(wo2.assetId).toBeNull();
+  });
+
+  it("applies the SAME guard on the request path (createWorkOrderRequest)", async () => {
+    const mine = await createAsset(ORG, { name: "Mixer keep" });
+    const foreign = await createAsset("org_other_tenant2", { name: "Foreign" });
+    const ok = await createWorkOrderRequest(ORG, { symptom: "grinding noise", assetId: mine.id }, "tech@x.com");
+    expect(ok.assetId).toBe(mine.id);
+    // A scanned foreign tag submitted as a request must not create a cross-tenant ref.
+    const bad = await createWorkOrderRequest(ORG, { symptom: "scanned foreign tag", assetId: foreign.id }, "tech@x.com");
+    expect(bad.assetId).toBeNull();
+  });
+});
+
+describe("downtime integrity across reopen → re-close", () => {
+  it("preserves the technician's downtime when a re-close omits it (no wall-clock wipe)", async () => {
+    const wo = await createWorkOrder(ORG, { title: "seal leak", symptom: "seal leak", type: "corrective" });
+    await transitionWorkOrder(ORG, wo.id, "in_progress", { actor: "t" });
+    // Close with an explicit, honest 45-minute downtime.
+    await transitionWorkOrder(ORG, wo.id, "done", { downtimeMins: 45, resolution: "new seal", actor: "t" });
+    expect((await getWorkOrder(ORG, wo.id))!.downtimeMins).toBe(45);
+    // Reopen (fix didn't hold), then re-close WITHOUT re-entering downtime.
+    await transitionWorkOrder(ORG, wo.id, "open", { actor: "t" });
+    await transitionWorkOrder(ORG, wo.id, "done", { resolution: "re-seated seal", actor: "t" });
+    // The honest 45 must survive — never recomputed to a wall-clock span.
+    expect((await getWorkOrder(ORG, wo.id))!.downtimeMins).toBe(45);
+  });
+
+  it("still lets a re-close OVERRIDE downtime with a new technician value", async () => {
+    const wo = await createWorkOrder(ORG, { title: "belt", symptom: "belt slip", type: "corrective" });
+    await transitionWorkOrder(ORG, wo.id, "in_progress", { actor: "t" });
+    await transitionWorkOrder(ORG, wo.id, "done", { downtimeMins: 30, actor: "t" });
+    await transitionWorkOrder(ORG, wo.id, "open", { actor: "t" });
+    await transitionWorkOrder(ORG, wo.id, "done", { downtimeMins: 80, actor: "t" });
+    expect((await getWorkOrder(ORG, wo.id))!.downtimeMins).toBe(80);
   });
 });

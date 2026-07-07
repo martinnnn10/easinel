@@ -37,6 +37,20 @@ import { id } from "@/lib/util";
 import { emitEvent, audit } from "@/lib/events";
 import { captureWorkOrderMemory } from "@/lib/workorders/memory";
 
+// Org-isolation guard for a user-influenced assetId (deep links, scanned QR
+// tags, request/create API callers). Returns the id only if it names one of THIS
+// org's machines; otherwise null — never a dangling cross-tenant reference. All
+// work-order create paths funnel their assetId through here.
+async function ownedAssetIdOrNull(orgId: string, assetId: string | null): Promise<string | null> {
+  if (!assetId) return null;
+  const owned = await db
+    .select({ id: assets.id })
+    .from(assets)
+    .where(and(eq(assets.orgId, orgId), eq(assets.id, assetId)))
+    .limit(1);
+  return owned.length ? assetId : null;
+}
+
 // ───────────────────────── State machine ─────────────────────────
 
 export const WO_STATUSES = [
@@ -217,19 +231,7 @@ export async function createWorkOrder(
   const number = nextNumber();
   const now = new Date();
 
-  // Org-isolation guard: assetId is user-influenced (deep links, scanned QR
-  // tags, API callers), so never store one that isn't this org's own machine.
-  // A foreign/unknown id is dropped to null rather than creating a dangling
-  // cross-tenant reference.
-  let assetId = input.assetId ?? null;
-  if (assetId) {
-    const owned = await db
-      .select({ id: assets.id })
-      .from(assets)
-      .where(and(eq(assets.orgId, orgId), eq(assets.id, assetId)))
-      .limit(1);
-    if (owned.length === 0) assetId = null;
-  }
+  const assetId = await ownedAssetIdOrNull(orgId, input.assetId ?? null);
 
   await db.insert(workOrders).values({
     id: woId,
@@ -335,7 +337,9 @@ export async function createWorkOrderRequest(
   await db.insert(workOrders).values({
     id: woId,
     orgId,
-    assetId: input.assetId ?? null,
+    // Same org-isolation guard as createWorkOrder: a request may carry a
+    // user-supplied (e.g. scanned) assetId, so never store a foreign one.
+    assetId: await ownedAssetIdOrNull(orgId, input.assetId ?? null),
     number,
     title,
     description,
@@ -565,6 +569,11 @@ export async function transitionWorkOrder(
       // Technician-confirmed downtime wins — the honest "machine actually down"
       // figure, not the wall clock.
       patch.downtimeMins = Math.max(1, Math.round(opts.downtimeMins));
+    } else if (existing.downtimeMins != null) {
+      // Preserve a previously captured downtime across a reopen → re-close. Never
+      // overwrite the technician's honest value with a wall-clock span that would
+      // include all the idle time the WO sat reopened (shifts/weekends).
+      patch.downtimeMins = existing.downtimeMins;
     } else {
       // Fallback estimate: reported-down → now (minutes). Overstates when a WO
       // sits open across shifts, which is exactly why close-out lets the tech
@@ -574,9 +583,11 @@ export async function transitionWorkOrder(
     }
   }
   if (toStatus === "open" && from === "done") {
-    // Reopen: clear close stamps so the next close recomputes cleanly.
+    // Reopen: clear the close stamp, but KEEP the captured downtime so a re-close
+    // that doesn't re-enter it preserves the honest value (see the done branch).
+    // avgDowntimeMins only counts status="done", so a reopened WO's retained
+    // value never pollutes the metric while it's open.
     patch.closedAt = null;
-    patch.downtimeMins = null;
   }
 
   // Optimistic concurrency control: only transition if the status is STILL what

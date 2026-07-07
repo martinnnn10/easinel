@@ -11,7 +11,7 @@
 // is fabricated and the daily loop stays consistent.
 // ─────────────────────────────────────────────────────────────────────────
 
-import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useDictation } from "@/lib/voice";
@@ -82,19 +82,28 @@ function FieldCapture() {
   const [online, setOnline] = useState(true);
   const [pending, setPending] = useState(0);
   const [savedOffline, setSavedOffline] = useState(false);
+  // Current session's org, used to stamp captures and to keep a queued capture
+  // from syncing into a different org after an account switch on a shared device.
+  const orgRef = useRef<string | null>(null);
 
   useEffect(() => {
     fetch("/api/assets")
       .then((r) => (r.ok ? r.json() : { assets: [] }))
       .then((d) => setAssets(d.assets ?? []))
       .catch(() => {});
+    fetch("/api/auth/me")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { orgRef.current = d?.user?.orgId ?? null; })
+      .catch(() => {});
   }, []);
 
-  // Drain any device-queued captures to the server, then refresh the count.
+  // Drain any device-queued captures to the server, then refresh the count. The
+  // current org (once known) is passed so captures from another tenant's session
+  // are held, not synced into this one.
   const flush = useCallback(async () => {
     try {
       const store = getCaptureStore();
-      const { remaining } = await flushCaptures(store);
+      const { remaining } = await flushCaptures(store, undefined, orgRef.current);
       setPending(remaining);
     } catch {
       /* best-effort — the queue stays on the device for the next attempt */
@@ -219,6 +228,7 @@ function FieldCapture() {
       photo,
       photoName: photo?.name ?? null,
       createdAt: Date.now(),
+      orgId: orgRef.current,
     };
 
     // Offline up front → queue without a doomed round-trip.

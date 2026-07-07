@@ -24,6 +24,10 @@ export interface FieldCapture {
   photo?: Blob | null;
   photoName?: string | null;
   createdAt: number;
+  // The org whose session captured this, stamped at enqueue when known. On a
+  // shared plant device where a different-org user later signs in, this prevents
+  // the capture from syncing into the wrong tenant (see flushCaptures).
+  orgId?: string | null;
 }
 
 // The server payload for a captured work order — identical in shape to the
@@ -100,11 +104,17 @@ export interface FlushResult {
 // item can't block the rest. A capture is removed only after a successful sync.
 export async function flushCaptures(
   store: CaptureStore,
-  submit: (c: FieldCapture) => Promise<string> = submitCapture
+  submit: (c: FieldCapture) => Promise<string> = submitCapture,
+  currentOrgId?: string | null
 ): Promise<FlushResult> {
   const pending = (await store.list()).sort((a, b) => a.createdAt - b.createdAt);
   let synced = 0;
   for (const c of pending) {
+    // Org guard: never sync a capture stamped with a different org than the one
+    // currently signed in (shared device, account switch). Leave it queued for
+    // when that user returns. Only skips when BOTH ids are known and differ, so
+    // legacy captures (no stamp) and an unknown current org still flush.
+    if (currentOrgId && c.orgId && c.orgId !== currentOrgId) continue;
     try {
       await submit(c);
       await store.remove(c.id);

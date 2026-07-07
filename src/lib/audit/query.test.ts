@@ -63,6 +63,21 @@ describe("listAuditLog", () => {
   });
 });
 
+describe("category filter honours limit correctly", () => {
+  it("returns matching-category rows even when newer other-category rows exceed the limit", async () => {
+    const O = "org_audit_cat";
+    // 5 newer work-order events, then 1 older PM event.
+    for (let i = 0; i < 5; i++) await audit(O, "system", "workorder.created", `wo_${i}`, {});
+    await audit(O, "system", "pm.approved", "pm_old", { title: "Old PM" });
+    // Ask for PM category with a small limit. The PM row is the OLDEST, so a
+    // naive "limit then filter" would fetch the 5 newest (all work orders) and
+    // return zero PM rows. The fix filters first, then slices.
+    const rows = await listAuditLog(O, { category: "pm", limit: 3 });
+    expect(rows).toHaveLength(1);
+    expect(rows[0].action).toBe("pm.approved");
+  });
+});
+
 describe("auditLogCsv", () => {
   it("produces a header + one row per entry, escaping quotes", async () => {
     const rows = await listAuditLog(ORG, {});

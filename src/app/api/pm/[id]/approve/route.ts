@@ -38,7 +38,7 @@ export const PATCH = safeHandler("pm.approve", async (
       approvedBy: user.email,
       approvedAt: new Date(),
     })
-    .where(eq(schema.pmPrograms.id, id));
+    .where(and(eq(schema.pmPrograms.id, id), eq(schema.pmPrograms.orgId, user.orgId)));
 
   // Knowledge reuse (best-effort): a PM that grew out of a documented failure was
   // approved — preventive work is now live because someone captured the failure.

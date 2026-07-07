@@ -101,4 +101,25 @@ describe("flushCaptures", () => {
     const res = await flushCaptures(memStore([]), async () => "wo");
     expect(res).toEqual({ synced: 0, remaining: 0 });
   });
+
+  it("holds captures stamped with a different org (shared-device account switch)", async () => {
+    const store = memStore([
+      cap("c1", { orgId: "org_A" }),
+      cap("c2", { orgId: "org_B" }), // captured under a different tenant
+      cap("c3", { orgId: "org_A" }),
+    ]);
+    const synced: string[] = [];
+    const res = await flushCaptures(store, async (c) => { synced.push(c.id); return "wo"; }, "org_A");
+    // Only org_A captures sync; org_B's stays safely queued, never into org_A.
+    expect(synced.sort()).toEqual(["c1", "c3"]);
+    expect(res.synced).toBe(2);
+    expect((await store.list()).map((c) => c.id)).toEqual(["c2"]);
+  });
+
+  it("still flushes legacy captures with no org stamp, and when the current org is unknown", async () => {
+    const store = memStore([cap("c1"), cap("c2", { orgId: "org_A" })]);
+    // currentOrgId omitted → best-effort, everything flushes (pre-stamp behavior).
+    const res = await flushCaptures(store, async () => "wo");
+    expect(res).toEqual({ synced: 2, remaining: 0 });
+  });
 });

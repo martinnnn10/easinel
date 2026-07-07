@@ -126,13 +126,18 @@ export async function listAuditLog(orgId: string, filters: AuditFilters = {}): P
     conds.push(gte(auditLog.at, new Date(Date.now() - filters.sinceDays * 86400_000)));
   }
 
-  const limit = Math.min(2000, Math.max(1, filters.limit ?? 200));
+  const wantLimit = Math.min(2000, Math.max(1, filters.limit ?? 200));
+  // `category` is derived from `action` (not a column), so it is filtered in JS.
+  // When a category is requested, fetch a wider window first and slice AFTER
+  // filtering — otherwise ?category=pm&limit=50 would fetch 50 rows of ANY
+  // category and then filter down to a handful, hiding older matching rows.
+  const fetchLimit = filters.category ? 2000 : wantLimit;
   const rows = await db
     .select()
     .from(auditLog)
     .where(and(...conds))
     .orderBy(desc(auditLog.at))
-    .limit(limit);
+    .limit(fetchLimit);
 
   // Resolve actor → member name (actor may be a user id OR an email).
   const members = await db.select({ id: users.id, email: users.email, name: users.name }).from(users).where(eq(users.orgId, orgId));
@@ -155,7 +160,8 @@ export async function listAuditLog(orgId: string, filters: AuditFilters = {}): P
     };
   });
 
-  return filters.category ? entries.filter((e) => e.category === filters.category) : entries;
+  const filtered = filters.category ? entries.filter((e) => e.category === filters.category) : entries;
+  return filtered.slice(0, wantLimit);
 }
 
 // RFC-4180-ish CSV for auditor export. Quotes every field, escapes quotes, and

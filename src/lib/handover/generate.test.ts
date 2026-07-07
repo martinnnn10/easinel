@@ -68,4 +68,24 @@ describe("shift handover digest", () => {
     expect(d2.repeatRisks.find((r) => r.assetId === a.id)!.pmState).toBe("draft");
     expect(d2.watchItems.join(" ")).not.toMatch(/recurring fault and no PM/i);
   });
+
+  it("does NOT fabricate a recurring fault from a coincidental number or shift-noise word", async () => {
+    const NORG = "org_handover_falsepos";
+    const m = await createAsset(NORG, { name: "Press P9" }, "t");
+    // Three unrelated corrective repairs that merely share the bare number 480
+    // (a voltage) and the word "line" — neither is a real recurring fault.
+    const symptoms = [
+      "480V supply blip during startup on the feed line",
+      "photo-eye misaligned, read 480 lux on the exit line",
+      "coolant pump seal weep near the 480 pipe on the line",
+    ];
+    for (const s of symptoms) {
+      const wo = await createWorkOrder(NORG, { title: s.slice(0, 40), symptom: s, assetId: m.id, type: "corrective" }, "t");
+      await transitionWorkOrder(NORG, wo.id, "done", { resolution: "handled", downtimeMins: 20 });
+    }
+    const d = await generateHandover(NORG, 12);
+    // Must not group them into a bogus "480" or "line" recurring fault.
+    expect(d.repeatRisks.some((r) => r.label === "480" || r.label === "line")).toBe(false);
+    expect(d.repeatRisks.every((r) => r.count < 3)).toBe(true);
+  });
 });
