@@ -16,7 +16,7 @@ import { AiProviderBanner } from "./AiProviderBanner";
  */
 export function AppShell({ children }: { children: React.ReactNode }) {
   const path = usePathname();
-  const isPublic = path === "/" || path === "/privacy" || path === "/terms" || path.startsWith("/login");
+  const isPublic = path === "/" || path === "/privacy" || path === "/terms" || path.startsWith("/login") || path.startsWith("/field");
   return (
     <>
       {!isPublic && <BillingBanner />}

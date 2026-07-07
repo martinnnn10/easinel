@@ -1,8 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { resolveSafeNext } from "@/lib/safeRedirect";
 
 type Mode = "loading" | "signin" | "signup";
+
+// Resolve ?next= to a safe same-origin path (rejects absolute, protocol-relative,
+// and backslash-normalized cross-origin targets) so it can't become an open redirect.
+function safeNext(): string {
+  return resolveSafeNext(new URLSearchParams(window.location.search).get("next"), window.location.origin);
+}
 
 export default function LoginPage() {
   const [mode, setMode] = useState<Mode>("loading");
@@ -16,8 +23,7 @@ export default function LoginPage() {
       .then((r) => r.json())
       .then((d) => {
         if (d.user) {
-          window.location.href =
-            new URLSearchParams(window.location.search).get("next") || "/today";
+          window.location.href = safeNext();
           return;
         }
         setOidc(Boolean(d.oidc));
@@ -44,8 +50,7 @@ export default function LoginPage() {
       setBusy(false);
       return;
     }
-    window.location.href =
-      new URLSearchParams(window.location.search).get("next") || "/today";
+    window.location.href = safeNext();
   };
 
   const canSubmit =

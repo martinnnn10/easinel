@@ -82,7 +82,9 @@ export function middleware(req: NextRequest) {
   }
   const url = req.nextUrl.clone();
   url.pathname = "/login";
-  url.searchParams.set("next", pathname);
+  // Preserve the full target incl. query so deep links (e.g. a grounded
+  // /copilot?asset=..&ask=.. link from a work order) survive the login round-trip.
+  url.searchParams.set("next", pathname + req.nextUrl.search);
   return harden(NextResponse.redirect(url), pathname);
 }
 

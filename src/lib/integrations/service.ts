@@ -227,11 +227,21 @@ export async function pushPmToConnector(
   )[0];
   if (!pm) return { pushed: false, reason: "PM not found." };
 
+  // Deep link back into EAS, grounded to this machine, so a technician reading
+  // the work order in the CMMS can jump to the asset-scoped Copilot and diagnose
+  // with the machine's full memory in context. Only when the PM has an asset.
+  const base = (process.env.APP_BASE_URL || "https://easmaint.com").replace(/\/+$/, "");
+  const diagnoseLink =
+    pm.assetId != null
+      ? `Diagnose in EAS: ${base}/copilot?asset=${encodeURIComponent(pm.assetId)}&ask=${encodeURIComponent(pm.failureMode || pm.title)}`
+      : null;
+
   const descParts = [
     pm.failureMode ? `Prevents: ${pm.failureMode}` : null,
     pm.frequencyLabel ? `Cadence: ${pm.frequencyLabel}` : null,
     pm.reasoning ? `Rationale: ${pm.reasoning}` : null,
     "Suggested by EAS Maintenance Intelligence from real failure history.",
+    diagnoseLink,
   ].filter(Boolean);
 
   const result = await adapter.pushWorkOrder({

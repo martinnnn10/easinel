@@ -34,9 +34,12 @@ export default function TodayPage() {
         subtitle="What's down, what needs attention, and what to do next — grounded in your plant data"
         right={
           <div className="flex items-center gap-2">
-            <Link href="/copilot" className="text-[13px] font-medium rounded-lg bg-[var(--color-accent)] text-white px-3.5 py-1.5 hover:brightness-110">Ask Copilot</Link>
-            <Link href="/work-orders" className="text-[13px] font-medium rounded-lg border border-[var(--color-border)] px-3.5 py-1.5 hover:bg-[var(--color-surface-2)]">Create work order</Link>
-            <Link href="/handover" className="text-[13px] font-medium rounded-lg border border-[var(--color-border)] px-3.5 py-1.5 hover:bg-[var(--color-surface-2)]">Add handover note</Link>
+            <Link href="/field" className="text-[13px] font-medium rounded-lg bg-[var(--color-accent)] text-[var(--color-on-accent)] px-3.5 py-1.5 hover:brightness-110 flex items-center gap-1.5" title="Fast capture at the machine">
+              <span aria-hidden>📱</span> At the machine
+            </Link>
+            <Link href="/copilot" className="text-[13px] font-medium rounded-lg border border-[var(--color-border)] px-3.5 py-1.5 hover:bg-[var(--color-surface-2)]">Ask Copilot</Link>
+            <Link href="/work-orders" className="hidden sm:inline-block text-[13px] font-medium rounded-lg border border-[var(--color-border)] px-3.5 py-1.5 hover:bg-[var(--color-surface-2)]">Create work order</Link>
+            <Link href="/handover" className="hidden sm:inline-block text-[13px] font-medium rounded-lg border border-[var(--color-border)] px-3.5 py-1.5 hover:bg-[var(--color-surface-2)]">Add handover note</Link>
           </div>
         }
       />

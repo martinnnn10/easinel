@@ -84,8 +84,9 @@ describe("integration sync — two-way status upsert", () => {
 });
 
 describe("integration push — PM back to CMMS", () => {
-  it("pushes an EAS PM as a work order only when live", async () => {
-    await db.insert(pmPrograms).values({ id: "pm_1", orgId: ORG, title: "Monthly filter clean", failureMode: "F007 overload", frequencyLabel: "Monthly" });
+  it("pushes an EAS PM as a work order only when live, with a grounded deep link", async () => {
+    process.env.APP_BASE_URL = "https://plant.example";
+    await db.insert(pmPrograms).values({ id: "pm_1", orgId: ORG, assetId: "ast_42", title: "Monthly filter clean", failureMode: "F007 overload", frequencyLabel: "Monthly" });
     const state = { assets: [], wos: [], pushed: [] as any[] };
     const fake = fakeAdapter(state);
 
@@ -94,11 +95,14 @@ describe("integration push — PM back to CMMS", () => {
     expect(blocked.pushed).toBe(false);
     expect(state.pushed).toHaveLength(0);
 
-    // Live → pushes, carrying the PM's real title + rationale.
+    // Live → pushes, carrying the PM's real title + rationale + a deep link back
+    // into the asset-scoped Copilot.
     process.env.MAINTAINX_API_KEY = "live-test-key";
     const ok = await pushPmToConnector(ORG, "maintainx", "pm_1", { adapter: fake });
     expect(ok.pushed).toBe(true);
     expect(ok.result?.externalId).toBe("MX-999");
     expect(state.pushed[0].title).toContain("Monthly filter clean");
+    expect(state.pushed[0].description).toContain("Diagnose in EAS: https://plant.example/copilot?asset=ast_42&ask=");
+    delete process.env.APP_BASE_URL;
   });
 });

@@ -35,6 +35,25 @@ export function Copilot({
   const scrollRef = useRef<HTMLDivElement>(null);
   const seeded = useRef(false);
 
+  // When deep-linked with ?asset= (no name passed), resolve the machine's name
+  // so the surface shows what the answer is grounded to. Grounding itself works
+  // without this — it only affects the label.
+  const [resolvedName, setResolvedName] = useState<string | undefined>(assetName);
+  useEffect(() => {
+    if (!assetId || assetName) return;
+    let live = true;
+    fetch(`/api/assets/${assetId}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (live && d?.asset?.name) setResolvedName(d.asset.name);
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [assetId, assetName]);
+  const showName = assetName ?? resolvedName;
+
   const loadSession = useCallback(
     async (sid: string) => {
       try {
@@ -110,11 +129,25 @@ export function Copilot({
 
   return (
     <div className="flex flex-col h-full min-h-0">
+      {/* Asset-grounded banner — makes it explicit that answers are scoped to
+          this machine's memory (shown for deep-linked ?asset= sessions). */}
+      {assetId && (
+        <div className="shrink-0 border-b border-[var(--color-border)] bg-[var(--color-accent)]/5">
+          <div className="max-w-3xl mx-auto px-4 md:px-6 py-2 flex items-center gap-2 text-[12px] text-[var(--color-muted)]">
+            <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-accent)] shrink-0" />
+            Grounded to <span className="font-medium text-[var(--color-text)]">{showName ?? "this machine"}</span>
+            <span className="text-[var(--color-faint)]">— its history, drawings &amp; PLC are in context</span>
+            <Link href={`/assets/${assetId}`} className="ml-auto text-[var(--color-accent)] hover:underline shrink-0">
+              View machine →
+            </Link>
+          </div>
+        </div>
+      )}
       <div ref={scrollRef} className="flex-1 overflow-y-auto">
-        <div className={`${empty && !assetName ? "max-w-5xl" : "max-w-3xl"} mx-auto px-4 md:px-6 py-6`}>
+        <div className={`${empty && !showName ? "max-w-5xl" : "max-w-3xl"} mx-auto px-4 md:px-6 py-6`}>
           {empty ? (
             <CommandCenter
-              assetName={assetName}
+              assetName={showName}
               onPick={(t) => send(t, [])}
               onResume={loadSession}
             />
@@ -142,8 +175,8 @@ export function Copilot({
             busy={busy}
             assetId={assetId}
             placeholder={
-              assetName
-                ? `Ask about ${assetName} — its history, drawings, and PLC are in context…`
+              showName
+                ? `Ask about ${showName} — its history, drawings, and PLC are in context…`
                 : "Describe the problem, paste a fault code, or upload a document…"
             }
           />

@@ -120,7 +120,8 @@ export function Sidebar() {
 
   // No sidebar on the public marketing site (/) or the login screen — the app
   // chrome belongs to the logged-in experience only.
-  if (path === "/" || path === "/privacy" || path === "/terms" || path.startsWith("/login")) return null;
+  // /field is the full-screen at-the-machine capture view — no app chrome.
+  if (path === "/" || path === "/privacy" || path === "/terms" || path.startsWith("/login") || path.startsWith("/field")) return null;
 
   const toggleCollapse = () => {
     setCollapsed((c) => {
