@@ -238,3 +238,21 @@ describe("work order transition — idempotency & concurrency", () => {
     }
   });
 });
+
+describe("createWorkOrder org-isolation guard", () => {
+  it("keeps a valid same-org assetId", async () => {
+    const a = await createAsset(ORG, { name: "Boiler 2" });
+    const wo = await createWorkOrder(ORG, { title: "leak", symptom: "leak at flange", assetId: a.id });
+    expect(wo.assetId).toBe(a.id);
+  });
+
+  it("drops a foreign/unknown assetId to null (no cross-tenant reference)", async () => {
+    // An asset that belongs to a DIFFERENT org must never attach here.
+    const foreign = await createAsset("org_other_tenant", { name: "Not Yours" });
+    const wo = await createWorkOrder(ORG, { title: "x", symptom: "scanned a foreign tag", assetId: foreign.id });
+    expect(wo.assetId).toBeNull();
+
+    const wo2 = await createWorkOrder(ORG, { title: "y", symptom: "made-up id", assetId: "ast_does_not_exist" });
+    expect(wo2.assetId).toBeNull();
+  });
+});

@@ -272,6 +272,9 @@ function FieldCapture() {
                   <p className="text-[12px] text-[var(--color-muted)] truncate">
                     {[selected.assetTag, selected.area, selected.line].filter(Boolean).join(" · ") || "Selected"}
                   </p>
+                  {presetAsset === assetId && (
+                    <p className="text-[11px] text-[var(--color-green)] mt-0.5">📷 Opened from the machine&apos;s tag</p>
+                  )}
                 </div>
                 <button onClick={() => setAssetId("")} className="text-[13px] text-[var(--color-accent)] px-2 py-2">Change</button>
               </div>

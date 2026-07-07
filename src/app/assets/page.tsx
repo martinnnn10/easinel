@@ -94,12 +94,21 @@ export default function AssetsPage() {
         title="Equipment"
         subtitle="Machine memory — each asset's history, failures, PMs, drawings, and per-machine AI"
         right={
-          <button
-            onClick={() => setShowForm(true)}
-            className="text-[13px] font-medium rounded-lg bg-[var(--color-accent)] text-white px-3.5 py-1.5 hover:brightness-110 transition"
-          >
-            + New asset
-          </button>
+          <div className="flex items-center gap-2">
+            <Link
+              href="/assets/tags"
+              className="text-[13px] font-medium rounded-lg border border-[var(--color-border)] px-3 py-1.5 hover:border-[var(--color-accent)] transition"
+              title="Print a scannable QR tag for each machine"
+            >
+              Print QR tags
+            </Link>
+            <button
+              onClick={() => setShowForm(true)}
+              className="text-[13px] font-medium rounded-lg bg-[var(--color-accent)] text-white px-3.5 py-1.5 hover:brightness-110 transition"
+            >
+              + New asset
+            </button>
+          </div>
         }
       />
 

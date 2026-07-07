@@ -165,7 +165,7 @@ export function Sidebar() {
       <aside
         className={`${width} ${
           mobileOpen ? "translate-x-0" : "-translate-x-full"
-        } md:translate-x-0 fixed md:static z-50 h-full w-[230px] shrink-0 border-r border-[var(--color-border)] bg-[var(--color-surface)] flex flex-col transition-[transform,width] duration-200 ease-in-out`}
+        } md:translate-x-0 fixed md:static z-50 h-full w-[230px] shrink-0 border-r border-[var(--color-border)] bg-[var(--color-surface)] flex flex-col transition-[transform,width] duration-200 ease-in-out print:hidden`}
       >
         {/* Brand + collapse toggle */}
         <div className="px-3 h-14 flex items-center gap-2.5 border-b border-[var(--color-border)]">

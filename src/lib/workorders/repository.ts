@@ -216,10 +216,25 @@ export async function createWorkOrder(
   const woId = id("wo");
   const number = nextNumber();
   const now = new Date();
+
+  // Org-isolation guard: assetId is user-influenced (deep links, scanned QR
+  // tags, API callers), so never store one that isn't this org's own machine.
+  // A foreign/unknown id is dropped to null rather than creating a dangling
+  // cross-tenant reference.
+  let assetId = input.assetId ?? null;
+  if (assetId) {
+    const owned = await db
+      .select({ id: assets.id })
+      .from(assets)
+      .where(and(eq(assets.orgId, orgId), eq(assets.id, assetId)))
+      .limit(1);
+    if (owned.length === 0) assetId = null;
+  }
+
   await db.insert(workOrders).values({
     id: woId,
     orgId,
-    assetId: input.assetId ?? null,
+    assetId,
     number,
     title: input.title,
     description: input.description ?? null,
