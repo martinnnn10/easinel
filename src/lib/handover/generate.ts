@@ -9,42 +9,12 @@
 import { listWorkOrders, workOrderStats, countPendingRequests } from "@/lib/workorders/repository";
 import { listAssets } from "@/lib/assets/repository";
 import { listDue, listPrograms } from "@/lib/pm/repository";
+import { deriveRepeatRisks, REPEAT_WINDOW_DAYS, type RepeatRisk } from "@/lib/reliability/repeatRisks";
 import type { WorkOrder } from "@/lib/db/schema";
 
+export type { RepeatRisk };
+
 const PRIO_RANK: Record<string, number> = { urgent: 0, high: 1, medium: 2, low: 3 };
-
-// Repeat-risk tuning: a fault that recurred this many times on the same machine
-// within the window is "chronic" and worth flagging at handover.
-const REPEAT_THRESHOLD = 3;
-const REPEAT_WINDOW_DAYS = 90;
-
-const REPEAT_STOP = new Set([
-  "the", "and", "for", "with", "that", "this", "from", "was", "are", "not",
-  "when", "then", "after", "again", "still", "into", "over", "machine", "fault",
-  "issue", "problem", "error", "alarm", "failure", "failed", "down",
-  // Shift/location/unit noise that must NEVER anchor a fault group on its own —
-  // otherwise "line jam" + "line stopped" + "line fault" fabricate a "line ×3"
-  // recurring fault where there is none.
-  "line", "area", "cell", "zone", "side", "unit", "units", "time", "times",
-  "today", "shift", "morning", "night", "week", "weekend", "hour", "hours",
-  "minute", "minutes", "volts", "volt", "amps", "amp", "temp", "degrees", "rpm",
-]);
-
-// A stable key for "the same failure recurring" on a machine: a real fault code,
-// then the failed part, then the leading significant keyword. A bare 3-4 digit
-// number is deliberately NOT treated as a fault code — it is almost always a
-// measurement (480 V, 1200 rpm, 150 psi), and grouping unrelated repairs by a
-// coincidental number would invent a "recurring fault" from noise. A genuine
-// fault code carries a letter prefix (F007, E12).
-function faultKeyOf(w: WorkOrder): string | null {
-  const text = [w.title, w.symptom, w.rootCause, w.failedPart].filter(Boolean).join(" ");
-  const code = text.match(/\b([a-z]\d{2,4})\b/i);
-  if (code) return code[1].toUpperCase();
-  const part = (w.failedPart ?? "").trim().toLowerCase();
-  if (part) return part.replace(/\s+/g, " ").split(" ").slice(0, 3).join(" ");
-  const kw = (text.toLowerCase().match(/[a-z]{4,}/g) ?? []).filter((k) => !REPEAT_STOP.has(k));
-  return kw[0] ?? null;
-}
 
 function ms(v: unknown): number {
   return v instanceof Date ? v.getTime() : Number(v ?? 0);
@@ -65,21 +35,8 @@ export interface HandoverLine {
   closedAt?: number | null;
 }
 
-// A machine with a fault that keeps coming back — the chronic problem the day
-// shift firefights but never fixes. Surfaced so the next shift (and the manager)
-// sees it, and whether a PM is already in place to break the cycle.
-export interface RepeatRisk {
-  assetId: string;
-  assetName: string;
-  label: string; // fault code / failed part / keyword
-  count: number; // corrective closes on this machine in the window
-  totalDowntimeMins: number;
-  lastAt: number | null;
-  // PM coverage for this machine: an active program breaks the cycle; a draft is
-  // already proposed (awaiting approval); none is the callout to act on.
-  pmState: "active" | "draft" | "none";
-  sourceWorkOrderId: string; // most recent matching repair — seeds a Suggest-PM draft
-}
+// RepeatRisk is defined in and re-exported from @/lib/reliability/repeatRisks
+// (shared with the Reliability Report).
 
 export interface HandoverDigest {
   generatedAt: number;
@@ -139,41 +96,13 @@ export async function generateHandover(orgId: string, windowHours = 12, now = Da
   const machinesDown = assetsDown.map((a) => ({ id: a.id, name: a.name, assetTag: a.assetTag ?? null }));
   const pmsDue = pmsDueRaw.map((p) => ({ id: p.id, title: p.title, assetId: p.assetId ?? null }));
 
-  // ── Repeat risks — chronic faults, from real closed corrective work ──────────
-  // Group closed corrective repairs by machine + fault key over the window; a
-  // group at/above the threshold is a recurring problem. Flag whether the machine
-  // already has an active PM, so the callout is "recurring AND unprevented".
-  const repeatSince = now - REPEAT_WINDOW_DAYS * 86400_000;
-  const groups = new Map<string, { assetId: string; label: string; count: number; downtime: number; lastAt: number; sourceWoId: string }>();
-  for (const w of all) {
-    if (w.type !== "corrective" || w.status !== "done" || !w.assetId) continue;
-    const closed = ms(w.closedAt ?? w.updatedAt);
-    if (closed < repeatSince) continue;
-    const key = faultKeyOf(w);
-    if (!key) continue;
-    const gk = `${w.assetId}::${key}`;
-    const g = groups.get(gk) ?? { assetId: w.assetId, label: key, count: 0, downtime: 0, lastAt: 0, sourceWoId: w.id };
-    g.count++;
-    g.downtime += Number(w.downtimeMins) || 0;
-    if (closed >= g.lastAt) { g.lastAt = closed; g.sourceWoId = w.id; } // newest repair seeds the PM draft
-    groups.set(gk, g);
-  }
-  const activePmAssets = new Set(allPms.filter((p) => p.status === "active").map((p) => p.assetId).filter(Boolean));
-  const draftPmAssets = new Set(allPms.filter((p) => p.status === "draft").map((p) => p.assetId).filter(Boolean));
-  const repeatRisks: RepeatRisk[] = [...groups.values()]
-    .filter((g) => g.count >= REPEAT_THRESHOLD)
-    .map((g) => ({
-      assetId: g.assetId,
-      assetName: assetName.get(g.assetId) ?? "Unknown machine",
-      label: g.label,
-      count: g.count,
-      totalDowntimeMins: g.downtime,
-      lastAt: g.lastAt || null,
-      pmState: (activePmAssets.has(g.assetId) ? "active" : draftPmAssets.has(g.assetId) ? "draft" : "none") as RepeatRisk["pmState"],
-      sourceWorkOrderId: g.sourceWoId,
-    }))
-    .sort((a, b) => b.count - a.count || (b.lastAt ?? 0) - (a.lastAt ?? 0))
-    .slice(0, 6);
+  // Repeat risks — chronic faults over a 90-day window, from real closed
+  // corrective work, flagged with PM coverage. Shared with the Reliability Report.
+  const repeatRisks: RepeatRisk[] = deriveRepeatRisks(all, assetName, allPms, {
+    now,
+    windowDays: REPEAT_WINDOW_DAYS,
+    limit: 6,
+  });
 
   // Watch items — the few things the next shift must not miss.
   const watchItems: string[] = [];
