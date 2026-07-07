@@ -384,6 +384,7 @@ function ActionHub({ assetId, setTab }: { assetId: string; setTab: (t: Tab) => v
       <button onClick={() => setTab("documents")} className={linkCls}>📐 View Drawings</button>
       <button onClick={() => setTab("plc")} className={linkCls}>🧩 View PLC</button>
       <button onClick={() => setTab("parts")} className={linkCls}>⚙️ Find Parts</button>
+      <Link href={`/assets/tags?only=${assetId}`} className={linkCls} title="Print a scannable QR tag for this machine">🏷️ Print QR tag</Link>
     </div>
   );
 }

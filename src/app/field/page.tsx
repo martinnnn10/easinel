@@ -36,6 +36,16 @@ interface PriorFix {
   label: string;
   last: { id: string; number: string | null; fix: string } | null;
 }
+interface OpenWo {
+  id: string;
+  number: string | null;
+  title: string | null;
+  symptom: string | null;
+  status: string;
+}
+
+const OPEN_STATES = new Set(["open", "in_progress", "on_hold"]);
+const STATUS_LABEL: Record<string, string> = { open: "Open", in_progress: "In progress", on_hold: "On hold" };
 
 const PRIORITIES: { key: string; label: string; color: string }[] = [
   { key: "urgent", label: "Urgent — line down", color: "var(--color-red)" },
@@ -64,6 +74,7 @@ function FieldCapture() {
   const [priority, setPriority] = useState("medium");
   const [photo, setPhoto] = useState<File | null>(null);
   const [priorFix, setPriorFix] = useState<PriorFix | null>(null);
+  const [openWos, setOpenWos] = useState<OpenWo[]>([]);
   const [submitting, setSubmitting] = useState<null | "log" | "ask">(null);
   const [err, setErr] = useState<string | null>(null);
   // Offline resilience: track connectivity, how many captures are waiting on the
@@ -112,6 +123,21 @@ function FieldCapture() {
   // cleared), drop it so it can never be mis-attributed to another asset.
   useEffect(() => {
     setPhoto(null);
+  }, [assetId]);
+
+  // Duplicate-guard: if this machine already has open reports, show them so a
+  // tech doesn't file a second work order for something already in flight.
+  useEffect(() => {
+    if (!assetId) { setOpenWos([]); return; }
+    let live = true;
+    fetch(`/api/work-orders?assetId=${encodeURIComponent(assetId)}`)
+      .then((r) => (r.ok ? r.json() : { workOrders: [] }))
+      .then((d) => {
+        if (!live) return;
+        setOpenWos((d.workOrders ?? []).filter((w: OpenWo) => OPEN_STATES.has(w.status)).slice(0, 4));
+      })
+      .catch(() => {});
+    return () => { live = false; };
   }, [assetId]);
 
   // "Have we seen this before?" — the exact recurrence lookup the desktop modal
@@ -265,19 +291,42 @@ function FieldCapture() {
           <section>
             <SectionLabel n={1}>Which machine?</SectionLabel>
             {selected ? (
-              <div className="flex items-center gap-3 rounded-xl border border-[var(--color-accent)]/40 bg-[var(--color-accent)]/5 p-3.5">
-                <div className="w-9 h-9 rounded-lg bg-[var(--color-surface-2)] grid place-items-center text-[var(--color-accent)] shrink-0">🛠️</div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-[15px] font-semibold truncate">{selected.name}</p>
-                  <p className="text-[12px] text-[var(--color-muted)] truncate">
-                    {[selected.assetTag, selected.area, selected.line].filter(Boolean).join(" · ") || "Selected"}
-                  </p>
-                  {presetAsset === assetId && (
-                    <p className="text-[11px] text-[var(--color-green)] mt-0.5">📷 Opened from the machine&apos;s tag</p>
-                  )}
+              <>
+                <div className="flex items-center gap-3 rounded-xl border border-[var(--color-accent)]/40 bg-[var(--color-accent)]/5 p-3.5">
+                  <div className="w-9 h-9 rounded-lg bg-[var(--color-surface-2)] grid place-items-center text-[var(--color-accent)] shrink-0">🛠️</div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[15px] font-semibold truncate">{selected.name}</p>
+                    <p className="text-[12px] text-[var(--color-muted)] truncate">
+                      {[selected.assetTag, selected.area, selected.line].filter(Boolean).join(" · ") || "Selected"}
+                    </p>
+                    {presetAsset === assetId && (
+                      <p className="text-[11px] text-[var(--color-green)] mt-0.5">📷 Opened from the machine&apos;s tag</p>
+                    )}
+                  </div>
+                  <button onClick={() => setAssetId("")} className="text-[13px] text-[var(--color-accent)] px-2 py-2">Change</button>
                 </div>
-                <button onClick={() => setAssetId("")} className="text-[13px] text-[var(--color-accent)] px-2 py-2">Change</button>
-              </div>
+
+                {/* Duplicate guard — already-open reports on this machine. */}
+                {openWos.length > 0 && (
+                  <div className="mt-2 rounded-xl border border-[var(--color-amber)]/40 bg-[var(--color-amber)]/5 p-3">
+                    <p className="text-[12px] font-semibold text-[var(--color-amber)]">
+                      ⚠️ Already open on this machine — {openWos.length}
+                    </p>
+                    <p className="text-[11px] text-[var(--color-muted)] mt-0.5 mb-2">Check these first so you don&apos;t file a duplicate.</p>
+                    <ul className="space-y-1.5">
+                      {openWos.map((w) => (
+                        <li key={w.id}>
+                          <Link href={`/work-orders/${w.id}`} className="flex items-baseline gap-1.5 text-[12.5px] hover:underline">
+                            <span className="font-mono text-[11px] text-[var(--color-faint)] shrink-0">{w.number ?? "WO"}</span>
+                            <span className="truncate flex-1 text-[var(--color-text)]">{w.title || w.symptom || "Work order"}</span>
+                            <span className="text-[10.5px] text-[var(--color-faint)] shrink-0">{STATUS_LABEL[w.status] ?? w.status}</span>
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </>
             ) : (
               <>
                 <input
