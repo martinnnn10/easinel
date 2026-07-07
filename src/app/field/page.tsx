@@ -11,10 +11,17 @@
 // is fabricated and the daily loop stays consistent.
 // ─────────────────────────────────────────────────────────────────────────
 
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useDictation } from "@/lib/voice";
+import {
+  submitCapture,
+  flushCaptures,
+  getCaptureStore,
+  OfflineError,
+  type FieldCapture,
+} from "@/lib/field/offlineQueue";
 
 interface Asset {
   id: string;
@@ -59,6 +66,11 @@ function FieldCapture() {
   const [priorFix, setPriorFix] = useState<PriorFix | null>(null);
   const [submitting, setSubmitting] = useState<null | "log" | "ask">(null);
   const [err, setErr] = useState<string | null>(null);
+  // Offline resilience: track connectivity, how many captures are waiting on the
+  // device, and a one-shot confirmation after a capture is saved offline.
+  const [online, setOnline] = useState(true);
+  const [pending, setPending] = useState(0);
+  const [savedOffline, setSavedOffline] = useState(false);
 
   useEffect(() => {
     fetch("/api/assets")
@@ -66,6 +78,33 @@ function FieldCapture() {
       .then((d) => setAssets(d.assets ?? []))
       .catch(() => {});
   }, []);
+
+  // Drain any device-queued captures to the server, then refresh the count.
+  const flush = useCallback(async () => {
+    try {
+      const store = getCaptureStore();
+      const { remaining } = await flushCaptures(store);
+      setPending(remaining);
+    } catch {
+      /* best-effort — the queue stays on the device for the next attempt */
+    }
+  }, []);
+
+  // Connectivity: seed from the browser, then react to online/offline. Coming
+  // back online triggers an automatic flush so a tech never has to think about it.
+  useEffect(() => {
+    setOnline(navigator.onLine);
+    getCaptureStore().list().then((c) => setPending(c.length)).catch(() => {});
+    if (navigator.onLine) flush();
+    const goOnline = () => { setOnline(true); flush(); };
+    const goOffline = () => setOnline(false);
+    window.addEventListener("online", goOnline);
+    window.addEventListener("offline", goOffline);
+    return () => {
+      window.removeEventListener("online", goOnline);
+      window.removeEventListener("offline", goOffline);
+    };
+  }, [flush]);
 
   const selected = useMemo(() => assets.find((a) => a.id === assetId) ?? null, [assets, assetId]);
 
@@ -109,47 +148,76 @@ function FieldCapture() {
       .slice(0, 12);
   }, [assets, search]);
 
+  // Reset the form for the next capture (a tech at a machine may log several in
+  // a row, especially while offline). Keeps nothing that could mis-attribute.
+  const resetForNext = () => {
+    setSymptom("");
+    setPhoto(null);
+    setPriority("medium");
+    setPriorFix(null);
+    setSubmitting(null);
+  };
+
+  // Save the capture on the device and surface an honest "waiting to sync" state.
+  const queueOffline = async (capture: FieldCapture, mode: "log" | "ask") => {
+    try {
+      await getCaptureStore().add(capture);
+      setPending((n) => n + 1);
+      setSavedOffline(true);
+      setErr(
+        mode === "ask"
+          ? "Saved on your phone — Copilot needs a connection, so ask once you're back online."
+          : null
+      );
+      resetForNext();
+    } catch {
+      // Couldn't even persist locally (private mode / no IndexedDB). Be honest —
+      // do NOT pretend the capture is safe.
+      setErr("Couldn't save this capture on your device. Please try again once you have a connection.");
+      setSubmitting(null);
+    }
+  };
+
   const submit = async (mode: "log" | "ask") => {
     if (!symptom.trim() || submitting) return;
     setSubmitting(mode);
     setErr(null);
+    setSavedOffline(false);
+
+    const capture: FieldCapture = {
+      id: `cap_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      symptom: symptom.trim(),
+      assetId: assetId || null,
+      assetName: selected?.name ?? null,
+      priority,
+      photo,
+      photoName: photo?.name ?? null,
+      createdAt: Date.now(),
+    };
+
+    // Offline up front → queue without a doomed round-trip.
+    if (!navigator.onLine) {
+      await queueOffline(capture, mode);
+      return;
+    }
+
     try {
-      const r = await fetch("/api/work-orders", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          title: symptom.trim().slice(0, 90),
-          symptom: symptom.trim(),
-          assetId: assetId || null,
-          priority,
-          type: "corrective",
-          source: "field",
-        }),
-      });
-      if (!r.ok) {
-        const d = await r.json().catch(() => ({}));
-        throw new Error(d.message || "Couldn't log the work order.");
-      }
-      const d = await r.json();
-      const woId = d.workOrder?.id ?? d.id;
-
-      // Best-effort: attach the photo to the selected machine (photos live on
-      // assets). Never blocks the work order.
-      if (photo && assetId) {
-        const fd = new FormData();
-        fd.append("files", photo);
-        await fetch(`/api/assets/${assetId}/photos`, { method: "POST", body: fd }).catch(() => {});
-      }
-
+      const woId = await submitCapture(capture);
       if (mode === "ask") {
-        const q = encodeURIComponent(symptom.trim());
+        const q = encodeURIComponent(capture.symptom);
         router.push(assetId ? `/copilot?asset=${encodeURIComponent(assetId)}&ask=${q}` : `/copilot?ask=${q}`);
       } else {
         router.push(woId ? `/work-orders/${woId}` : "/work-orders");
       }
     } catch (e) {
-      setErr((e as Error).message);
-      setSubmitting(null);
+      // A network failure mid-submit is a dead zone, not a real error — save it
+      // rather than lose it. A genuine server rejection is surfaced as an error.
+      if (e instanceof OfflineError) {
+        await queueOffline(capture, mode);
+      } else {
+        setErr((e as Error).message || "Couldn't log the work order.");
+        setSubmitting(null);
+      }
     }
   };
 
@@ -161,12 +229,35 @@ function FieldCapture() {
       <header className="sticky top-0 z-10 bg-[var(--color-bg)]/95 backdrop-blur border-b border-[var(--color-border)]">
         <div className="max-w-xl mx-auto px-4 h-14 flex items-center gap-3">
           <Link href="/today" className="text-[var(--color-muted)] text-[22px] leading-none -ml-1 px-1" aria-label="Back">←</Link>
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <h1 className="text-[16px] font-semibold leading-tight">Report a problem</h1>
             <p className="text-[11px] text-[var(--color-faint)] leading-tight">At the machine — log it in seconds</p>
           </div>
+          {/* Live connectivity chip — a tech in a dead zone sees why, and knows
+              their captures are safe. */}
+          {!online && (
+            <span className="shrink-0 flex items-center gap-1.5 rounded-full bg-[var(--color-amber)]/12 text-[var(--color-amber)] text-[11px] font-semibold px-2.5 py-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-amber)]" /> Offline
+            </span>
+          )}
         </div>
       </header>
+
+      {/* Offline / pending-sync status — honest about where each capture lives. */}
+      {(!online || pending > 0) && (
+        <div className="bg-[var(--color-amber)]/8 border-b border-[var(--color-amber)]/20">
+          <div className="max-w-xl mx-auto px-4 py-2 text-[12px] text-[var(--color-amber)] flex items-center gap-2">
+            <span>{online ? "🔄" : "📴"}</span>
+            <span className="flex-1">
+              {online
+                ? `Syncing ${pending} saved capture${pending === 1 ? "" : "s"}…`
+                : pending > 0
+                ? `You're offline. ${pending} capture${pending === 1 ? "" : "s"} saved on this phone — they'll sync automatically when you're back online.`
+                : "You're offline. Captures are saved on this phone and sync automatically when you're back online."}
+            </span>
+          </div>
+        </div>
+      )}
 
       <main className="flex-1 overflow-y-auto">
         <div className="max-w-xl mx-auto px-4 py-5 space-y-6 pb-40">
@@ -309,13 +400,18 @@ function FieldCapture() {
         {/* Error surfaces here (adjacent to the buttons) so a failed tap is never
             explained only by off-screen text. */}
         {err && <p className="max-w-xl mx-auto px-4 pt-2 text-[13px] text-[var(--color-red)]">{err}</p>}
+        {savedOffline && !err && (
+          <p className="max-w-xl mx-auto px-4 pt-2 text-[13px] text-[var(--color-green)]">
+            ✓ Saved on your phone. It&apos;ll sync automatically when you&apos;re back online — you can log the next one.
+          </p>
+        )}
         <div className="max-w-xl mx-auto px-4 py-3 flex gap-2.5">
           <button
             onClick={() => submit("log")}
             disabled={!symptom.trim() || submitting !== null}
             className="flex-1 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] py-3.5 text-[15px] font-medium disabled:opacity-40 active:bg-[var(--color-surface-2)]"
           >
-            {submitting === "log" ? "Logging…" : "Log it"}
+            {submitting === "log" ? (online ? "Logging…" : "Saving…") : online ? "Log it" : "Save on phone"}
           </button>
           <button
             onClick={() => submit("ask")}
