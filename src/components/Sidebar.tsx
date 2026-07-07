@@ -11,7 +11,7 @@ type NavItem = { href: string; label: string; icon: (p: { className?: string }) 
 // tools) → Admin. Grouping only reduces visual clutter — every route stays
 // reachable; nothing is removed. Advanced/Admin render visually quieter so the
 // daily workflow leads.
-const navGroups: { title: string; muted?: boolean; items: NavItem[] }[] = [
+const navGroups: { title: string; muted?: boolean; collapsible?: boolean; items: NavItem[] }[] = [
   {
     title: "Daily",
     items: [
@@ -33,6 +33,10 @@ const navGroups: { title: string; muted?: boolean; items: NavItem[] }[] = [
   {
     title: "Advanced",
     muted: true,
+    // Occasional/supervisor tools. Collapsed by default for daily floor users
+    // (technician/viewer) so their sidebar leads with the five things they
+    // actually use; everything stays one click away.
+    collapsible: true,
     items: [
       { href: "/plc", label: "PLC Explorer", icon: ChipIcon },
       { href: "/scenarios", label: "Scenarios", icon: BookIcon },
@@ -58,6 +62,9 @@ export function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
+  // "Advanced" group open/closed. Defaults collapsed for technician/viewer;
+  // a manual toggle is remembered. null = not yet resolved (render open).
+  const [advancedOpen, setAdvancedOpen] = useState<boolean | null>(null);
 
   // Restore the user's collapse preference (desktop).
   useEffect(() => {
@@ -80,6 +87,36 @@ export function Sidebar() {
   useEffect(() => {
     setMobileOpen(false);
   }, [path]);
+
+  // Resolve the "Advanced" default once we know the role: collapsed for daily
+  // floor users (technician/viewer), open for supervisors+. A saved manual
+  // toggle always wins.
+  useEffect(() => {
+    if (!me?.user) return;
+    try {
+      const saved = localStorage.getItem("eas_nav_advanced");
+      if (saved === "1" || saved === "0") {
+        setAdvancedOpen(saved === "1");
+        return;
+      }
+    } catch {
+      /* ignore */
+    }
+    const lowPriv = me.user.role === "technician" || me.user.role === "viewer";
+    setAdvancedOpen(!lowPriv);
+  }, [me]);
+
+  const toggleAdvanced = () => {
+    setAdvancedOpen((o) => {
+      const next = !(o ?? true);
+      try {
+        localStorage.setItem("eas_nav_advanced", next ? "1" : "0");
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  };
 
   // No sidebar on the public marketing site (/) or the login screen — the app
   // chrome belongs to the logged-in experience only.
@@ -156,19 +193,38 @@ export function Sidebar() {
         </div>
 
         <nav aria-label="Primary" className="p-2.5 flex flex-col overflow-y-auto">
-          {navGroups.map((group, gi) => (
-            <div
-              key={group.title}
-              className={gi > 0 ? "mt-2 pt-2 border-t border-[var(--color-border-soft)]" : ""}
-            >
-              {!collapsed && <GroupHeader>{group.title}</GroupHeader>}
-              <div className="flex flex-col gap-0.5">
-                {group.items.map((item) => (
-                  <NavLink key={item.href} item={item} path={path} collapsed={collapsed} muted={group.muted} />
-                ))}
+          {navGroups.map((group, gi) => {
+            // Icon-only sidebar can't collapse groups (no headers) — show all.
+            const isCollapsible = Boolean(group.collapsible) && !collapsed;
+            const open = !isCollapsible || (advancedOpen ?? true);
+            return (
+              <div
+                key={group.title}
+                className={gi > 0 ? "mt-2 pt-2 border-t border-[var(--color-border-soft)]" : ""}
+              >
+                {!collapsed &&
+                  (isCollapsible ? (
+                    <button
+                      onClick={toggleAdvanced}
+                      aria-expanded={open}
+                      className="w-full flex items-center justify-between px-3 pt-0.5 pb-1 text-[10px] font-semibold uppercase tracking-wider text-[var(--color-faint)] hover:text-[var(--color-muted)] select-none"
+                    >
+                      <span>{group.title}</span>
+                      <ChevronIcon className={`w-3 h-3 transition-transform ${open ? "-rotate-90" : "rotate-180"}`} />
+                    </button>
+                  ) : (
+                    <GroupHeader>{group.title}</GroupHeader>
+                  ))}
+                {open && (
+                  <div className="flex flex-col gap-0.5">
+                    {group.items.map((item) => (
+                      <NavLink key={item.href} item={item} path={path} collapsed={collapsed} muted={group.muted} />
+                    ))}
+                  </div>
+                )}
               </div>
-            </div>
-          ))}
+            );
+          })}
 
           {isManagerPlus && (
             <div className="mt-2 pt-2 border-t border-[var(--color-border-soft)]">
