@@ -232,6 +232,7 @@ export function Sidebar() {
               {!collapsed && <GroupHeader>{isAdmin ? "Admin" : "Team"}</GroupHeader>}
               <div className="flex flex-col gap-0.5">
                 <NavLink item={{ href: "/impact", label: "Reuse Impact", icon: AwardIcon }} path={path} collapsed={collapsed} muted />
+                <NavLink item={{ href: "/audit", label: "Audit Trail", icon: HistoryIcon }} path={path} collapsed={collapsed} muted />
                 {isAdmin && <NavLink item={{ href: "/roi", label: "Pilot Value", icon: TrophyIcon }} path={path} collapsed={collapsed} muted />}
                 {isAdmin && <NavLink item={{ href: "/team", label: "Team & Roles", icon: ShieldIcon }} path={path} collapsed={collapsed} muted />}
                 {isAdmin && <NavLink item={{ href: "/billing", label: "Billing", icon: CreditCardIcon }} path={path} collapsed={collapsed} muted />}
@@ -457,6 +458,15 @@ function ChartIcon({ className }: { className?: string }) {
   );
 }
 
+function HistoryIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 3v5h5" />
+      <path d="M3.05 13A9 9 0 1 0 6 5.3L3 8" />
+      <path d="M12 7v5l3 2" />
+    </svg>
+  );
+}
 function AwardIcon({ className }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

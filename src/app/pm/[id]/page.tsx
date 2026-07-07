@@ -15,6 +15,7 @@ import { useCallback, useEffect, useState, use } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { can, type Role } from "@/lib/auth/roles";
+import { RecordHistory } from "@/components/RecordHistory";
 
 interface TaskDetail {
   title?: string;
@@ -375,6 +376,10 @@ export default function PmDetailPage({ params }: { params: Promise<{ id: string 
             </div>
           )}
         </Section>
+
+        {/* Compliance: who created/approved/changed this PM, from the audit trail
+            (managers+ only). Empty/forbidden → renders nothing. */}
+        <RecordHistory target={id} title="Activity & approvals" />
       </div>
     </div>
   );
