@@ -23,9 +23,14 @@ interface Note {
   followUpOwner?: string | null; createdBy?: string | null; createdAt: number;
 }
 interface AssetOpt { id: string; name: string }
+interface RepeatRisk {
+  assetId: string; assetName: string; label: string; count: number;
+  totalDowntimeMins: number; lastAt: number | null; hasActivePm: boolean;
+}
 interface Digest {
-  stats: { open: number; inProgress: number; onHold: number; closedThisShift: number; pendingRequests: number; pmsDue: number };
+  stats: { open: number; inProgress: number; onHold: number; closedThisShift: number; pendingRequests: number; pmsDue: number; repeatRisks: number };
   machinesDown: { id: string; name: string }[];
+  repeatRisks: RepeatRisk[];
 }
 
 const priColor: Record<string, string> = {
@@ -98,7 +103,30 @@ export default function HandoverPage() {
                 <Stat label="On hold" value={S.onHold} />
                 <Stat label="Closed" value={S.closedThisShift} />
                 <Stat label="Requests" value={S.pendingRequests} />
-                <Stat label="PMs due" value={S.pmsDue} tone={S.pmsDue > 0 ? "amber" : undefined} />
+                <Stat label="Repeat risks" value={S.repeatRisks} tone={S.repeatRisks > 0 ? "amber" : undefined} />
+              </div>
+            )}
+
+            {/* Repeat risks — chronic faults the day shift keeps firefighting. */}
+            {context?.repeatRisks && context.repeatRisks.length > 0 && (
+              <div className="rounded-xl border border-[var(--color-amber)]/30 bg-[var(--color-amber)]/[0.06] p-3 mb-4">
+                <div className="text-[12px] font-semibold text-[var(--color-amber)] mb-2">
+                  🔁 Recurring faults — chronic problems, last 90 days
+                </div>
+                <div className="space-y-1.5">
+                  {context.repeatRisks.map((r) => (
+                    <a key={`${r.assetId}:${r.label}`} href={`/assets/${r.assetId}`} className="flex items-baseline gap-2 text-[12.5px] hover:underline">
+                      <span className="font-medium text-[var(--color-text)] truncate">{r.assetName}</span>
+                      <span className="text-[var(--color-muted)] truncate flex-1">{r.label} · {r.count}×{r.totalDowntimeMins ? ` · ${Math.round((r.totalDowntimeMins / 60) * 10) / 10}h` : ""}</span>
+                      <span className={`text-[10.5px] shrink-0 ${r.hasActivePm ? "text-[var(--color-green)]" : "text-[var(--color-amber)]"}`}>
+                        {r.hasActivePm ? "PM in place" : "no PM yet"}
+                      </span>
+                    </a>
+                  ))}
+                </div>
+                <p className="text-[10.5px] text-[var(--color-faint)] mt-2">
+                  A fault recurring on the same machine with no PM is where a preventive program pays for itself.
+                </p>
               </div>
             )}
 
@@ -279,6 +307,12 @@ function buildFullDigest(hours: number, notesDigest: string, context: Digest | n
   }
   if (context?.machinesDown?.length) {
     lines.push(`\n**Machines down:** ${context.machinesDown.map((m) => m.name).join(", ")}`);
+  }
+  if (context?.repeatRisks?.length) {
+    lines.push(`\n**Recurring faults (90d):**`);
+    for (const r of context.repeatRisks) {
+      lines.push(`- ${r.assetName}: ${r.label} — ${r.count}×${r.hasActivePm ? " (PM in place)" : " — no PM yet"}`);
+    }
   }
   if (notesDigest) {
     lines.push(`\n${notesDigest}`);

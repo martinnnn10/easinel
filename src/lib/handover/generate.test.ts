@@ -35,4 +35,28 @@ describe("shift handover digest", () => {
   it("requires orgId", async () => {
     await expect(generateHandover("", 12)).rejects.toThrow();
   });
+
+  it("flags a machine with a recurring fault and whether a PM already covers it", async () => {
+    const RORG = "org_handover_repeat";
+    const a = await createAsset(RORG, { name: "Filler F1" }, "t");
+    // Three closed corrective repairs for the SAME recurring fault on this machine.
+    for (let i = 0; i < 3; i++) {
+      const wo = await createWorkOrder(RORG, { title: `Bearing replace ${i}`, symptom: "drive-end bearing failure", assetId: a.id, type: "corrective" }, "t");
+      await transitionWorkOrder(RORG, wo.id, "done", { resolution: "replaced bearing", downtimeMins: 60 });
+    }
+    // A different machine with a one-off — must NOT be flagged.
+    const b = await createAsset(RORG, { name: "Capper C2" }, "t");
+    const one = await createWorkOrder(RORG, { title: "seal weep", symptom: "seal weep at inlet", assetId: b.id, type: "corrective" }, "t");
+    await transitionWorkOrder(RORG, one.id, "done", { resolution: "replaced seal", downtimeMins: 10 });
+
+    const d = await generateHandover(RORG, 12);
+    const risk = d.repeatRisks.find((r) => r.assetId === a.id);
+    expect(risk).toBeTruthy();
+    expect(risk!.count).toBe(3);
+    expect(risk!.hasActivePm).toBe(false); // no PM yet → the payoff callout
+    expect(d.repeatRisks.some((r) => r.assetId === b.id)).toBe(false); // one-off not flagged
+    expect(d.stats.repeatRisks).toBeGreaterThanOrEqual(1);
+    expect(d.watchItems.join(" ")).toMatch(/recurring fault and no PM/i);
+    expect(d.markdown).toContain("Repeat risks");
+  });
 });
