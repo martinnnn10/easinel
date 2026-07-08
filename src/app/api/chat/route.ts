@@ -81,6 +81,22 @@ export const POST = safeHandler("chat.post", async (req: NextRequest) => {
       .catch(() => {});
   }
 
+  // Knowledge gaps (best-effort, off the critical path): if an asset-scoped
+  // question was answered without citing any of the plant's OWN documents,
+  // record it so the org sees which machines need a manual uploaded. (Confidence
+  // is not used — the OEM library keeps confidence high even with no org docs.)
+  if (body.assetId) {
+    import("@/lib/knowledge/gaps")
+      .then(({ recordGapIfUngrounded }) =>
+        recordGapIfUngrounded(orgId, {
+          assetId: body.assetId,
+          question,
+          citedDocumentIds: citations.map((c) => c.documentId),
+        })
+      )
+      .catch(() => {});
+  }
+
   const encoder = new TextEncoder();
   let assembled = "";
 

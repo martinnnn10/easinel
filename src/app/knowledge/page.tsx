@@ -2,7 +2,16 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { TopBar } from "@/components/TopBar";
+
+interface AssetGap {
+  assetId: string;
+  assetName: string;
+  count: number;
+  lastQuestion: string;
+  lastAt: number;
+}
 
 interface Doc {
   id: string;
@@ -103,6 +112,8 @@ export default function KnowledgePage() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [retrying, setRetrying] = useState<Set<string>>(new Set());
   const [toast, setToast] = useState<string | null>(null);
+  // Machines where the Copilot had none of the plant's own docs to answer from.
+  const [gaps, setGaps] = useState<AssetGap[]>([]);
 
   const load = useCallback(
     () =>
@@ -115,6 +126,10 @@ export default function KnowledgePage() {
 
   useEffect(() => {
     load();
+    fetch("/api/knowledge-gaps")
+      .then((r) => (r.ok ? r.json() : { gaps: [] }))
+      .then((d) => setGaps(d.gaps ?? []))
+      .catch(() => {});
   }, [load]);
 
   const upload = async (files: FileList | null) => {
@@ -212,6 +227,40 @@ export default function KnowledgePage() {
         }}
       >
         <div className="max-w-5xl mx-auto px-5 py-6">
+          {/* Sharpen the Copilot — machines it couldn't answer from your own docs.
+              Real questions technicians asked; upload these manuals to fix it. */}
+          {gaps.length > 0 && (
+            <section className="mb-6 rounded-2xl border border-[var(--color-amber)]/30 bg-[var(--color-amber)]/[0.06] p-4">
+              <h2 className="text-[13px] font-semibold text-[var(--color-amber)] flex items-center gap-2">
+                🎯 Sharpen the Copilot
+              </h2>
+              <p className="text-[12px] text-[var(--color-muted)] mt-0.5 mb-3">
+                Techs asked about these machines and the Copilot had none of your own documents to answer from.
+                Upload a manual, drawing, or PLC export for each to make its answers plant-specific.
+              </p>
+              <div className="rounded-xl border border-[var(--color-border)] overflow-hidden bg-[var(--color-surface)]">
+                {gaps.map((g, i) => (
+                  <Link
+                    key={g.assetId}
+                    href={`/assets/${g.assetId}?upload=1`}
+                    className={`flex items-center gap-3 px-4 py-2.5 hover:bg-[var(--color-surface-2)]/60 transition ${i > 0 ? "border-t border-[var(--color-border-soft)]" : ""}`}
+                  >
+                    <span className="w-8 h-8 rounded-full bg-[var(--color-amber)]/12 text-[var(--color-amber)] grid place-items-center text-[11px] font-semibold shrink-0">
+                      {g.count}×
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-[13px] font-medium truncate">{g.assetName}</span>
+                      <span className="block text-[11.5px] text-[var(--color-muted)] truncate">
+                        Last asked: “{g.lastQuestion}”
+                      </span>
+                    </span>
+                    <span className="text-[11px] font-medium text-[var(--color-accent)] shrink-0">Upload a doc →</span>
+                  </Link>
+                ))}
+              </div>
+            </section>
+          )}
+
           <div className="flex gap-1.5 flex-wrap mb-5">
             {kinds.map((k) => (
               <button

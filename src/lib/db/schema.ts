@@ -198,6 +198,21 @@ export const reuseEvents = sqliteTable("reuse_events", {
     .default(sql`(unixepoch() * 1000)`),
 });
 
+// Copilot knowledge gaps — recorded when an asset-scoped question could NOT be
+// grounded in any of the org's OWN documents (the OEM reference library and
+// general knowledge don't count). Drives the honest "upload these manuals to
+// sharpen the Copilot" surface. Only ever the org's own real questions; nothing
+// invented.
+export const knowledgeGaps = sqliteTable("knowledge_gaps", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().default("__unset__"),
+  assetId: text("asset_id"),
+  question: text("question").notNull(),
+  at: integer("at", { mode: "timestamp_ms" })
+    .notNull()
+    .default(sql`(unixepoch() * 1000)`),
+});
+
 // ───────────────────────── Platform layer ─────────────────────────
 
 // Work orders — first-class records that can originate in EAS or sync to/from

@@ -172,6 +172,13 @@ const DDL = [
     label TEXT,
     at INTEGER NOT NULL DEFAULT (unixepoch() * 1000)
   )`,
+  `CREATE TABLE IF NOT EXISTS knowledge_gaps (
+    id TEXT PRIMARY KEY,
+    org_id TEXT NOT NULL DEFAULT '__unset__',
+    asset_id TEXT,
+    question TEXT NOT NULL,
+    at INTEGER NOT NULL DEFAULT (unixepoch() * 1000)
+  )`,
   `CREATE TABLE IF NOT EXISTS work_orders (
     id TEXT PRIMARY KEY,
     org_id TEXT NOT NULL DEFAULT '__unset__',
