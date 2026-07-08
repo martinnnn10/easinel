@@ -249,3 +249,23 @@ body {
     scroll-behavior: auto !important;
   }
 }
+
+/* ───────────────────────── Print ───────────────────────── */
+/* Printable surfaces (Reliability Command Center, asset tags) render on the
+   app's dark theme on screen but must print clean on white. Force a white
+   canvas and dark ink regardless of the browser's "background graphics"
+   setting, and print card fills exactly so the layout survives as a PDF a
+   manager forwards to leadership. Per-element light overrides live on the
+   page via Tailwind `print:` utilities. */
+@media print {
+  html,
+  body {
+    background: #fff !important;
+    background-image: none !important;
+    color: #171717 !important;
+  }
+  * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}

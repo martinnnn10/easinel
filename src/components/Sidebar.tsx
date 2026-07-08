@@ -232,7 +232,7 @@ export function Sidebar() {
               {!collapsed && <GroupHeader>{isAdmin ? "Admin" : "Team"}</GroupHeader>}
               <div className="flex flex-col gap-0.5">
                 <NavLink item={{ href: "/impact", label: "Reuse Impact", icon: AwardIcon }} path={path} collapsed={collapsed} muted />
-                <NavLink item={{ href: "/reliability", label: "Reliability Report", icon: DocumentIcon }} path={path} collapsed={collapsed} muted />
+                <NavLink item={{ href: "/reliability", label: "Reliability", icon: GaugeIcon }} path={path} collapsed={collapsed} muted />
                 <NavLink item={{ href: "/audit", label: "Audit Trail", icon: HistoryIcon }} path={path} collapsed={collapsed} muted />
                 {isAdmin && <NavLink item={{ href: "/roi", label: "Pilot Value", icon: TrophyIcon }} path={path} collapsed={collapsed} muted />}
                 {isAdmin && <NavLink item={{ href: "/team", label: "Team & Roles", icon: ShieldIcon }} path={path} collapsed={collapsed} muted />}
@@ -468,12 +468,11 @@ function HistoryIcon({ className }: { className?: string }) {
     </svg>
   );
 }
-function DocumentIcon({ className }: { className?: string }) {
+function GaugeIcon({ className }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-      <path d="M14 2v6h6" />
-      <path d="M8 13h8M8 17h6" />
+      <path d="M12 14a2 2 0 0 0 2-2c0-1.1-2-5-2-5s-2 3.9-2 5a2 2 0 0 0 2 2z" />
+      <path d="M4.5 18a9 9 0 1 1 15 0" />
     </svg>
   );
 }
