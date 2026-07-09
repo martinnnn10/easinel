@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import Link from "next/link";
+import { EasBadge } from "@/components/EasLogo";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
@@ -23,9 +24,7 @@ export default function ForgotPasswordPage() {
     <div className="min-h-screen grid place-items-center bg-[var(--color-bg)] px-4">
       <div className="w-full max-w-sm">
         <div className="flex items-center gap-2.5 justify-center mb-8">
-          <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-[var(--color-accent)] to-[#2f7a12] grid place-items-center text-[var(--color-on-accent)] font-bold shadow-lg shadow-black/40">
-            E
-          </div>
+          <EasBadge size={36} />
           <div className="text-[15px] font-semibold tracking-tight">EAS Intelligence</div>
         </div>
 

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
+import { EasBadge } from "@/components/EasLogo";
 
 type NavItem = { href: string; label: string; icon: (p: { className?: string }) => React.ReactNode };
 
@@ -169,9 +170,7 @@ export function Sidebar() {
       >
         {/* Brand + collapse toggle */}
         <div className="px-3 h-14 flex items-center gap-2.5 border-b border-[var(--color-border)]">
-          <div className="w-7 h-7 shrink-0 rounded-md bg-gradient-to-br from-[var(--color-accent)] to-[#2f7a12] grid place-items-center text-[var(--color-on-accent)] font-bold text-sm shadow-lg shadow-black/40">
-            E
-          </div>
+          <EasBadge size={30} />
           {!collapsed && (
             <div className="leading-tight min-w-0 flex-1">
               <div className="text-[13px] font-semibold tracking-tight truncate">

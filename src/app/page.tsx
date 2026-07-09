@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { EasBadge } from "@/components/EasLogo";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PUBLIC MARKETING SITE — the root route. No login required, no app chrome.
@@ -27,9 +28,7 @@ export default function MarketingHome() {
       <header className="sticky top-0 z-40 border-b border-[var(--color-border-soft)] bg-[var(--color-bg)]/90 backdrop-blur">
         <div className="max-w-6xl mx-auto px-5 h-14 flex items-center gap-6">
           <div className="flex items-center gap-2.5 mr-auto">
-            <div className="w-7 h-7 rounded-md bg-gradient-to-br from-[var(--color-accent)] to-[#2f7a12] grid place-items-center text-[var(--color-on-accent)] font-bold text-sm">
-              E
-            </div>
+            <EasBadge size={28} />
             <span className="text-[14px] font-semibold tracking-tight">
               EAS <span className="text-[var(--color-muted)] font-medium">Maintenance Intelligence</span>
             </span>

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { resolveSafeNext } from "@/lib/safeRedirect";
+import { EasBadge } from "@/components/EasLogo";
 
 type Mode = "loading" | "signin" | "signup";
 
@@ -62,9 +63,7 @@ export default function LoginPage() {
     <div className="min-h-screen grid place-items-center bg-[var(--color-bg)] px-4">
       <div className="w-full max-w-sm">
         <div className="flex items-center gap-2.5 justify-center mb-6">
-          <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-[var(--color-accent)] to-[#2f7a12] grid place-items-center text-[var(--color-on-accent)] font-bold shadow-lg shadow-black/40">
-            E
-          </div>
+          <EasBadge size={36} />
           <div className="text-[15px] font-semibold tracking-tight">EAS Maintenance Intelligence</div>
         </div>
 
