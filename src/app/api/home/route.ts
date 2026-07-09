@@ -19,12 +19,16 @@ export const GET = safeHandler("home.get", async () => {
     listSessions(orgId, 6),
     listWorkOrders(orgId),
   ]);
+  // Retired machines stay out of the working view — the same rule the Equipment
+  // page uses. A retired "Test VFD" must never surface in the Copilot's Recent
+  // Assets panel where a prospect would read it as leftover test data.
+  const workingAssets = assets.filter((a) => a.status !== "retired");
   return NextResponse.json({
-    assets: assets.slice(0, 6),
+    assets: workingAssets.slice(0, 6),
     documents: documents.slice(0, 6),
     sessions,
     counts: {
-      assets: assets.length,
+      assets: workingAssets.length,
       documents: documents.length,
       sessions: sessions.length,
       openWorkOrders: workOrders.filter((w) => isOpenStatus(w.status)).length,

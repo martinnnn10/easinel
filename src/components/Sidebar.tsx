@@ -88,9 +88,10 @@ export function Sidebar() {
     setMobileOpen(false);
   }, [path]);
 
-  // Resolve the "Advanced" default once we know the role: collapsed for daily
-  // floor users (technician/viewer), open for supervisors+. A saved manual
-  // toggle always wins.
+  // Resolve the "Advanced" default once we know the role. Collapsed by default
+  // for EVERYONE so a first impression (and a prospect demo) leads with the
+  // daily workflow, not PLC Explorer / Scenarios / Sessions. It stays one click
+  // away, and a saved manual toggle always wins.
   useEffect(() => {
     if (!me?.user) return;
     try {
@@ -102,8 +103,7 @@ export function Sidebar() {
     } catch {
       /* ignore */
     }
-    const lowPriv = me.user.role === "technician" || me.user.role === "viewer";
-    setAdvancedOpen(!lowPriv);
+    setAdvancedOpen(false);
   }, [me]);
 
   const toggleAdvanced = () => {
