@@ -20,6 +20,8 @@ import { computeRepeatRisks, type RepeatRisk } from "@/lib/reliability/repeatRis
 import { listGapsByAsset } from "@/lib/knowledge/gaps";
 import { PrintButton } from "@/components/PrintButton";
 import { SuggestPmButton } from "@/components/SuggestPmButton";
+import { SampleDataNote } from "@/components/SampleDataNote";
+import { isDemoOrg } from "@/lib/orgs/isDemoOrg";
 
 export const dynamic = "force-dynamic";
 
@@ -55,6 +57,7 @@ export default async function ReliabilityPage({
 
   const generated = new Date();
   const orgName = org?.name ?? "Your plant";
+  const isDemo = isDemoOrg({ id: user.orgId, name: org?.name });
   const uncovered = repeatRisks.filter((r) => r.pmState === "none");
   const topGaps = gaps.slice(0, 6);
   const hasAnything = impact.hasData || repeatRisks.length > 0 || gaps.length > 0;
@@ -101,6 +104,13 @@ export default async function ReliabilityPage({
 
       <div className="flex-1 overflow-y-auto print:overflow-visible">
         <div className="max-w-4xl mx-auto px-5 sm:px-6 py-6 print:py-2 print:max-w-none">
+          {/* Sample-data disclaimer — demo workspace only; print-visible so the
+              leadership PDF also carries the label. */}
+          {isDemo && (
+            <div className="mb-4 print:mb-3">
+              <SampleDataNote />
+            </div>
+          )}
           {/* Print-only report masthead. */}
           <div className="hidden print:flex items-start justify-between border-b border-neutral-300 pb-3 mb-5">
             <div>

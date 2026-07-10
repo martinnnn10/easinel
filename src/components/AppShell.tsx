@@ -3,6 +3,7 @@
 import { usePathname } from "next/navigation";
 import { BillingBanner } from "./SubscriptionGate";
 import { AiProviderBanner } from "./AiProviderBanner";
+import { DemoBanner } from "./DemoBanner";
 
 /**
  * Client-side shell. Surfaces the AI-provider fallback banner and the billing
@@ -21,6 +22,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     <>
       {!isPublic && <BillingBanner />}
       {!isPublic && <AiProviderBanner />}
+      {!isPublic && <DemoBanner />}
       {children}
     </>
   );

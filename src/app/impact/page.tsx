@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { TopBar } from "@/components/TopBar";
+import { SampleDataNoteAuto } from "@/components/SampleDataNote";
 
 interface ReusedFix {
   sourceId: string;
@@ -73,6 +74,7 @@ export default function ImpactPage() {
 
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-4xl mx-auto px-5 py-6">
+          <SampleDataNoteAuto className="mb-4" />
           {loading ? (
             <div className="h-40 rounded-2xl bg-[var(--color-surface-2)] animate-pulse" />
           ) : forbidden ? (
