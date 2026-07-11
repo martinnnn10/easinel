@@ -63,6 +63,12 @@ export function ActivationChecklist({
           <p className="text-[13px] text-[var(--color-muted)] mt-1">
             {p.completed} of {p.total} done — each step builds the machine memory that makes EAS worth it.
           </p>
+          {!p.hasAsset && (
+            <p className="text-[12px] text-[var(--color-faint)] mt-1.5 leading-snug">
+              Your workspace shows real plant data only — it&apos;s empty until you add your first machine.{" "}
+              <Link href="/how-it-works" className="text-[var(--color-accent)] hover:underline">See how it works →</Link>
+            </p>
+          )}
         </div>
         <div className="flex items-center gap-3 shrink-0">
           {!p.hasAsset && (

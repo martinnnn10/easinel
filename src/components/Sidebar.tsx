@@ -20,6 +20,7 @@ const navGroups: { title: string; muted?: boolean; collapsible?: boolean; items:
       { href: "/copilot", label: "Copilot", icon: SparkIcon },
       { href: "/work-orders", label: "Work Orders", icon: WrenchIcon },
       { href: "/handover", label: "Shift Handover", icon: PulseIcon },
+      { href: "/how-it-works", label: "How It Works", icon: CompassIcon },
     ],
   },
   {
@@ -427,6 +428,14 @@ function BoltIcon({ className }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M13 2 3 14h7l-1 8 10-12h-7l1-8z" />
+    </svg>
+  );
+}
+function CompassIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="10" />
+      <path d="M16.2 7.8l-2.9 6.4-6.4 2.9 2.9-6.4 6.4-2.9z" />
     </svg>
   );
 }

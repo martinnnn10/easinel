@@ -1,6 +1,15 @@
 /**
  * populate-demo-workspace.mjs — make a workspace look LIVED IN for a demo.
  *
+ * ⚙️ INTERNAL ADMIN / SALES UTILITY — NOT part of the product experience.
+ *    Operational pages (Today, Reliability, ROI, Reuse Impact, PM, Work Orders,
+ *    Copilot) show REAL org data only; the product never seeds itself. Run this
+ *    by hand ONLY against an explicitly labeled demo/training org for a private
+ *    sales walkthrough, and undo it (--undo --apply) when the demo is over.
+ *    For teaching the loop without any data, use the in-app "How It Works" page.
+ *
+ * ⚠️ NEVER run this against a real customer org.
+ *
  * The engine is a 9.5; the demo experience dies on an empty workspace. Manual
  * data entry can't reproduce the *interlinked* records the intelligence
  * surfaces need — recurring faults that roll up into repeat-risk, a later
