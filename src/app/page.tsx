@@ -51,7 +51,10 @@ export default function MarketingHome() {
       </header>
 
       {/* ── Hero ── */}
-      <section className="border-b border-[var(--color-border-soft)]">
+      <section
+        className="border-b border-[var(--color-border-soft)]"
+        style={{ background: "linear-gradient(180deg, #191d1d 0%, #161a1a 45%, #121515 100%)" }}
+      >
         <div className="max-w-6xl mx-auto px-5 pt-20 pb-16 sm:pt-28 sm:pb-20 text-center">
           <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[var(--color-accent)]">
             AI maintenance intelligence for industrial teams

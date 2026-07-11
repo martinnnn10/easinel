@@ -5,18 +5,18 @@
   /* MINIMALIST INDUSTRIAL — a calm, professional palette for 12-hour shifts.
      Deep graphite base, charcoal panels, soft off-white text. Green is a
      RESTRAINED accent for primary actions and healthy status only. */
-  --color-bg: #111313;         /* app background — neutral graphite */
-  --color-bg-2: #151818;       /* shell */
-  --color-surface: #1a1e1e;    /* panels */
-  --color-surface-2: #222727;  /* cards / raised */
-  --color-border: #2e3434;     /* subtle border */
-  --color-border-soft: #252a2a;
+  --color-bg: #111313;         /* app background — neutral graphite (unchanged) */
+  --color-bg-2: #171b1b;       /* shell — gentle gradient lift over bg */
+  --color-surface: #1f2424;    /* panels/cards — raised for clearer separation */
+  --color-surface-2: #262d2d;  /* cards / raised / hover — one step above surface */
+  --color-border: rgba(255, 255, 255, 0.10); /* crisp hairline on dark */
+  --color-border-soft: rgba(255, 255, 255, 0.06);
   --color-text: #eef1ef;       /* soft off-white */
-  --color-muted: #a8b0ac;      /* secondary text */
-  --color-faint: #6b7572;      /* muted — still AA on panels */
-  /* Restrained industrial green — calmer than before. */
-  --color-accent: #5d9636;
-  --color-accent-soft: #1d2b18;
+  --color-muted: #b0b8b4;      /* secondary text — nudged brighter for readability */
+  --color-faint: #7c8681;      /* tertiary — still readable, never washed-out gray */
+  /* Restrained industrial green — a touch more energetic for action/status. */
+  --color-accent: #63a03a;
+  --color-accent-soft: #1f2e19;
   --color-on-accent: #f0f5ec;
   --color-amber: #c99a2e;      /* warning */
   --color-green: #4a9e5c;      /* healthy/success */
@@ -33,6 +33,15 @@
 /* High-contrast text on filled accent buttons */
 [class~="bg-[var(--color-accent)]"][class~="text-white"] {
   color: var(--color-on-accent);
+}
+
+/* Subtle flat elevation so raised surfaces separate from the graphite
+   background at a glance — a soft downward shadow, not a glow. Applies to
+   full-opacity panels/cards; translucent variants (e.g. the /60 top bars) are
+   deliberately excluded so chrome stays flush. */
+[class~="bg-[var(--color-surface)]"],
+[class~="bg-[var(--color-surface-2)]"] {
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.28);
 }
 
 * {
