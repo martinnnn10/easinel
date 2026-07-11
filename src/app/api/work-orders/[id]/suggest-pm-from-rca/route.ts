@@ -28,7 +28,7 @@ export const POST = safeHandler("workorders.rca.suggestPm", async (_req: NextReq
 
   const rca = await getRcaByWorkOrder(orgId, id);
   const pms = await listPrograms(orgId);
-  const verdict = evaluatePmFromRca(rca, wo, pms);
+  const verdict = evaluatePmFromRca(rca, wo, pms, id);
   if (!verdict.ok) {
     return NextResponse.json({ error: verdict.code, message: verdict.message, existingPmId: verdict.existingPmId }, { status: verdict.status });
   }

@@ -211,6 +211,20 @@ export async function rcaCoverage(orgId: string, windowDays = 90): Promise<RcaCo
   return { failures: failures.length, withRca, needRca: failures.length - withRca, confirmed: counts.confirmed };
 }
 
+// Map of workOrderId → RCA status, for the given work orders (org-scoped). Used
+// by the Today board to badge each work order's RCA state without N queries.
+export async function rcaStatusByWorkOrder(orgId: string, workOrderIds: string[]): Promise<Map<string, RcaStatus>> {
+  if (!orgId || workOrderIds.length === 0) return new Map();
+  await ensureDb();
+  const rows = await db
+    .select({ workOrderId: rootCauseAnalyses.workOrderId, status: rootCauseAnalyses.status })
+    .from(rootCauseAnalyses)
+    .where(and(eq(rootCauseAnalyses.orgId, orgId), inArray(rootCauseAnalyses.workOrderId, workOrderIds)));
+  const m = new Map<string, RcaStatus>();
+  for (const r of rows) m.set(r.workOrderId, r.status as RcaStatus);
+  return m;
+}
+
 // Does this org already have an RCA whose work order matches these ids? (used by
 // callers that need to check membership without leaking other orgs' rows).
 export async function rcaWorkOrderIdsIn(orgId: string, workOrderIds: string[]): Promise<Set<string>> {

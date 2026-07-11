@@ -118,6 +118,16 @@ describe("PM-from-RCA policy (draft only, guarded, deduped)", () => {
     expect(r.ok).toBe(false);
     if (!r.ok) { expect(r.code).toBe("duplicate"); expect(r.existingPmId).toBe("pm1"); }
   });
+  it("blocks a PM already sourced from THIS work order (API-level dedup, any wording)", () => {
+    // Even when the title/failure-mode text wouldn't match, a PM whose
+    // sourceWorkOrderId is this work order is a duplicate.
+    const existing: PmLike[] = [{ id: "pm_src", assetId: "ast_a1", failureMode: "totally different words", title: "Generic PM", status: "active", sourceWorkOrderId: "wo_a1" }];
+    const r = evaluatePmFromRca(rcaFull, { assetId: "ast_a1" }, existing, "wo_a1");
+    expect(r.ok).toBe(false);
+    if (!r.ok) { expect(r.code).toBe("duplicate"); expect(r.existingPmId).toBe("pm_src"); }
+    // A different work order is NOT blocked by the source-WO guard.
+    expect(evaluatePmFromRca(rcaFull, { assetId: "ast_z" }, existing, "wo_other").ok).toBe(true);
+  });
   it("allows a PM when the RCA is complete and none exists yet", () => {
     expect(evaluatePmFromRca(rcaFull, { assetId: "ast_a1" }, []).ok).toBe(true);
   });
