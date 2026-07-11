@@ -213,6 +213,45 @@ export const knowledgeGaps = sqliteTable("knowledge_gaps", {
     .default(sql`(unixepoch() * 1000)`),
 });
 
+// Root Cause Analysis — the structured FRACAS record for a corrective work
+// order: problem → suspected vs CONFIRMED root cause → 5 Whys → corrective &
+// preventive action → verification. One per work order. Its canonical fields
+// (root cause, failed part, corrective action) are synced back onto the work
+// order so every existing surface (repeat-risk, PM suggestion, Copilot context,
+// Reliability) reads the same machine memory. Nothing is ever auto-confirmed by
+// AI — status moves draft → technician_completed → manager_confirmed by people.
+export const rootCauseAnalyses = sqliteTable("root_cause_analyses", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().default("__unset__"),
+  workOrderId: text("work_order_id").notNull(),
+  assetId: text("asset_id"),
+  problemStatement: text("problem_statement"),
+  symptomObserved: text("symptom_observed"),
+  failedPart: text("failed_part"),
+  suspectedCause: text("suspected_cause"),
+  confirmedRootCause: text("confirmed_root_cause"),
+  why1: text("why1"),
+  why2: text("why2"),
+  why3: text("why3"),
+  why4: text("why4"),
+  why5: text("why5"),
+  correctiveAction: text("corrective_action"),
+  preventiveAction: text("preventive_action"),
+  verificationMethod: text("verification_method"),
+  repeatFailure: text("repeat_failure"), // yes | no | unknown
+  aiSuggested: integer("ai_suggested", { mode: "boolean" }).notNull().default(false),
+  status: text("status").notNull().default("draft"), // draft | technician_completed | manager_confirmed
+  createdBy: text("created_by"),
+  approvedBy: text("approved_by"),
+  approvedAt: integer("approved_at", { mode: "timestamp_ms" }),
+  createdAt: integer("created_at", { mode: "timestamp_ms" })
+    .notNull()
+    .default(sql`(unixepoch() * 1000)`),
+  updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+    .notNull()
+    .default(sql`(unixepoch() * 1000)`),
+});
+
 // ───────────────────────── Platform layer ─────────────────────────
 
 // Work orders — first-class records that can originate in EAS or sync to/from

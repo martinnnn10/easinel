@@ -18,6 +18,7 @@ import { can, type Role } from "@/lib/auth/roles";
 import { getReuseImpact } from "@/lib/reuse/impact";
 import { computeRepeatRisks, type RepeatRisk } from "@/lib/reliability/repeatRisks";
 import { listGapsByAsset } from "@/lib/knowledge/gaps";
+import { rcaCoverage } from "@/lib/rca/repository";
 import { PrintButton } from "@/components/PrintButton";
 import { SuggestPmButton } from "@/components/SuggestPmButton";
 import { SampleDataNote } from "@/components/SampleDataNote";
@@ -48,11 +49,12 @@ export default async function ReliabilityPage({
   const { days: daysRaw } = await searchParams;
   const days = PERIODS.includes(Number(daysRaw) as (typeof PERIODS)[number]) ? Number(daysRaw) : 30;
 
-  const [org, impact, repeatRisks, gaps] = await Promise.all([
+  const [org, impact, repeatRisks, gaps, rca] = await Promise.all([
     getOrg(user.orgId),
     getReuseImpact(user.orgId, days),
     computeRepeatRisks(user.orgId, days, 15),
     listGapsByAsset(user.orgId, days),
+    rcaCoverage(user.orgId, days),
   ]);
 
   const generated = new Date();
@@ -60,7 +62,7 @@ export default async function ReliabilityPage({
   const isDemo = isDemoOrg({ id: user.orgId, name: org?.name });
   const uncovered = repeatRisks.filter((r) => r.pmState === "none");
   const topGaps = gaps.slice(0, 6);
-  const hasAnything = impact.hasData || repeatRisks.length > 0 || gaps.length > 0;
+  const hasAnything = impact.hasData || repeatRisks.length > 0 || gaps.length > 0 || rca.failures > 0;
 
   // Honest coverage: of the work orders prior knowledge assisted, how many had
   // enough same-fault history to actually verify a downtime saving. Never a
@@ -200,6 +202,22 @@ export default async function ReliabilityPage({
                   <StatTile label="PMs born from real failures" value={impact.pmsFromRepeats} accent="accent" />
                 </div>
               </section>
+
+              {/* ── Root cause analysis coverage (honest; no invented numbers) ── */}
+              {rca.failures > 0 && (
+                <section className="break-inside-avoid">
+                  <SectionHeader
+                    label="Root cause analysis"
+                    hint="Failures with a documented root cause — the memory that prevents repeats"
+                    badge={rca.needRca > 0 ? { text: `${rca.needRca} need RCA`, tone: "amber" } : undefined}
+                  />
+                  <div className="grid grid-cols-3 gap-3">
+                    <StatTile label="Failures with RCA" value={rca.withRca} accent="green" />
+                    <StatTile label="Root causes confirmed" value={rca.confirmed} accent="green" />
+                    <StatTile label="Failures still needing RCA" value={rca.needRca} accent="info" />
+                  </div>
+                </section>
+              )}
 
               {/* ── Chronic repeat-risk machines ───────────────────────────── */}
               <section className="break-inside-avoid">

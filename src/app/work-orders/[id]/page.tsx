@@ -5,8 +5,8 @@ import { useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { TopBar } from "@/components/TopBar";
 import { Copilot } from "@/components/Copilot";
-import { Markdown } from "@/components/Markdown";
 import { MicButton } from "@/components/MicButton";
+import { RcaPanel } from "@/components/RcaPanel";
 
 interface WorkOrder {
   id: string;
@@ -107,31 +107,6 @@ export default function WorkOrderDetailPage() {
   const [pmState, setPmState] = useState<"idle" | "loading" | "done" | "error">("idle");
   const [pmMsg, setPmMsg] = useState("");
   const [pmProgramId, setPmProgramId] = useState<string | null>(null);
-  // RCA generation
-  const [rca, setRca] = useState<{ markdown: string; confidence: string; aiGenerated: boolean } | null>(null);
-  const [rcaState, setRcaState] = useState<"idle" | "loading" | "open" | "saving" | "saved" | "error">("idle");
-  const [rcaMsg, setRcaMsg] = useState("");
-
-  const generateRca = async (save: boolean) => {
-    setRcaState(save ? "saving" : "loading");
-    setRcaMsg("");
-    try {
-      const r = await fetch(`/api/work-orders/${id}/rca`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ save }),
-      });
-      const d = await r.json();
-      if (!r.ok) throw new Error(d.message || d.error || "Failed");
-      setRca(d.rca);
-      if (save) { setRcaState("saved"); setRcaMsg("Saved to Knowledge — the Copilot can now cite this RCA."); }
-      else setRcaState("open");
-    } catch (e) {
-      setRcaMsg((e as Error).message);
-      setRcaState("error");
-    }
-  };
-
   const suggestPm = async () => {
     setPmState("loading");
     try {
@@ -362,32 +337,17 @@ export default function WorkOrderDetailPage() {
                     </div>
                   )}
 
-                  {/* Automated RCA — generate a formal root-cause analysis from
-                      this closed corrective work order and its asset history. */}
-                  {wo.status === "done" && wo.type === "corrective" && (
-                    <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
-                      <div className="flex items-start gap-3">
-                        <span className="text-xl">🧭</span>
-                        <div className="min-w-0 flex-1">
-                          <h3 className="text-[13px] font-semibold">Generate a Root Cause Analysis</h3>
-                          <p className="text-[12px] text-[var(--color-muted)] mt-0.5">
-                            A formal RCA (problem, timeline, 5-Why, root cause, corrective
-                            action, prevention) built from this work order and the asset&apos;s
-                            failure history — grounded in recorded data, never invented.
-                          </p>
-                          {rcaMsg && (
-                            <p className={`text-[12px] mt-2 ${rcaState === "error" ? "text-[var(--color-red)]" : "text-[var(--color-green)]"}`}>{rcaMsg}</p>
-                          )}
-                        </div>
-                        <button
-                          disabled={rcaState === "loading" || rcaState === "saving"}
-                          onClick={() => generateRca(false)}
-                          className="shrink-0 text-[12px] font-medium rounded-lg border border-[var(--color-border)] px-3 py-1.5 hover:bg-[var(--color-surface-2)] disabled:opacity-50"
-                        >
-                          {rcaState === "loading" ? "Analyzing…" : "Generate RCA"}
-                        </button>
-                      </div>
-                    </div>
+                  {/* Structured Root Cause Analysis — problem → suspected vs
+                      confirmed cause → 5-Why → corrective & preventive action.
+                      Its canonical fields sync onto the work order so the whole
+                      intelligence loop reads one machine memory. */}
+                  {wo.type === "corrective" && (
+                    <RcaPanel
+                      workOrderId={wo.id}
+                      assetId={wo.assetId ?? null}
+                      downtimeMins={wo.downtimeMins ?? null}
+                      woType={wo.type}
+                    />
                   )}
 
                   {/* Maintenance Memory (Slice 4): the close-out is now indexed
@@ -508,31 +468,6 @@ export default function WorkOrderDetailPage() {
         />
       )}
 
-      {rca && (rcaState === "open" || rcaState === "saved" || rcaState === "saving" || rcaState === "error") && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex justify-end" onClick={() => setRcaState("idle")}>
-          <div className="w-full sm:max-w-2xl h-full bg-[var(--color-surface)] border-l border-[var(--color-border)] overflow-y-auto fadeup" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="Root cause analysis">
-            <div className="sticky top-0 bg-[var(--color-surface)] border-b border-[var(--color-border)] px-5 py-3.5 flex items-center gap-3 z-10">
-              <div className="flex-1 min-w-0">
-                <h2 className="text-[15px] font-semibold">Root Cause Analysis</h2>
-                <p className="text-[11px] text-[var(--color-muted)]">
-                  {rca.aiGenerated ? "AI-written analysis, grounded in evidence" : "Deterministic, grounded in recorded data"} · {rca.confidence} confidence
-                </p>
-              </div>
-              <button
-                disabled={rcaState === "saving" || rcaState === "saved"}
-                onClick={() => generateRca(true)}
-                className="text-[12px] font-medium rounded-lg bg-[var(--color-accent)] text-white px-3 py-1.5 hover:brightness-110 disabled:opacity-50"
-              >
-                {rcaState === "saving" ? "Saving…" : rcaState === "saved" ? "Saved ✓" : "Save to Knowledge"}
-              </button>
-              <button onClick={() => setRcaState("idle")} aria-label="Close" className="text-[var(--color-faint)] hover:text-[var(--color-text)] text-lg">×</button>
-            </div>
-            <div className="px-6 py-5 text-[13.5px] leading-relaxed">
-              <Markdown>{rca.markdown}</Markdown>
-            </div>
-          </div>
-        </div>
-      )}
     </>
   );
 }
