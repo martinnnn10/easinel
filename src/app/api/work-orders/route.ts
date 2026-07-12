@@ -5,12 +5,17 @@ import {
   workOrderStats,
   type WorkOrderFilters,
 } from "@/lib/workorders/repository";
+import { listAssets } from "@/lib/assets/repository";
+import { rcaStatusByWorkOrder } from "@/lib/rca/repository";
+import { classifyAssetClass, classifyFailureType, rcaBoardState } from "@/lib/today/classify";
 import { requirePermission } from "@/lib/auth/guard";
 import { safeHandler } from "@/lib/api/safeHandler";
 import { parseBody, Priority, WoType } from "@/lib/api/validate";
 import { z } from "zod";
 
 export const runtime = "nodejs";
+
+const ms = (x: unknown): number => (x instanceof Date ? x.getTime() : typeof x === "number" ? x : 0);
 
 // A work order must be born with a handle on what's wrong: a title OR a symptom.
 const CreateWorkOrderSchema = z
@@ -53,7 +58,43 @@ export const GET = safeHandler("workorders.list", async (req: NextRequest) => {
 
   const workOrders = await listWorkOrders(user.orgId, filters);
   const stats = sp.get("stats") === "1" ? await workOrderStats(user.orgId) : undefined;
-  return NextResponse.json({ workOrders, stats });
+
+  // Enrich each work order with its machine context so the board can show what
+  // asset is down, its class/criticality, the inferred failure type, RCA state,
+  // and how long it has been open — reusing the SAME classification helpers as
+  // the Today command board (single source of truth, no second taxonomy).
+  const now = Date.now();
+  const assetRows = await listAssets(user.orgId);
+  const assetById = new Map(assetRows.filter((a) => a.status !== "retired").map((a) => [a.id, a]));
+  const rcaMap = await rcaStatusByWorkOrder(user.orgId, workOrders.map((w) => w.id));
+
+  const openMinsOf = (w: { reportedAt?: unknown; createdAt?: unknown }) =>
+    Math.max(0, Math.round((now - (ms(w.reportedAt) || ms(w.createdAt))) / 60000));
+
+  const enriched = workOrders.map((w) => {
+    const a = w.assetId ? assetById.get(w.assetId) : undefined;
+    const asset = a
+      ? {
+          assetId: a.id,
+          assetName: a.name,
+          line: a.line ?? a.area ?? null,
+          area: a.area ?? null,
+          assetClass: classifyAssetClass({ name: a.name, model: a.model, assetType: a.assetType }),
+          criticality: a.criticality ?? "medium",
+        }
+      : null;
+    return {
+      ...w,
+      asset,
+      failureType: classifyFailureType(
+        [w.title, w.symptom, w.failedPart, w.rootCause].filter(Boolean).join(" ")
+      ),
+      rcaStatus: rcaBoardState(rcaMap.get(w.id), w.type, w.downtimeMins ?? null),
+      openMins: openMinsOf(w),
+    };
+  });
+
+  return NextResponse.json({ workOrders: enriched, stats });
 });
 
 // POST /api/work-orders — create (RBAC: create_work_order). Supports the new

@@ -5,6 +5,7 @@ import { demoModeEnabled } from "@/lib/util";
 import { authRequired as authRequiredFn } from "@/lib/auth/session";
 import { activeProviderName, activeProviderModel, hasLiveProvider, lastProviderError } from "@/lib/ai/providers";
 import { lastSuccessAt } from "@/lib/ai/usage";
+import { coarseCategory } from "@/lib/health/coarseCategory";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -23,7 +24,11 @@ export async function GET() {
     dbOk = true;
   } catch (err) {
     dbError = (err as Error).message;
+    // Raw detail server-side only — never in the public response body.
+    console.error("[health] database check failed:", dbError);
   }
+  const providerErrorRaw = lastProviderError();
+  if (providerErrorRaw) console.error("[health] last provider error:", providerErrorRaw);
 
   // Auth posture. Login is MANDATORY BY DEFAULT for the real Production
   // Workspace; only the isolated demo, or an explicit opt-out, runs open. We
@@ -39,7 +44,6 @@ export async function GET() {
     version: process.env.APP_VERSION ?? "1.0.0",
     checks: {
       database: dbOk ? "ok" : "down",
-      ...(dbError ? { databaseError: dbError } : {}),
     },
     // AI provider posture — surfaced so a silent deterministic fallback is never
     // invisible. aiProviderConfigured=false means the Copilot is running the
@@ -49,7 +53,9 @@ export async function GET() {
     aiProviderName: activeProviderName(),
     aiModel: activeProviderModel(),
     mode: hasLiveProvider() ? "live" : "fallback",
-    lastProviderError: lastProviderError(),
+    // Coarse category only (auth | rate_limit | upstream | down | null) — never
+    // the raw provider error string. Raw detail is in server logs.
+    providerErrorCategory: coarseCategory(providerErrorRaw),
     lastSuccessAt: lastSuccessAt(),
     aiConfigured: hasLiveProvider(),
     security: {

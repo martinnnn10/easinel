@@ -463,6 +463,7 @@ export interface WorkOrderUpdate {
   failedPart?: string | null;
   repairAction?: string | null;
   downtimeMins?: number | null;
+  scheduledFor?: number | Date | null;
 }
 
 export async function updateWorkOrder(
@@ -490,6 +491,8 @@ export async function updateWorkOrder(
   if (input.failedPart !== undefined) patch.failedPart = input.failedPart;
   if (input.repairAction !== undefined) patch.repairAction = input.repairAction;
   if (input.downtimeMins !== undefined) patch.downtimeMins = input.downtimeMins;
+  if (input.scheduledFor !== undefined)
+    patch.scheduledFor = input.scheduledFor ? new Date(input.scheduledFor) : null;
 
   await db
     .update(workOrders)

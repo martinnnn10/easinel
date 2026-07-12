@@ -6,6 +6,14 @@ import { useRouter } from "next/navigation";
 import { TopBar } from "@/components/TopBar";
 import { MicButton } from "@/components/MicButton";
 
+interface WorkOrderAsset {
+  assetId: string;
+  assetName: string;
+  line?: string | null;
+  area?: string | null;
+  assetClass: string;
+  criticality: string;
+}
 interface WorkOrder {
   id: string;
   number?: string;
@@ -24,6 +32,60 @@ interface WorkOrder {
   approvedBy?: string | null;
   rejectionReason?: string | null;
   createdAt?: number;
+  // Planner MVP fields.
+  assignedTo?: string | null;
+  scheduledFor?: number | string | null;
+  // Enriched by GET /api/work-orders (reuses the Today classification helpers).
+  asset?: WorkOrderAsset | null;
+  failureType?: string;
+  rcaStatus?: "needed" | "draft" | "technician_completed" | "manager_confirmed" | null;
+  openMins?: number;
+}
+
+const RCA_LABEL: Record<string, string> = {
+  needed: "RCA needed",
+  draft: "RCA draft",
+  technician_completed: "RCA: tech done",
+  manager_confirmed: "Root cause confirmed",
+};
+const CRIT_COLOR: Record<string, string> = {
+  critical: "var(--color-red)",
+  high: "var(--color-amber)",
+  medium: "var(--color-accent)",
+  low: "var(--color-faint)",
+};
+
+// Compact "how long open / backlog age" label.
+function ageLabel(mins?: number): string | null {
+  if (mins == null || mins <= 0) return null;
+  if (mins < 60) return `${mins}m`;
+  const h = Math.round(mins / 60);
+  if (h < 48) return `${h}h`;
+  return `${Math.round(h / 24)}d`;
+}
+
+// The single most useful next step for a work order, derived from its state.
+function nextAction(w: WorkOrder): string {
+  if (w.approvalStatus === "pending") return "Awaiting approval";
+  if (w.status === "done" || w.status === "synced") {
+    if (w.rcaStatus === "needed") return "Run RCA";
+    if (w.rcaStatus === "draft" || w.rcaStatus === "technician_completed") return "Confirm root cause";
+    return "Closed";
+  }
+  if (w.status === "on_hold") return "Resume when unblocked";
+  if (w.status === "in_progress") return "Diagnose & repair";
+  return w.assignedTo ? "Start work" : "Assign & start";
+}
+
+function fmtDate(v?: number | string | null): string | null {
+  if (!v) return null;
+  try {
+    const d = new Date(v);
+    if (isNaN(d.getTime())) return null;
+    return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  } catch {
+    return null;
+  }
 }
 interface Stats {
   open: number;
@@ -138,9 +200,11 @@ export default function WorkOrdersPage() {
     setLoading(true);
     setError(null);
     try {
+      // Search is applied CLIENT-side across the enriched fields (asset name,
+      // line/area, class, failure type, WO number, title) so a machine-name
+      // search still finds work orders whose title doesn't mention the asset.
       const sp = new URLSearchParams({ stats: "1" });
       if (filter) sp.set("status", filter);
-      if (debounced) sp.set("search", debounced);
       const r = await fetch(`/api/work-orders?${sp.toString()}`);
       if (!r.ok) throw new Error(`Failed to load (${r.status})`);
       const d = await r.json();
@@ -151,7 +215,7 @@ export default function WorkOrdersPage() {
     } finally {
       setLoading(false);
     }
-  }, [filter, debounced]);
+  }, [filter]);
 
   const loadApprovals = useCallback(async () => {
     setLoading(true);
@@ -312,6 +376,25 @@ function BoardView({
   onReload: () => void;
   onCreate: () => void;
 }) {
+  // Client-side search across the enriched fields (asset name, line/area, class,
+  // failure type, WO number, title, symptom).
+  const q = debounced.trim().toLowerCase();
+  const visible = q
+    ? wos.filter((w) =>
+        [
+          w.number,
+          w.title,
+          w.symptom,
+          w.asset?.assetName,
+          w.asset?.line,
+          w.asset?.area,
+          w.asset?.assetClass,
+          w.failureType,
+        ]
+          .filter(Boolean)
+          .some((f) => String(f).toLowerCase().includes(q))
+      )
+    : wos;
   return (
     <>
       {/* Quick report */}
@@ -371,61 +454,124 @@ function BoardView({
         <ErrorState message={error} onRetry={onReload} />
       ) : loading ? (
         <ListSkeleton />
-      ) : wos.length === 0 ? (
+      ) : visible.length === 0 ? (
         <EmptyState hasFilter={!!filter || !!debounced} onCreate={onCreate} />
       ) : (
         <div className="space-y-2">
-          {wos.map((w) => (
-            <Link
-              key={w.id}
-              href={`/work-orders/${w.id}`}
-              className="block rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-3.5 py-3 hover:border-[var(--color-accent)]/50 hover:bg-[var(--color-surface-2)] transition active:scale-[0.995]"
-            >
-              <div className="flex items-center gap-3">
-                <span
-                  className="w-1.5 h-10 rounded-full shrink-0"
-                  style={{ background: prioColor[w.priority] ?? "var(--color-faint)" }}
-                />
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-[11px] font-mono text-[var(--color-faint)]">{w.number}</span>
-                    <span
-                      className="text-[10px] uppercase px-1.5 py-0.5 rounded font-medium"
-                      style={{
-                        background: `color-mix(in srgb, ${statusColor[w.status] ?? "var(--color-faint)"} 14%, transparent)`,
-                        color: statusColor[w.status] ?? "var(--color-text)",
-                      }}
-                    >
-                      {statusLabel[w.status] ?? w.status}
-                    </span>
-                    {w.source === "copilot" && (
-                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--color-surface-2)] text-[var(--color-muted)]">
-                        Copilot
-                      </span>
-                    )}
-                    {w.externalSystem && (
-                      <span className="text-[10px] uppercase px-1.5 py-0.5 rounded bg-[var(--color-green)]/10 text-[var(--color-green)]">
-                        ↑ {w.externalSystem}
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-[13.5px] font-medium truncate mt-1">{w.title}</p>
-                  {w.symptom && w.symptom !== w.title && (
-                    <p className="text-[12px] text-[var(--color-muted)] truncate mt-0.5">{w.symptom}</p>
-                  )}
-                </div>
-                {w.status === "done" && w.downtimeMins != null && (
-                  <span className="text-[11px] text-[var(--color-muted)] shrink-0 hidden sm:block">
-                    {w.downtimeMins}m down
-                  </span>
-                )}
-                <span className="text-[var(--color-faint)] shrink-0">›</span>
-              </div>
-            </Link>
+          {visible.map((w) => (
+            <WorkOrderCard key={w.id} w={w} />
           ))}
         </div>
       )}
     </>
+  );
+}
+
+// A work-order board card: leads with what machine is down and where, its class
+// and criticality, the inferred failure discipline and RCA state, how long it's
+// been open, who it's assigned to / when it's scheduled, and the next action.
+function WorkOrderCard({ w }: { w: WorkOrder }) {
+  const open = ageLabel(w.status === "done" || w.status === "synced" ? undefined : w.openMins);
+  const scheduled = fmtDate(w.scheduledFor);
+  return (
+    <Link
+      href={`/work-orders/${w.id}`}
+      className="block rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-3.5 py-3 hover:border-[var(--color-accent)]/50 hover:bg-[var(--color-surface-2)] transition active:scale-[0.995]"
+    >
+      <div className="flex items-start gap-3">
+        <span
+          className="w-1.5 h-10 rounded-full shrink-0 mt-0.5"
+          style={{ background: prioColor[w.priority] ?? "var(--color-faint)" }}
+        />
+        <div className="min-w-0 flex-1">
+          {/* Line 1: number, status, source/CMMS badges */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-[11px] font-mono text-[var(--color-faint)]">{w.number}</span>
+            <span
+              className="text-[10px] uppercase px-1.5 py-0.5 rounded font-medium"
+              style={{
+                background: `color-mix(in srgb, ${statusColor[w.status] ?? "var(--color-faint)"} 14%, transparent)`,
+                color: statusColor[w.status] ?? "var(--color-text)",
+              }}
+            >
+              {statusLabel[w.status] ?? w.status}
+            </span>
+            {w.source === "copilot" && (
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--color-surface-2)] text-[var(--color-muted)]">
+                Copilot
+              </span>
+            )}
+            {w.externalSystem && (
+              <span className="text-[10px] uppercase px-1.5 py-0.5 rounded bg-[var(--color-green)]/10 text-[var(--color-green)]">
+                ↑ {w.externalSystem}
+              </span>
+            )}
+          </div>
+
+          {/* Line 2: asset context — name · line/area · class · criticality */}
+          {w.asset ? (
+            <div className="flex items-center gap-1.5 flex-wrap mt-1">
+              <span className="text-[12.5px] font-semibold">{w.asset.assetName}</span>
+              {w.asset.line && (
+                <span className="text-[11px] text-[var(--color-muted)]">· {w.asset.line}</span>
+              )}
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--color-surface-2)] text-[var(--color-muted)]">
+                {w.asset.assetClass}
+              </span>
+              <span
+                className="text-[10px] px-1.5 py-0.5 rounded font-medium"
+                style={{
+                  background: `color-mix(in srgb, ${CRIT_COLOR[w.asset.criticality] ?? "var(--color-faint)"} 14%, transparent)`,
+                  color: CRIT_COLOR[w.asset.criticality] ?? "var(--color-text)",
+                }}
+              >
+                {w.asset.criticality}
+              </span>
+            </div>
+          ) : (
+            <div className="mt-1 text-[11px] text-[var(--color-amber)]">
+              ⚠ No asset linked — link equipment to build machine memory.
+            </div>
+          )}
+
+          {/* Line 3: title + symptom */}
+          <p className="text-[13.5px] font-medium truncate mt-1">{w.title}</p>
+          {w.symptom && w.symptom !== w.title && (
+            <p className="text-[12px] text-[var(--color-muted)] truncate mt-0.5">{w.symptom}</p>
+          )}
+
+          {/* Line 4: failure type · RCA state · open age · assignee · scheduled */}
+          <div className="flex items-center gap-x-3 gap-y-1 flex-wrap mt-1.5 text-[11px] text-[var(--color-muted)]">
+            {w.failureType && w.failureType !== "Unknown" && (
+              <span>🔧 {w.failureType}</span>
+            )}
+            {w.rcaStatus && (
+              <span
+                className={
+                  w.rcaStatus === "manager_confirmed"
+                    ? "text-[var(--color-green)]"
+                    : w.rcaStatus === "needed"
+                      ? "text-[var(--color-amber)]"
+                      : ""
+                }
+              >
+                {RCA_LABEL[w.rcaStatus]}
+              </span>
+            )}
+            {open && <span>⏱ open {open}</span>}
+            {w.status === "done" && w.downtimeMins != null && <span>{w.downtimeMins}m down</span>}
+            {w.assignedTo && <span>👤 {w.assignedTo}</span>}
+            {scheduled && <span>📅 {scheduled}</span>}
+          </div>
+
+          {/* Line 5: next action */}
+          <div className="mt-1.5 text-[11px] font-medium text-[var(--color-accent)]">
+            → {nextAction(w)}
+          </div>
+        </div>
+        <span className="text-[var(--color-faint)] shrink-0 mt-1">›</span>
+      </div>
+    </Link>
   );
 }
 

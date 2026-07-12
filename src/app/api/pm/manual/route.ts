@@ -93,17 +93,9 @@ export const POST = safeHandler("pm.manual", async (req: NextRequest) => {
     }
   }
 
-  // Create schedule
-  const now = Date.now();
-  await db.insert(schema.pmSchedules).values({
-    id: genId("pms"),
-    orgId: user.orgId,
-    pmProgramId: pmId,
-    intervalDays,
-    nextDueAt: new Date(now + intervalDays * 86400000),
-    lastCompletedAt: null,
-    active: true,
-  });
-
+  // NO schedule here. A manual PM is born a DRAFT and must not generate due work
+  // until a manager/admin approves it — approveProgram() creates the active
+  // schedule, exactly like the AI-suggested path. Creating a schedule at draft
+  // time would let unapproved PMs fire as "due".
   return NextResponse.json({ id: pmId, status: "draft" }, { status: 201 });
 });

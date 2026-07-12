@@ -53,6 +53,7 @@ export const PATCH = safeHandler("workorders.update", async (req: NextRequest, {
     "failedPart",
     "repairAction",
     "downtimeMins",
+    "scheduledFor",
   ];
   // When a status transition is also present, the transition is the AUTHORITATIVE
   // writer of downtimeMins — its idempotency + optimistic-concurrency guards

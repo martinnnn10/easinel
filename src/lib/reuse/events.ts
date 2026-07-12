@@ -14,6 +14,17 @@ import { reuseEvents, auditLog, documents } from "@/lib/db/schema";
 import { and, eq, desc, inArray } from "drizzle-orm";
 import { id } from "@/lib/util";
 
+// Citation honesty: a document is "cited" only if the answer ACTUALLY uses its
+// marker (e.g. [2]) — retrieving a chunk is not the same as citing it. Used to
+// gate reuse metrics so "cited your own knowledge" never overcounts retrieval.
+export function citationsUsedInAnswer<T extends { marker?: number | null }>(
+  citations: T[],
+  answer: string
+): T[] {
+  if (!answer || !citations?.length) return [];
+  return citations.filter((c) => c.marker != null && answer.includes(`[${c.marker}]`));
+}
+
 export type ReuseEventType =
   | "prior_fix_surfaced"
   | "prior_fix_used_in_closeout"

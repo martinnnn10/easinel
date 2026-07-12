@@ -65,38 +65,6 @@ export const POST = safeHandler("chat.post", async (req: NextRequest) => {
   );
   await addMessage(orgId, conversationId, "user", question);
 
-  // Knowledge reuse (best-effort, off the critical path): if the answer cited
-  // the org's own captured knowledge, record that a teammate's lesson or an
-  // uploaded document was reused to answer a question. Never awaited — a logging
-  // hiccup must not delay the streamed answer.
-  if (citations.length) {
-    import("@/lib/reuse/events")
-      .then(({ logCitationReuse }) =>
-        logCitationReuse(
-          orgId,
-          citations.map((c) => ({ documentId: c.documentId, filename: c.filename })),
-          { assetId: body.assetId ?? null, userId: gate.user.id }
-        )
-      )
-      .catch(() => {});
-  }
-
-  // Knowledge gaps (best-effort, off the critical path): if an asset-scoped
-  // question was answered without citing any of the plant's OWN documents,
-  // record it so the org sees which machines need a manual uploaded. (Confidence
-  // is not used — the OEM library keeps confidence high even with no org docs.)
-  if (body.assetId) {
-    import("@/lib/knowledge/gaps")
-      .then(({ recordGapIfUngrounded }) =>
-        recordGapIfUngrounded(orgId, {
-          assetId: body.assetId,
-          question,
-          citedDocumentIds: citations.map((c) => c.documentId),
-        })
-      )
-      .catch(() => {});
-  }
-
   const encoder = new TextEncoder();
   let assembled = "";
 
@@ -141,6 +109,36 @@ export const POST = safeHandler("chat.post", async (req: NextRequest) => {
           diagnostics,
           sources: sources.map((s) => ({ filename: s.filename, kind: s.kind })),
         });
+
+        // Citation-honest reuse + gap logging (best-effort). Only citations whose
+        // marker ACTUALLY appears in the finished answer count as "used" — a
+        // retrieved-but-unused chunk must never inflate the reuse metric. Fired
+        // after the answer is assembled; never blocks the stream close.
+        const { citationsUsedInAnswer } = await import("@/lib/reuse/events");
+        const usedCitations = citationsUsedInAnswer(citations, assembled);
+        if (usedCitations.length) {
+          import("@/lib/reuse/events")
+            .then(({ logCitationReuse }) =>
+              logCitationReuse(
+                orgId,
+                usedCitations.map((c) => ({ documentId: c.documentId, filename: c.filename })),
+                { assetId: body.assetId ?? null, userId: gate.user.id }
+              )
+            )
+            .catch(() => {});
+        }
+        if (body.assetId) {
+          import("@/lib/knowledge/gaps")
+            .then(({ recordGapIfUngrounded }) =>
+              recordGapIfUngrounded(orgId, {
+                assetId: body.assetId,
+                question,
+                citedDocumentIds: usedCitations.map((c) => c.documentId),
+              })
+            )
+            .catch(() => {});
+        }
+
         controller.close();
       }
     },

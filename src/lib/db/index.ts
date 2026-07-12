@@ -645,6 +645,7 @@ const COLUMN_MIGRATIONS: { table: string; column: string; ddl: string }[] = [
   { table: "work_orders", column: "started_at", ddl: "ALTER TABLE work_orders ADD COLUMN started_at INTEGER" },
   { table: "work_orders", column: "closed_at", ddl: "ALTER TABLE work_orders ADD COLUMN closed_at INTEGER" },
   { table: "work_orders", column: "downtime_mins", ddl: "ALTER TABLE work_orders ADD COLUMN downtime_mins INTEGER" },
+  { table: "work_orders", column: "scheduled_for", ddl: "ALTER TABLE work_orders ADD COLUMN scheduled_for INTEGER" },
   // PM loop: structured close-out capture on the work order.
   { table: "work_orders", column: "root_cause", ddl: "ALTER TABLE work_orders ADD COLUMN root_cause TEXT" },
   { table: "work_orders", column: "failed_part", ddl: "ALTER TABLE work_orders ADD COLUMN failed_part TEXT" },

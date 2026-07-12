@@ -23,7 +23,7 @@ import {
   assets,
   type PmProgram,
 } from "@/lib/db/schema";
-import { and, desc, eq, lte } from "drizzle-orm";
+import { and, desc, eq, lte, sql } from "drizzle-orm";
 import { id } from "@/lib/util";
 import { emitEvent, audit } from "@/lib/events";
 
@@ -340,18 +340,21 @@ export async function recordCompletion(
     notes: input.notes ?? null,
     completedBy: input.completedBy ?? actor,
   });
-  // Enrich with optional fields (columns added via migration)
-  const enrichUpdates: string[] = [];
-  if (input.partsUsed) enrichUpdates.push(`parts_used = '${JSON.stringify(input.partsUsed).replace(/'/g, "''")}' `);
-  if (input.issuesFound) enrichUpdates.push(`issues_found = '${input.issuesFound.replace(/'/g, "''")}' `);
-  if (input.followUp) enrichUpdates.push(`follow_up = '${input.followUp.replace(/'/g, "''")}' `);
-  if (input.durationMins) enrichUpdates.push(`duration_mins = ${input.durationMins}`);
-  if (enrichUpdates.length > 0) {
+  // Enrich with optional fields (columns added via migration). FULLY
+  // PARAMETERIZED — the drizzle `sql` tag binds every ${value} as a parameter,
+  // so no user input is ever concatenated into the SQL text. Numeric input is
+  // validated to a non-negative integer.
+  const sets = [];
+  if (input.partsUsed) sets.push(sql`parts_used = ${JSON.stringify(input.partsUsed)}`);
+  if (input.issuesFound) sets.push(sql`issues_found = ${input.issuesFound}`);
+  if (input.followUp) sets.push(sql`follow_up = ${input.followUp}`);
+  if (input.durationMins != null) {
+    const d = Math.round(Number(input.durationMins));
+    if (Number.isFinite(d) && d >= 0) sets.push(sql`duration_mins = ${d}`);
+  }
+  if (sets.length > 0) {
     try {
-      const raw = `UPDATE pm_completions SET ${enrichUpdates.join(", ")} WHERE id = '${completionId}'`;
-      await (db as unknown as { run(q: unknown): Promise<unknown> }).run(
-        (await import("drizzle-orm")).sql.raw(raw)
-      );
+      await db.run(sql`UPDATE pm_completions SET ${sql.join(sets, sql`, `)} WHERE id = ${completionId} AND org_id = ${orgId}`);
     } catch { /* columns may not exist on older DBs — non-fatal */ }
   }
   if (sched) {
@@ -378,6 +381,9 @@ export async function listDue(orgId: string): Promise<PmListItem[]> {
       and(
         eq(pmSchedules.orgId, orgId),
         eq(pmSchedules.active, true),
+        // Only APPROVED (active) programs generate due work. A draft program must
+        // never appear as due, even if a stray active schedule exists for it.
+        eq(pmPrograms.status, "active"),
         lte(pmSchedules.nextDueAt, new Date())
       )
     )

@@ -25,6 +25,7 @@ beforeAll(async () => {
     { id: "wo_a1", orgId: A, assetId: "ast_a1", title: "Wrapper VFD F070 trip", type: "corrective", status: "done", symptom: "F070 on startup", downtimeMins: 60 },
     { id: "wo_b1", orgId: B, assetId: "ast_b1", title: "Other org WO", type: "corrective", status: "done" },
     { id: "wo_a_noasset", orgId: A, assetId: null, title: "No asset WO", type: "corrective", status: "done" },
+    { id: "wo_a_susp", orgId: A, assetId: "ast_a1", title: "Suspected-only WO", type: "corrective", status: "done", downtimeMins: 30 },
   ]);
 });
 
@@ -69,6 +70,35 @@ describe("RCA repository — org isolation + machine-memory sync", () => {
   it("clean org has no RCA (honest empty)", async () => {
     expect(await getRcaByWorkOrder("org_fresh", "wo_x")).toBeNull();
     expect(await rcaCounts("org_fresh")).toMatchObject({ total: 0 });
+  });
+});
+
+describe("Fix 5 — a SUSPECTED cause is a hypothesis, never machine-memory truth", () => {
+  it("does not sync a suspected cause onto the work order (only confirmed does)", async () => {
+    const rca = await upsertRca(
+      A,
+      "wo_a_susp",
+      { symptomObserved: "intermittent stop", suspectedCause: "maybe a loose sensor", status: "technician_completed" },
+      "u_tech"
+    );
+    expect(rca!.suspectedCause).toBe("maybe a loose sensor");
+    expect(rca!.confirmedRootCause).toBeNull();
+
+    // The work order's authoritative rootCause must remain empty — a suspected
+    // cause must NOT propagate to WO machine memory, repeat-risk, PM, or Copilot.
+    const wo = await getWorkOrder(A, "wo_a_susp");
+    expect(wo!.rootCause ?? "").toBe("");
+  });
+
+  it("only after manager confirmation does the root cause become authoritative", async () => {
+    await upsertRca(
+      A,
+      "wo_a_susp",
+      { confirmedRootCause: "sensor bracket fatigue", status: "manager_confirmed", approvedBy: "mgr@a", approvedAt: new Date() },
+      "u_mgr"
+    );
+    const wo = await getWorkOrder(A, "wo_a_susp");
+    expect(wo!.rootCause).toBe("sensor bracket fatigue");
   });
 });
 

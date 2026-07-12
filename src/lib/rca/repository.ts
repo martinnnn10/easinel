@@ -117,7 +117,11 @@ export async function upsertRca(
 // over suspected; empty values never clobber what's already recorded. This is
 // what makes an RCA reusable by every downstream surface without new plumbing.
 async function syncWorkOrderMemory(orgId: string, wo: WorkOrder, rca: Rca): Promise<void> {
-  const rootCause = (rca.confirmedRootCause || rca.suspectedCause || "").trim();
+  // Only a CONFIRMED root cause becomes the machine's authoritative root cause.
+  // A suspected cause is a hypothesis — it must NOT propagate to repeat-risk, PM
+  // suggestion, Copilot context, or the Reliability Report as if it were truth.
+  // (confirmedRootCause is only ever set by a manager via the server-gated route.)
+  const rootCause = (rca.confirmedRootCause || "").trim();
   const failedPart = (rca.failedPart || "").trim();
   const corrective = (rca.correctiveAction || "").trim();
   const woPatch: { rootCause?: string; failedPart?: string; repairAction?: string } = {};

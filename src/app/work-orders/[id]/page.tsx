@@ -21,6 +21,7 @@ interface WorkOrder {
   source: string;
   assetId?: string | null;
   assignedTo?: string | null;
+  scheduledFor?: number | string | null;
   externalSystem?: string | null;
   // Timestamps arrive from the API as ISO strings (Date columns) or ms numbers.
   reportedAt?: number | string | null;
@@ -294,6 +295,12 @@ export default function WorkOrderDetailPage() {
                     <Fact label="Downtime" value={wo.downtimeMins != null ? `${wo.downtimeMins} min` : "—"} highlight />
                   </div>
 
+                  {/* Planner (MVP): who owns it and when it's scheduled. Open work
+                      orders only — a closed WO's assignment/schedule is history. */}
+                  {wo.status !== "done" && wo.status !== "synced" && (
+                    <PlannerBlock wo={wo} onSaved={load} />
+                  )}
+
                   {wo.symptom && (
                     <Section title="Reported symptom">
                       <p className="text-[14px] leading-relaxed">{wo.symptom}</p>
@@ -501,6 +508,104 @@ function Section({ title, children }: { title: string; children: React.ReactNode
     <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
       <h3 className="text-[11px] uppercase tracking-wider text-[var(--color-muted)] mb-2">{title}</h3>
       {children}
+    </div>
+  );
+}
+
+// Planner MVP — the minimum a real planner needs on the card: an owner, a
+// scheduled/target date, and how long the job has been sitting in the backlog.
+// No Gantt, no kitting, no capacity math — just assign + schedule.
+function toDateInput(v?: number | string | null): string {
+  if (!v) return "";
+  const d = new Date(v);
+  if (isNaN(d.getTime())) return "";
+  return d.toISOString().slice(0, 10);
+}
+function backlogAge(reported?: number | string | null): string | null {
+  if (!reported) return null;
+  const t = new Date(reported).getTime();
+  if (isNaN(t)) return null;
+  const mins = Math.max(0, Math.round((Date.now() - t) / 60000));
+  if (mins < 60) return `${mins}m`;
+  const h = Math.round(mins / 60);
+  if (h < 48) return `${h}h`;
+  return `${Math.round(h / 24)}d`;
+}
+
+function PlannerBlock({ wo, onSaved }: { wo: WorkOrder; onSaved: () => void | Promise<void> }) {
+  const [assignee, setAssignee] = useState(wo.assignedTo ?? "");
+  const [scheduled, setScheduled] = useState(toDateInput(wo.scheduledFor));
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const dirty =
+    (assignee.trim() || null) !== (wo.assignedTo ?? null) ||
+    scheduled !== toDateInput(wo.scheduledFor);
+  const age = backlogAge(wo.reportedAt ?? wo.createdAt);
+
+  const save = async () => {
+    if (busy || !dirty) return;
+    setBusy(true);
+    setErr(null);
+    try {
+      const r = await fetch(`/api/work-orders/${wo.id}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          assignedTo: assignee.trim() || null,
+          scheduledFor: scheduled ? new Date(scheduled).getTime() : null,
+        }),
+      });
+      if (!r.ok) {
+        const d = await r.json().catch(() => ({} as { message?: string }));
+        throw new Error(d.message || `Couldn’t save (error ${r.status}).`);
+      }
+      await onSaved();
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-[11px] uppercase tracking-wider text-[var(--color-muted)]">Planning</h3>
+        {age && (
+          <span className="text-[11px] text-[var(--color-muted)]">In backlog {age}</span>
+        )}
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <label className="text-[11px] text-[var(--color-muted)]">Assigned technician</label>
+          <input
+            value={assignee}
+            onChange={(e) => setAssignee(e.target.value)}
+            placeholder="Unassigned"
+            className="mt-1 w-full rounded-lg bg-[var(--color-surface-2)] border border-[var(--color-border)] px-3 py-2 text-[13px] outline-none focus:border-[var(--color-accent)]"
+          />
+        </div>
+        <div>
+          <label className="text-[11px] text-[var(--color-muted)]">Scheduled / due by</label>
+          <input
+            type="date"
+            value={scheduled}
+            onChange={(e) => setScheduled(e.target.value)}
+            className="mt-1 w-full rounded-lg bg-[var(--color-surface-2)] border border-[var(--color-border)] px-3 py-2 text-[13px] outline-none focus:border-[var(--color-accent)]"
+          />
+        </div>
+      </div>
+      {err && <p className="text-[12px] text-[var(--color-red)] mt-2" role="alert">{err}</p>}
+      <div className="flex justify-end mt-3">
+        <button
+          onClick={save}
+          disabled={busy || !dirty}
+          className="text-[13px] font-medium px-4 py-1.5 rounded-lg bg-[var(--color-accent)] text-white hover:brightness-110 disabled:opacity-40"
+        >
+          {busy ? "Saving…" : "Save plan"}
+        </button>
+      </div>
     </div>
   );
 }

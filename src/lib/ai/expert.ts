@@ -105,9 +105,15 @@ export function buildFaultCodeAnswer(question: string, ctx: RetrievedChunk[]): s
   }
   if (!hit) return "";
 
-  const device = /powerflex/i.test(question) || /powerflex/i.test(hit.filename)
-    ? "PowerFlex 525"
-    : "this drive";
+  // Only assert a specific series (525/753/755) when it actually appears in the
+  // question or the source document — never invent the model. Otherwise fall
+  // back to the family ("PowerFlex drive") or a generic "this drive".
+  const pfSeries = (question.match(/powerflex\s*(\d{3})/i) || hit.filename.match(/powerflex\s*(\d{3})/i));
+  const device = pfSeries
+    ? `PowerFlex ${pfSeries[1]}`
+    : /powerflex/i.test(question) || /powerflex/i.test(hit.filename)
+      ? "PowerFlex drive"
+      : "this drive";
   const meaning = hit.meaning ? `${hit.meaning}.` : "";
   const checks = hit.checks
     ? hit.checks.replace(/^check\s+/i, "").replace(/\.$/, "")

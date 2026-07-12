@@ -10,8 +10,19 @@ describe("isDemoOrg", () => {
   it("is true for the demo org by name (re-created case)", () => {
     expect(isDemoOrg({ id: "org_new", name: DEMO_ORG_NAME })).toBe(true);
   });
+  // Fix 9: alignment with the platform's reserved Demo Organization tenant —
+  // demo labels must fire for the reserved org too, not only the legacy UUID.
+  it("is true for the reserved Demo Organization by id (org_demo)", () => {
+    expect(isDemoOrg({ id: "org_demo", name: "Renamed Demo" })).toBe(true);
+  });
+  it("is true for the reserved Demo Organization by name", () => {
+    expect(isDemoOrg({ id: "org_whatever", name: "Demo Organization" })).toBe(true);
+  });
   it("is false for a real customer org", () => {
     expect(isDemoOrg(REAL)).toBe(false);
+  });
+  it("is false for a customer org that merely contains 'demo' loosely", () => {
+    expect(isDemoOrg({ id: "org_real", name: "Demolition Supply Co" })).toBe(false);
   });
   it("is false for null/undefined/empty", () => {
     expect(isDemoOrg(null)).toBe(false);

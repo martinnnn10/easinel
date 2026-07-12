@@ -284,6 +284,9 @@ export const workOrders = sqliteTable("work_orders", {
   closedAt: integer("closed_at", { mode: "timestamp_ms" }),
   // Actual downtime minutes (machine down → restored), computed on close.
   downtimeMins: integer("downtime_mins"),
+  // Planner MVP: the date this job is scheduled / due by. Nullable — set by a
+  // planner; not a full scheduling engine.
+  scheduledFor: integer("scheduled_for", { mode: "timestamp_ms" }),
   // Structured close-out capture — the inputs to the PM intelligence loop.
   rootCause: text("root_cause"),
   failedPart: text("failed_part"),
