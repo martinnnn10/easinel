@@ -166,7 +166,7 @@ export default function PartDetailPage({ params }: { params: Promise<{ id: strin
             ) : (
               <div className="space-y-1">
                 {m.pms.map((pm) => (
-                  <Link key={pm.pmProgramId} href="/pm" className="flex items-center gap-2 text-[13px] rounded-lg px-2 py-1.5 hover:bg-[var(--color-surface-2)]">
+                  <Link key={pm.pmProgramId} href={`/pm/${pm.pmProgramId}`} className="flex items-center gap-2 text-[13px] rounded-lg px-2 py-1.5 hover:bg-[var(--color-surface-2)]">
                     <span>📅</span><span className="flex-1 truncate">{pm.title}</span>
                     <span className="text-[10px] uppercase text-[var(--color-faint)]">{pm.status}</span>
                   </Link>

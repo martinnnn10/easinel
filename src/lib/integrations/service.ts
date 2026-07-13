@@ -3,17 +3,27 @@ import { integrations, assets, workOrders, pmPrograms, type Integration } from "
 import { and, desc, eq } from "drizzle-orm";
 import { id, demoModeEnabled } from "@/lib/util";
 import { CONNECTORS, getConnector } from "./registry";
-import { getAdapter, isLiveConnector, type ConnectorAdapter, type PushResult } from "./adapter";
+import { getAdapter, hasLiveAdapter, type ConnectorAdapter, type PushResult } from "./adapter";
 import { emitEvent } from "@/lib/events";
 
 // A sync/push may import/write real records only when it is talking to a REAL
-// external system (live credentials present) OR the workspace is an explicitly
-// isolated demo. In a real production org WITHOUT live credentials the adapter
-// is the deterministic SANDBOX, whose mock data must NEVER be written into a
-// customer's workspace — that would be exactly the fabricated data the platform
-// forbids. This gate is the single source of truth for "may we import?".
+// external system (a registered live adapter WITH credentials) OR the workspace
+// is an explicitly isolated demo. In a real production org WITHOUT a live adapter
+// the resolved adapter is the deterministic SANDBOX, whose mock data must NEVER
+// be written into a customer's workspace — that would be exactly the fabricated
+// data the platform forbids. Note we require hasLiveAdapter (adapter + key), not
+// merely an env key: setting e.g. FIIX_API_KEY for a connector that has no live
+// adapter must NOT unlock the sandbox's mock import. Single source of truth for
+// "may we import?".
 function mayImport(connectorKey: string): boolean {
-  return isLiveConnector(connectorKey) || demoModeEnabled();
+  return hasLiveAdapter(connectorKey) || demoModeEnabled();
+}
+
+// Is there a genuine, operable integration behind this connector? True only when
+// a real live adapter+credential exists, or the workspace is an isolated demo.
+// Everything else is preview-only — we never fake a "connected" state for it.
+export function isConnectorOperable(connectorKey: string): boolean {
+  return hasLiveAdapter(connectorKey) || demoModeEnabled();
 }
 
 export async function listIntegrations(orgId: string): Promise<Integration[]> {
@@ -36,8 +46,16 @@ export async function connectIntegration(
   const def = getConnector(connectorKey);
   if (!def) throw new Error(`Unknown connector: ${connectorKey}`);
 
-  const adapter = getAdapter(connectorKey)!;
-  const test = await adapter.testConnection();
+  // Honesty gate: only a genuinely operable connector (a registered live adapter
+  // with credentials, or an isolated demo workspace) may ever enter a "connected"
+  // state. For every other connector we do NOT fake a live link — it stays in a
+  // preview state and the UI surfaces "Available for pilot integration — contact
+  // EAS." This runs BEFORE testConnection() so a sandbox adapter's always-ok test
+  // can never mint a false "connected".
+  const operable = isConnectorOperable(connectorKey);
+  const test = operable
+    ? await getAdapter(connectorKey)!.testConnection()
+    : { ok: false, detail: "Available for pilot integration — contact EAS." };
 
   const existing = (
     await db
@@ -46,7 +64,9 @@ export async function connectIntegration(
       .where(and(eq(integrations.orgId, orgId), eq(integrations.connectorKey, connectorKey)))
   )[0];
 
-  const status = test.ok ? "connected" : "error";
+  // "connected" only for an operable connector whose live test passed; otherwise
+  // a preview/unavailable state that the UI never renders as a working link.
+  const status = operable && test.ok ? "connected" : operable ? "error" : "preview";
   let row: Integration;
   if (existing) {
     await db

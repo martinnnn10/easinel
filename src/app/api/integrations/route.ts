@@ -7,7 +7,8 @@ import {
   syncIntegration,
   pushPmToConnector,
 } from "@/lib/integrations/service";
-import { isLiveConnector } from "@/lib/integrations/adapter";
+import { hasLiveAdapter } from "@/lib/integrations/adapter";
+import { demoModeEnabled } from "@/lib/util";
 import { requirePermission } from "@/lib/auth/guard";
 import { safeHandler } from "@/lib/api/safeHandler";
 
@@ -17,8 +18,12 @@ export const GET = safeHandler("integrations.get", async () => {
   const gate = await requirePermission("view");
   if (gate instanceof NextResponse) return gate;
   const connected = await listIntegrations(gate.user.orgId);
-  const cat = catalog().map((c) => ({ ...c, live: isLiveConnector(c.key) }));
-  return NextResponse.json({ catalog: cat, connected });
+  // `live` reflects a GENUINELY operable integration (registered adapter + live
+  // credential) — never just the presence of an env var. `demo` lets the isolated
+  // demo workspace exercise the sandbox round-trip; a real org shows the honest
+  // "available for pilot" CTA for anything not truly live.
+  const cat = catalog().map((c) => ({ ...c, live: hasLiveAdapter(c.key) }));
+  return NextResponse.json({ catalog: cat, connected, demo: demoModeEnabled() });
 });
 
 export const POST = safeHandler("integrations.post", async (req: NextRequest) => {
@@ -50,6 +55,12 @@ export const POST = safeHandler("integrations.post", async (req: NextRequest) =>
     }
     return NextResponse.json({ error: "unknown action" }, { status: 400 });
   } catch (err) {
-    return NextResponse.json({ error: (err as Error).message }, { status: 500 });
+    // Never echo the raw internal/provider error to the browser. Log it
+    // server-side; return a generic message.
+    console.error("[integrations.post] action failed:", (err as Error).message);
+    return NextResponse.json(
+      { error: "integration_error", message: "Something went wrong with that integration action. Please try again." },
+      { status: 500 }
+    );
   }
 });

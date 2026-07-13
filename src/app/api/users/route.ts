@@ -37,6 +37,14 @@ export const POST = safeHandler("users.post", async (req: NextRequest) => {
   if (!body.email || !isValidRole(body.role)) {
     return NextResponse.json({ error: "email and valid role required" }, { status: 400 });
   }
+  // Ownership is transferred explicitly, never minted here (mirrors the
+  // invitation guard) — an admin cannot create a second owner directly.
+  if (body.role === "owner") {
+    return NextResponse.json(
+      { error: "bad_request", message: "Owners cannot be created here; ownership is transferred explicitly." },
+      { status: 400 }
+    );
+  }
   const user = await createUser({
     orgId: gate.user.orgId,
     email: body.email,
@@ -58,6 +66,14 @@ export const PATCH = safeHandler("users.patch", async (req: NextRequest) => {
   const body = await req.json().catch(() => ({}));
   if (!body.id || !isValidRole(body.role)) {
     return NextResponse.json({ error: "id and valid role required" }, { status: 400 });
+  }
+  // Promotion to owner is not a role change — ownership is transferred through a
+  // dedicated flow, so an admin can't self-promote or mint a co-owner here.
+  if (body.role === "owner") {
+    return NextResponse.json(
+      { error: "bad_request", message: "Ownership is transferred explicitly, not set as a role change." },
+      { status: 400 }
+    );
   }
   const members = await listMembers(gate.user.orgId);
   const target = members.find((m) => m.id === body.id);

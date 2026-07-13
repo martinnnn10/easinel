@@ -17,12 +17,12 @@ interface Entry {
 
 const CAT_LABEL: Record<string, string> = {
   work_order: "Work orders", pm: "PMs", asset: "Assets", part: "Parts",
-  knowledge: "Knowledge", admin: "Admin", integration: "Integrations", other: "Other",
+  knowledge: "Knowledge", admin: "Admin", integration: "Integrations", system: "System", other: "Other",
 };
 const CAT_COLOR: Record<string, string> = {
   work_order: "var(--color-accent)", pm: "var(--color-green)", asset: "var(--color-amber)",
   part: "var(--color-muted)", knowledge: "var(--color-accent)", admin: "var(--color-red)",
-  integration: "var(--color-green)", other: "var(--color-faint)",
+  integration: "var(--color-green)", system: "var(--color-faint)", other: "var(--color-faint)",
 };
 
 function fmt(ts: number) {

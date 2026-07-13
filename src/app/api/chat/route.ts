@@ -95,7 +95,11 @@ export const POST = safeHandler("chat.post", async (req: NextRequest) => {
           controller.enqueue(encoder.encode(delta));
         }
       } catch (err) {
-        const msg = `\n\n> ⚠️ Error generating response: ${(err as Error).message}`;
+        // Never stream the raw provider/internal error into the answer the user
+        // reads (it can carry model ids, rate-limit/org detail, stack text). Show
+        // a generic, retryable message; log the raw detail server-side only.
+        console.error("[chat.post] generation failed:", (err as Error).message);
+        const msg = `\n\n> ⚠️ Couldn't finish generating this answer. Please try again.`;
         assembled += msg;
         controller.enqueue(encoder.encode(msg));
       } finally {

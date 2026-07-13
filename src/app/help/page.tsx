@@ -25,7 +25,7 @@ const GUIDES: Guide[] = [
   {
     icon: "✨",
     title: "Copilot — ask anything",
-    href: "/",
+    href: "/copilot",
     what: "Your AI maintenance technician. Describe a fault, paste an alarm code, or upload a manual/drawing/photo and get a structured, grounded answer.",
     steps: [
       "Type the problem (e.g. “PowerFlex 525 fault F081”) or click a suggested question.",

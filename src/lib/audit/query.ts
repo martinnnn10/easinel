@@ -59,7 +59,11 @@ export const AUDIT_LABEL: Record<string, string> = {
 };
 
 // Coarse category for filtering/coloring in the UI.
-export function auditCategory(action: string): "work_order" | "pm" | "asset" | "part" | "knowledge" | "admin" | "integration" | "other" {
+export type AuditCategory = "work_order" | "pm" | "asset" | "part" | "knowledge" | "admin" | "integration" | "system" | "other";
+export function auditCategory(action: string, actor?: string): AuditCategory {
+  // Entries from automated cleanup scripts get their own category so they can
+  // be hidden from the default view and shown only under the "System" filter.
+  if (actor?.startsWith("cleanup-script")) return "system";
   const head = action.split(".")[0];
   switch (head) {
     case "workorder": return "work_order";
@@ -91,7 +95,7 @@ export interface AuditEntry {
   actorName: string; // resolved display name, or a friendly system label
   action: string;
   label: string;
-  category: ReturnType<typeof auditCategory>;
+  category: AuditCategory;
   target: string | null;
   detail: string | null;
 }
@@ -154,13 +158,18 @@ export async function listAuditLog(orgId: string, filters: AuditFilters = {}): P
       actorName: friendlyActor(r.actor, name),
       action: r.action,
       label: auditLabel(r.action),
-      category: auditCategory(r.action),
+      category: auditCategory(r.action, r.actor),
       target: r.target,
       detail: r.detail,
     };
   });
 
-  const filtered = filters.category ? entries.filter((e) => e.category === filters.category) : entries;
+  // Default view (no category filter) hides system/cleanup entries to keep the
+  // trail focused on real user activity. They remain accessible via the
+  // explicit "System" category filter for owner/admin auditing.
+  const filtered = filters.category
+    ? entries.filter((e) => e.category === filters.category)
+    : entries.filter((e) => e.category !== "system");
   return filtered.slice(0, wantLimit);
 }
 

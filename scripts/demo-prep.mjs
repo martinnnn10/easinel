@@ -48,6 +48,22 @@ const org = await one("SELECT name FROM orgs WHERE id = ?", [ORG]);
 if (!org) { console.error(`Org ${ORG} not found — aborting.`); process.exit(1); }
 console.log(`Target org: "${org.name}"`);
 
+// HARD SAFETY GUARD — this tool mutates PMs and hard-deletes sessions, so it must
+// not touch a real customer org by accident. Only the reserved demo workspace is
+// allowed (mirrors src/lib/orgs/isDemoOrg.ts); override for a deliberate isolated
+// prospect demo. Dry-run (no --apply) is always allowed since it writes nothing.
+const RESERVED_DEMO_ORG_IDS = ["org_demo", "org_efed04ef-79ec-4e02-a6ac-d5a2fac7bd02"];
+const RESERVED_DEMO_ORG_NAMES = ["Demo Organization", "EAS Demo Plant"];
+const isReservedDemoOrg =
+  RESERVED_DEMO_ORG_IDS.includes(ORG) || RESERVED_DEMO_ORG_NAMES.includes(org.name);
+if (APPLY && !isReservedDemoOrg && !args.includes("--i-understand-nondemo")) {
+  console.error(
+    `\nREFUSING TO WRITE: "${org.name}" (${ORG}) is not the reserved demo org.\n` +
+    `This tool mutates/removes data; re-run with --i-understand-nondemo only if you are certain.\n`
+  );
+  process.exit(1);
+}
+
 // ── Report: archived PMs with the reason they were archived ──────────────────
 console.log("\n── Archived PM programs ─────────────────────────────────────────");
 const archivedPms = await rowsOf("SELECT id, title, source_work_order_id FROM pm_programs WHERE org_id = ? AND status = 'archived' ORDER BY updated_at DESC", [ORG]);

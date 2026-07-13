@@ -6,7 +6,8 @@ process.env.EMBEDDINGS_DISABLED = "1";
 import { db, ensureDb } from "@/lib/db";
 import { assets, workOrders, pmPrograms, integrations } from "@/lib/db/schema";
 import { and, eq } from "drizzle-orm";
-import { syncIntegration, pushPmToConnector, connectIntegration } from "./service";
+import { syncIntegration, pushPmToConnector, connectIntegration, isConnectorOperable } from "./service";
+import { hasLiveAdapter } from "./adapter";
 import type { ConnectorAdapter } from "./adapter";
 import { id } from "@/lib/util";
 
@@ -30,8 +31,52 @@ async function seedIntegrationRow() {
 beforeEach(async () => {
   await ensureDb();
   delete process.env.MAINTAINX_API_KEY;
+  delete process.env.FIIX_API_KEY;
 });
-afterEach(() => { delete process.env.MAINTAINX_API_KEY; });
+afterEach(() => { delete process.env.MAINTAINX_API_KEY; delete process.env.FIIX_API_KEY; });
+
+describe("integration honesty — no bait-switch, no fabricated data", () => {
+  it("hasLiveAdapter/operable require a REAL adapter, not just an env key", () => {
+    // maintainx has a live adapter — a key makes it operable.
+    expect(hasLiveAdapter("maintainx")).toBe(false); // no key yet
+    process.env.MAINTAINX_API_KEY = "k";
+    expect(hasLiveAdapter("maintainx")).toBe(true);
+    expect(isConnectorOperable("maintainx")).toBe(true);
+    delete process.env.MAINTAINX_API_KEY;
+    // fiix has NO live adapter — even with an env key it is NOT operable, so the
+    // sandbox's mock data can never be unlocked for it.
+    process.env.FIIX_API_KEY = "sneaky";
+    expect(hasLiveAdapter("fiix")).toBe(false);
+    expect(isConnectorOperable("fiix")).toBe(false);
+  });
+
+  it("a stray <VENDOR>_API_KEY for a connector with no live adapter does NOT inject sandbox data", async () => {
+    process.env.FIIX_API_KEY = "sneaky"; // no fiix adapter exists
+    await db.insert(integrations).values({ id: id("int"), orgId: ORG, connectorKey: "fiix", name: "Fiix", category: "cmms", status: "connected" });
+    // Uses the REAL sandbox adapter (no injected adapter) — the mock data must be withheld.
+    const r = await syncIntegration(ORG, "fiix");
+    expect(r.imported).toBe(false);
+    expect(r.assetsImported).toBe(0);
+    const a = await db.select().from(assets).where(eq(assets.orgId, ORG));
+    expect(a).toHaveLength(0); // no fabricated "Fiix Line 1 Filler" written
+  });
+
+  it("connect never fakes a 'connected' state for a non-operable connector", async () => {
+    // fiix: no adapter, no demo mode → connect must not mark it connected.
+    const res = await connectIntegration(ORG, "fiix");
+    expect(res.integration.status).not.toBe("connected");
+    expect(res.test.ok).toBe(false);
+    expect(res.test.detail).toMatch(/pilot integration/i);
+    // maintainx WITH a live key is operable → the connect path runs the REAL
+    // vendor test (result depends on the live API), never the honest-preview
+    // short-circuit. In this offline test the bogus key yields "error", not the
+    // fake "preview" — proving operable connectors are handled genuinely.
+    process.env.MAINTAINX_API_KEY = "k";
+    const ok = await connectIntegration(ORG, "maintainx");
+    expect(ok.integration.status).not.toBe("preview");
+    expect(ok.test.detail).not.toMatch(/pilot integration/i);
+  });
+});
 
 describe("integration sync — trust gate", () => {
   it("does NOT import sandbox data into a real org without live credentials", async () => {

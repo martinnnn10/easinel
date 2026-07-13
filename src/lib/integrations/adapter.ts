@@ -91,6 +91,15 @@ export function isLiveConnector(connectorKey: string): boolean {
   return Boolean(liveCredential(connectorKey));
 }
 
+// A connector is genuinely OPERABLE only when a real live adapter is registered
+// AND its credential is present. An env key alone (e.g. someone sets FIIX_API_KEY
+// for a connector that has no live adapter) must NOT count as live — that path
+// would fall back to the sandbox and could write mock data into a real workspace.
+// This is the honest signal for "is there an actual integration here?".
+export function hasLiveAdapter(connectorKey: string): boolean {
+  return Boolean(LIVE_ADAPTERS[connectorKey] && liveCredential(connectorKey));
+}
+
 // Registered live adapter factories. Add new ones here as they're implemented.
 const LIVE_ADAPTERS: Record<
   string,

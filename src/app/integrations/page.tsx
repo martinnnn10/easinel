@@ -63,12 +63,14 @@ export default function IntegrationsPage() {
 function Connectors() {
   const [catalog, setCatalog] = useState<Connector[]>([]);
   const [connected, setConnected] = useState<Connected[]>([]);
+  const [demo, setDemo] = useState(false);
   const [busy, setBusy] = useState<string>("");
 
   const load = useCallback(async () => {
     const d = await fetch("/api/integrations").then((r) => r.json());
     setCatalog(d.catalog ?? []);
     setConnected(d.connected ?? []);
+    setDemo(Boolean(d.demo));
   }, []);
   useEffect(() => {
     load();
@@ -135,6 +137,10 @@ function Connectors() {
               {items.map((c) => {
                 const status = statusOf(c.key);
                 const isConnected = status === "connected";
+                // Only a genuinely operable connector (a real live adapter, or the
+                // isolated demo workspace) may present a working "Connect" flow.
+                // Everything else is honestly labeled preview — no fake connect.
+                const operable = Boolean(c.live) || demo;
                 return (
                   <div
                     key={c.key}
@@ -164,7 +170,11 @@ function Connectors() {
                       {c.blurb}
                     </p>
                     <div className="flex gap-1.5 mt-3">
-                      {!isConnected ? (
+                      {!operable ? (
+                        <span className="flex-1 text-[11.5px] text-[var(--color-muted)] border border-dashed border-[var(--color-border)] rounded-lg py-1.5 px-2 text-center">
+                          Available for pilot integration — contact EAS.
+                        </span>
+                      ) : !isConnected ? (
                         <button
                           disabled={busy === c.key + "connect"}
                           onClick={() => act(c.key, "connect")}

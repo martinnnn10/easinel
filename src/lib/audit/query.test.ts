@@ -98,6 +98,30 @@ describe("auditLogCsv", () => {
   });
 });
 
+describe("system category — cleanup-script entries", () => {
+  it("categorizes cleanup-script actors as 'system'", () => {
+    expect(auditCategory("asset.retired", "cleanup-script (approved by owner)")).toBe("system");
+    expect(auditCategory("asset.retired", "u_maria")).toBe("asset");
+  });
+
+  it("hides cleanup-script entries from default (no category) view", async () => {
+    const O = "org_audit_sys";
+    await audit(O, "u_maria", "workorder.created", "wo_sys1", {});
+    await audit(O, "cleanup-script (approved by owner)", "asset.retired", "ast_old", {});
+    const defaultRows = await listAuditLog(O, {});
+    expect(defaultRows.some((r) => r.actorName === "Cleanup script")).toBe(false);
+    expect(defaultRows.some((r) => r.action === "workorder.created")).toBe(true);
+  });
+
+  it("shows cleanup-script entries when system category is explicitly requested", async () => {
+    const O = "org_audit_sys";
+    const sysRows = await listAuditLog(O, { category: "system" });
+    expect(sysRows.length).toBeGreaterThan(0);
+    expect(sysRows.every((r) => r.category === "system")).toBe(true);
+    expect(sysRows[0].actorName).toBe("Cleanup script");
+  });
+});
+
 describe("label + category fallbacks", () => {
   it("de-underscores unknown actions and categorizes by head", () => {
     expect(auditLabel("widget.frobnicated")).toBe("widget frobnicated");

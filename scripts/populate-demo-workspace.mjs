@@ -149,6 +149,26 @@ if (!org) {
 }
 console.log(`Target org: "${org.name}"`);
 
+// HARD SAFETY GUARD — demo data must never land in a real customer org.
+// The reserved demo workspace (mirrors src/lib/orgs/isDemoOrg.ts). Writing
+// fabricated assets/WOs/PMs/$-metrics into anything else is a trust violation,
+// so we refuse unless the operator passes an explicit override for the rare
+// hand-built prospect-demo case. Dry-run (no --apply) is always allowed to
+// inspect, since it writes nothing.
+const RESERVED_DEMO_ORG_IDS = ["org_demo", "org_efed04ef-79ec-4e02-a6ac-d5a2fac7bd02"];
+const RESERVED_DEMO_ORG_NAMES = ["Demo Organization", "EAS Demo Plant"];
+const isReservedDemoOrg =
+  RESERVED_DEMO_ORG_IDS.includes(ORG) || RESERVED_DEMO_ORG_NAMES.includes(org.name);
+const overrideNonDemo = args.includes("--i-understand-nondemo");
+if (APPLY && !isReservedDemoOrg && !overrideNonDemo) {
+  console.error(
+    `\nREFUSING TO WRITE: "${org.name}" (${ORG}) is not the reserved demo org.\n` +
+    `Demo/sample data must never be seeded into a real customer workspace.\n` +
+    `If this really is an intentional, isolated prospect demo, re-run with --i-understand-nondemo.\n`
+  );
+  process.exit(1);
+}
+
 // Tables this tool owns demoseed rows in — the ONLY tables --undo clears.
 const TABLES = ["reuse_events", "knowledge_gaps", "messages", "conversations", "pm_schedules", "pm_programs", "work_orders", "documents", "assets"];
 
